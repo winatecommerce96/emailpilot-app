@@ -1,0 +1,36 @@
+echo "Deploying remaining MCP Cloud Functions..."
+echo ""
+echo "You should already be in the mcp-workaround directory with the files created"
+echo "Let's check:"
+pwd
+ls -la
+
+echo ""
+echo "If you're not in ~/mcp-workaround, run: cd ~/mcp-workaround"
+echo ""
+echo "Now deploying the remaining functions..."
+
+echo "1. Deploying mcp-clients function..."
+gcloud functions deploy mcp-clients --runtime nodejs18 --trigger-http --allow-unauthenticated --entry-point mcpClients --region us-central1 --gen2
+
+echo ""
+echo "2. Deploying mcp-health function..."
+gcloud functions deploy mcp-health --runtime nodejs18 --trigger-http --allow-unauthenticated --entry-point mcpHealth --region us-central1 --gen2
+
+echo ""
+echo "Testing the deployed functions..."
+echo ""
+echo "Testing mcp-clients:"
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients | head -20
+
+echo ""
+echo "Testing mcp-health:"
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health | head -20
+
+echo ""
+echo "✅ Deployment complete! Your MCP endpoints are now available at:"
+echo "  Models:  https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models"
+echo "  Clients: https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients"  
+echo "  Health:  https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health"
+echo ""
+echo "You can now refresh your test interface to verify all endpoints are working!"

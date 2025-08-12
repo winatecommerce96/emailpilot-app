@@ -1,0 +1,14 @@
+{
+  "name": "mcp-production-fix",
+  "version": "4.0.0",
+  "description": "MCP Management System - Production Fix with Correct URLs",
+  "main": "deploy.sh",
+  "scripts": {
+    "deploy": "bash deploy.sh",
+    "test": "bash test-endpoints.sh",
+    "rollback": "bash rollback.sh"
+  },
+  "keywords": ["mcp", "emailpilot", "cloud-functions"],
+  "author": "EmailPilot Deployment Agent v4.0",
+  "license": "MIT"
+}

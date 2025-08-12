@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Cloud Functions Test Interface</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .endpoint {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .endpoint-url {
+            font-family: monospace;
+            color: #4a5568;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-success {
+            background: #48bb78;
+            color: white;
+        }
+        .status-error {
+            background: #f56565;
+            color: white;
+        }
+        .status-pending {
+            background: #ed8936;
+            color: white;
+        }
+        .status-checking {
+            background: #4299e1;
+            color: white;
+        }
+        .test-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        .test-button:hover {
+            background: #5a67d8;
+        }
+        .test-button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        .response-box {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .info-box {
+            background: #e6fffa;
+            border: 1px solid #81e6d9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .warning-box {
+            background: #fffaf0;
+            border: 1px solid #feb2b2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 MCP Cloud Functions Test Interface</h1>
+        <p>Testing MCP endpoints deployed as Cloud Functions</p>
+    </div>
+
+    <div class="info-box">
+        <strong>✅ Deployment Status:</strong> The <code>mcp-models</code> function was successfully deployed!<br>
+        <strong>⚠️ Note:</strong> The other functions failed due to authentication timeout, but we can test the working endpoint.
+    </div>
+
+    <div class="status-card">
+        <h2>Cloud Function Endpoints</h2>
+        
+        <div class="endpoint" id="endpoint-models">
+            <div>
+                <strong>Models Endpoint</strong><br>
+                <span class="endpoint-url">https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models</span>
+            </div>
+            <span class="status-badge status-pending" id="status-models">Ready to Test</span>
+        </div>
+
+        <div class="endpoint" id="endpoint-run-models">
+            <div>
+                <strong>Cloud Run Service (via Function)</strong><br>
+                <span class="endpoint-url">https://mcp-models-p3cxgvcsla-uc.a.run.app</span>
+            </div>
+            <span class="status-badge status-pending" id="status-run-models">Ready to Test</span>
+        </div>
+
+        <div class="endpoint" id="endpoint-clients">
+            <div>
+                <strong>Clients Endpoint</strong><br>
+                <span class="endpoint-url">https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients</span>
+            </div>
+            <span class="status-badge status-error" id="status-clients">Not Deployed</span>
+        </div>
+
+        <div class="endpoint" id="endpoint-health">
+            <div>
+                <strong>Health Endpoint</strong><br>
+                <span class="endpoint-url">https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health</span>
+            </div>
+            <span class="status-badge status-error" id="status-health">Not Deployed</span>
+        </div>
+    </div>
+
+    <div class="status-card">
+        <h2>Test Actions</h2>
+        <div class="action-buttons">
+            <button class="test-button" onclick="testEndpoint('models')">Test Models Endpoint</button>
+            <button class="test-button" onclick="testEndpoint('run-models')">Test Cloud Run URL</button>
+            <button class="test-button" onclick="testAllEndpoints()">Test All Endpoints</button>
+            <button class="test-button" onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <div class="status-card">
+        <h2>Frontend Integration Code</h2>
+        <p>To integrate with EmailPilot frontend, update your MCP Management component to use these URLs:</p>
+        <div class="response-box">
+// Update API calls in MCPManagement.js or MCPTestingInterface.js
+const MCP_ENDPOINTS = {
+    models: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+    clients: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+    health: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+};
+
+// Example fetch call
+fetch(MCP_ENDPOINTS.models)
+    .then(res => res.json())
+    .then(data => console.log('Models:', data))
+    .catch(err => console.error('Error:', err));
+        </div>
+    </div>
+
+    <script>
+        const endpoints = {
+            'models': 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+            'run-models': 'https://mcp-models-p3cxgvcsla-uc.a.run.app',
+            'clients': 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+            'health': 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+        };
+
+        async function testEndpoint(type) {
+            const statusEl = document.getElementById(`status-${type}`);
+            const resultsEl = document.getElementById('test-results');
+            
+            statusEl.className = 'status-badge status-checking';
+            statusEl.innerHTML = 'Testing... <div class="loader"></div>';
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'response-box';
+            resultDiv.innerHTML = `<strong>Testing ${type}...</strong><br>`;
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(endpoints[type], {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                const responseTime = Date.now() - startTime;
+                const data = await response.text();
+                
+                if (response.ok) {
+                    statusEl.className = 'status-badge status-success';
+                    statusEl.textContent = `✅ Working (${responseTime}ms)`;
+                    
+                    try {
+                        const jsonData = JSON.parse(data);
+                        resultDiv.innerHTML += `
+                            <strong>✅ Success!</strong><br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Response Time: ${responseTime}ms<br>
+                            Data: <pre>${JSON.stringify(jsonData, null, 2)}</pre>
+                        `;
+                    } catch {
+                        resultDiv.innerHTML += `
+                            <strong>✅ Success!</strong><br>
+                            Status: ${response.status}<br>
+                            Response: ${data}
+                        `;
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${data}`);
+                }
+            } catch (error) {
+                statusEl.className = 'status-badge status-error';
+                statusEl.textContent = '❌ Failed';
+                
+                resultDiv.innerHTML += `
+                    <strong>❌ Error:</strong><br>
+                    ${error.message}<br>
+                    <br>
+                    This might be because:
+                    <ul>
+                        <li>The function is not deployed yet</li>
+                        <li>CORS is not configured</li>
+                        <li>Authentication is required</li>
+                    </ul>
+                `;
+            }
+            
+            resultsEl.appendChild(resultDiv);
+            resultsEl.scrollTop = resultsEl.scrollHeight;
+        }
+
+        async function testAllEndpoints() {
+            clearResults();
+            for (const type of ['models', 'run-models', 'clients', 'health']) {
+                await testEndpoint(type);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+            ['models', 'run-models', 'clients', 'health'].forEach(type => {
+                const statusEl = document.getElementById(`status-${type}`);
+                if (type === 'clients' || type === 'health') {
+                    statusEl.className = 'status-badge status-error';
+                    statusEl.textContent = 'Not Deployed';
+                } else {
+                    statusEl.className = 'status-badge status-pending';
+                    statusEl.textContent = 'Ready to Test';
+                }
+            });
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('Testing MCP Cloud Functions...');
+                testEndpoint('models');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

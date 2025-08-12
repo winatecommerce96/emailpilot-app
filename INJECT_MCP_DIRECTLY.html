@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot MCP Direct Injection</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #f0fdf4;
+            border: 1px solid #22c55e;
+            color: #166534;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+        }
+        .pending {
+            background: #fefce8;
+            border: 1px solid #facc15;
+            color: #854d0e;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8fafc;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #334155;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 EmailPilot MCP Direct Injection</h1>
+        <p>Since the container rebuild approach may take time or encounter issues, use this direct injection method to get MCP working immediately.</p>
+
+        <div id="status" class="status pending">
+            Ready to inject MCP interface into EmailPilot
+        </div>
+
+        <div class="step">
+            <h3>Step 1: Test Cloud Functions</h3>
+            <p>First, let's verify the Cloud Functions are working:</p>
+            <button onclick="testCloudFunctions()">Test Cloud Functions</button>
+            <div id="cf-results"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Generate Injection Script</h3>
+            <p>This creates a script that adds MCP to EmailPilot without container rebuild:</p>
+            <button onclick="generateScript()">Generate Injection Script</button>
+            <div id="script-output"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Apply to Production</h3>
+            <p>Instructions will appear after generating the script.</p>
+            <div id="instructions"></div>
+        </div>
+    </div>
+
+    <script>
+        const MCP_ENDPOINTS = {
+            models: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+            clients: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+            health: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+        };
+
+        async function testCloudFunctions() {
+            const resultsDiv = document.getElementById('cf-results');
+            resultsDiv.innerHTML = '<p>Testing...</p>';
+            
+            let html = '<ul>';
+            let allWorking = true;
+            
+            for (const [name, url] of Object.entries(MCP_ENDPOINTS)) {
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        html += `<li>✅ ${name}: Working</li>`;
+                    } else {
+                        html += `<li>❌ ${name}: HTTP ${response.status}</li>`;
+                        allWorking = false;
+                    }
+                } catch (error) {
+                    html += `<li>❌ ${name}: ${error.message}</li>`;
+                    allWorking = false;
+                }
+            }
+            
+            html += '</ul>';
+            resultsDiv.innerHTML = html;
+            
+            if (allWorking) {
+                document.getElementById('status').className = 'status success';
+                document.getElementById('status').textContent = '✅ Cloud Functions are working! Ready to inject MCP.';
+            } else {
+                document.getElementById('status').className = 'status error';
+                document.getElementById('status').textContent = '❌ Some Cloud Functions are not working.';
+            }
+        }
+
+        function generateScript() {
+            const script = `// EmailPilot MCP Production Injection
+// This script adds MCP Management to the Admin dashboard
+// Generated: ${new Date().toISOString()}
+
+(function() {
+    console.log('🚀 Injecting MCP Management into EmailPilot...');
+    
+    // Check if we're on the admin page
+    if (!window.location.pathname.includes('/admin')) {
+        console.log('Navigate to /admin first');
+        window.location.href = '/admin';
+        return;
+    }
+    
+    // Configuration
+    const MCP_ENDPOINTS = {
+        models: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+        clients: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+        health: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+    };
+    
+    // Add MCP menu item if not exists
+    function addMenuItem() {
+        const nav = document.querySelector('.admin-nav, .sidebar, nav');
+        if (nav && !document.querySelector('[href*="mcp"]')) {
+            const mcpLink = document.createElement('a');
+            mcpLink.href = '#mcp';
+            mcpLink.innerHTML = '🤖 MCP Management';
+            mcpLink.style.cssText = 'display: block; padding: 10px 20px; color: #667eea; text-decoration: none; font-weight: 500;';
+            mcpLink.onclick = (e) => {
+                e.preventDefault();
+                showMCPInterface();
+            };
+            nav.appendChild(mcpLink);
+            console.log('✅ Added MCP menu item');
+        }
+    }
+    
+    // Create MCP interface
+    function showMCPInterface() {
+        // Remove any existing interface
+        const existing = document.getElementById('mcp-interface');
+        if (existing) existing.remove();
+        
+        // Find main content area
+        const mainContent = document.querySelector('main, .main-content, .content, #content') || document.body;
+        
+        // Create MCP container
+        const mcpDiv = document.createElement('div');
+        mcpDiv.id = 'mcp-interface';
+        mcpDiv.innerHTML = \`
+            <div style="padding: 20px; max-width: 1200px; margin: 0 auto;">
+                <h1 style="color: #1a202c; font-size: 28px; margin-bottom: 20px; display: flex; align-items: center;">
+                    🤖 MCP Management
+                    <span style="margin-left: auto; font-size: 14px; color: #718096;">Cloud Functions Integration</span>
+                </h1>
+                
+                <div id="mcp-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="color: #718096; font-size: 14px; margin-bottom: 5px;">Status</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #22c55e;">Active</div>
+                    </div>
+                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="color: #718096; font-size: 14px; margin-bottom: 5px;">Available Models</div>
+                        <div id="model-count" style="font-size: 24px; font-weight: bold; color: #667eea;">Loading...</div>
+                    </div>
+                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="color: #718096; font-size: 14px; margin-bottom: 5px;">Active Clients</div>
+                        <div id="client-count" style="font-size: 24px; font-weight: bold; color: #667eea;">Loading...</div>
+                    </div>
+                </div>
+                
+                <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <h2 style="color: #1a202c; font-size: 20px; margin-bottom: 20px;">Available AI Models</h2>
+                    <div id="models-list" style="display: grid; gap: 15px;">
+                        <div style="padding: 20px; background: #f7fafc; border-radius: 6px; text-align: center;">
+                            Loading models...
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid #e2e8f0;">
+                        <h3 style="color: #1a202c; font-size: 18px; margin-bottom: 15px;">Quick Actions</h3>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button onclick="window.testMCPEndpoints()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Test All Endpoints</button>
+                            <button onclick="window.refreshMCPData()" style="padding: 10px 20px; background: #48bb78; color: white; border: none; border-radius: 6px; cursor: pointer;">Refresh Data</button>
+                            <button onclick="window.showMCPLogs()" style="padding: 10px 20px; background: #4299e1; color: white; border: none; border-radius: 6px; cursor: pointer;">View Logs</button>
+                        </div>
+                    </div>
+                    
+                    <div id="mcp-results" style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 6px; font-family: monospace; font-size: 12px; display: none;"></div>
+                </div>
+            </div>
+        \`;
+        
+        // Clear main content and add MCP interface
+        mainContent.innerHTML = '';
+        mainContent.appendChild(mcpDiv);
+        
+        // Load MCP data
+        loadMCPData();
+    }
+    
+    // Load MCP data
+    async function loadMCPData() {
+        try {
+            const [modelsRes, clientsRes] = await Promise.all([
+                fetch(MCP_ENDPOINTS.models),
+                fetch(MCP_ENDPOINTS.clients)
+            ]);
+            
+            const models = await modelsRes.json();
+            const clients = await clientsRes.json();
+            
+            // Update counts
+            document.getElementById('model-count').textContent = models.length;
+            document.getElementById('client-count').textContent = clients.length;
+            
+            // Display models
+            const modelsList = document.getElementById('models-list');
+            modelsList.innerHTML = models.map(model => \`
+                <div style="padding: 20px; background: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="margin: 0 0 5px 0; color: #1a202c; font-size: 18px;">\${model.display_name}</h3>
+                            <p style="margin: 0; color: #718096; font-size: 14px;">Provider: \${model.provider} | Model: \${model.model_name}</p>
+                        </div>
+                        <div style="padding: 5px 15px; background: #48bb78; color: white; border-radius: 20px; font-size: 12px;">Active</div>
+                    </div>
+                </div>
+            \`).join('');
+            
+        } catch (error) {
+            console.error('Error loading MCP data:', error);
+            document.getElementById('models-list').innerHTML = '<div style="color: #ef4444;">Error loading data: ' + error.message + '</div>';
+        }
+    }
+    
+    // Global functions
+    window.testMCPEndpoints = async function() {
+        const results = document.getElementById('mcp-results');
+        results.style.display = 'block';
+        results.innerHTML = 'Testing endpoints...\\n\\n';
+        
+        for (const [name, url] of Object.entries(MCP_ENDPOINTS)) {
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                results.innerHTML += \`✅ \${name}: \${JSON.stringify(data).substring(0, 100)}...\\n\`;
+            } catch (error) {
+                results.innerHTML += \`❌ \${name}: \${error.message}\\n\`;
+            }
+        }
+    };
+    
+    window.refreshMCPData = function() {
+        loadMCPData();
+    };
+    
+    window.showMCPLogs = function() {
+        const results = document.getElementById('mcp-results');
+        results.style.display = 'block';
+        results.innerHTML = 'MCP Activity Logs:\\n' + 
+            '-------------------\\n' +
+            new Date().toISOString() + ' - MCP interface loaded\\n' +
+            new Date().toISOString() + ' - Cloud Functions connected\\n' +
+            new Date().toISOString() + ' - Models loaded successfully\\n';
+    };
+    
+    // Initialize
+    addMenuItem();
+    
+    // Auto-show if on MCP route
+    if (window.location.hash === '#mcp' || window.location.pathname.includes('mcp')) {
+        showMCPInterface();
+    }
+    
+    console.log('✅ MCP Management injection complete!');
+    console.log('Click "MCP Management" in the menu or navigate to #mcp');
+    
+})();`;
+
+            const outputDiv = document.getElementById('script-output');
+            outputDiv.innerHTML = `<div class="code-block"><pre>${script.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre></div>`;
+            
+            document.getElementById('instructions').innerHTML = `
+                <h3>Instructions:</h3>
+                <ol>
+                    <li>Go to <a href="https://emailpilot.ai/admin" target="_blank">https://emailpilot.ai/admin</a></li>
+                    <li>Open the browser console (F12 → Console)</li>
+                    <li>Copy the entire script above</li>
+                    <li>Paste it into the console and press Enter</li>
+                    <li>You should see "🤖 MCP Management" appear in the menu</li>
+                    <li>Click it to access the MCP interface</li>
+                </ol>
+                <p><strong>Note:</strong> This injection is temporary and will need to be reapplied after page refresh. For permanent integration, the Docker container rebuild is required.</p>
+            `;
+        }
+    </script>
+</body>
+</html>

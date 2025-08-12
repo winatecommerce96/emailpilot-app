@@ -1,0 +1,51 @@
+# Cloud Build configuration for EmailPilot with Secret Manager integration
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
+      - '.'
+    
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
+  
+  # Deploy to Cloud Run with Secret Manager integration
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'emailpilot-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '1'
+      - '--max-instances'
+      - '10'
+      # Environment variables (non-sensitive)
+      - '--set-env-vars'
+      - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=emailpilot-438321,SECRET_MANAGER_ENABLED=true,DEBUG=false'
+      # Secret Manager secrets (sensitive values)
+      - '--set-secrets'
+      - 'DATABASE_URL=emailpilot-database-url:latest,SECRET_KEY=emailpilot-secret-key:latest,KLAVIYO_API_KEY=emailpilot-klaviyo-api-key:latest,SLACK_WEBHOOK_URL=emailpilot-slack-webhook-url:latest,GEMINI_API_KEY=emailpilot-gemini-api-key:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

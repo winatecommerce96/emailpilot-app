@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot Campaign Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+        .day {
+            border: 1px solid #e5e7eb;
+            min-height: 140px;
+            transition: background-color 0.3s;
+            padding-bottom: 0.5rem;
+            position: relative;
+        }
+        .day:hover {
+            background-color: #f9fafb;
+        }
+        .day-name {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #4b5563;
+            text-align: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .day-number {
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.5rem;
+        }
+        .event {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            margin: 0.25rem;
+            border-radius: 0.375rem;
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+        }
+        .event:active {
+            cursor: grabbing;
+        }
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content-area {
+             max-height: 70vh;
+             overflow-y: auto;
+        }
+        .add-event-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            cursor: pointer;
+        }
+        .day:hover .add-event-btn {
+            opacity: 1;
+        }
+        .dragging {
+            opacity: 0.5;
+        }
+        #ai-chat-section, #import-log-section, #commit-log-section {
+            white-space: pre-wrap;
+        }
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #FFF;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chat-bubble {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .chat-bubble-user {
+            background-color: #3b82f6;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.25rem;
+        }
+        .chat-bubble-ai {
+            background-color: #e5e7eb;
+            color: #1f2937;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .chat-bubble-ai.loading {
+            display: flex;
+            align-items: center;
+        }
+        .chat-bubble-ai.loading .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #9ca3af;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .chat-bubble-ai.loading .dot:nth-child(1) { animation-delay: -0.32s; }
+        .chat-bubble-ai.loading .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+        .goal-progress-bar {
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .goal-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 sm:p-6 lg:p-8">
+    <!-- Goals Dashboard Section -->
+    <div id="goals-dashboard" class="max-w-7xl mx-auto mb-6 bg-white rounded-xl shadow-lg p-6 hidden">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Revenue Goals & Progress</h2>
+        <div id="goals-content" class="space-y-4">
+            <!-- Goals will be loaded here -->
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-lg">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <select id="client-selector" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                        <button id="add-client-btn" class="p-2 rounded-full text-gray-500 hover:bg-gray-100" title="Add New Client">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <button id="delete-client-btn" class="p-2 rounded-full text-gray-500 hover:bg-red-100 hover:text-red-600" title="Delete Selected Client">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </div>
+                    <h1 id="calendar-title" class="text-2xl sm:text-3xl font-bold text-gray-800 mt-2">September 2025</h1>
+                </div>
+                <div class="flex items-center space-x-2">
+                     <button id="import-plan-btn" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 flex items-center space-x-2 disabled:bg-blue-300 disabled:cursor-not-allowed" disabled>
+                        <span id="import-btn-text">Import from Google Doc</span>
+                        <div id="import-loader" class="loader hidden"></div>
+                     </button>
+                     <button id="save-changes-btn" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed">Save Changes</button>
+                     <button id="undo-btn" class="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>Undo Last Change</button>
+                    <button id="prev-month-btn" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <button id="next-month-btn" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 border-b border-gray-200">
+            <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-full bg-red-300"></div><span class="text-xs text-gray-600 font-medium">RRB Promotion</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-full bg-green-200"></div><span class="text-xs text-gray-600 font-medium">Cheese Club</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-full bg-blue-200"></div><span class="text-xs text-gray-600 font-medium">Nurturing/Education</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-full bg-purple-200"></div><span class="text-xs text-gray-600 font-medium">Community/Lifestyle</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-full bg-yellow-200"></div><span class="text-xs text-gray-600 font-medium">Re-engagement</span></div>
+                <div class="flex items-center space-x-2"><div class="w-4 h-4 rounded-full bg-orange-300"></div><span class="text-xs text-gray-600 font-medium">SMS Alert</span></div>
+            </div>
+        </div>
+
+        <div>
+            <div class="grid grid-cols-7">
+                <div class="day-name">SUN</div>
+                <div class="day-name">MON</div>
+                <div class="day-name">TUE</div>
+                <div class="day-name">WED</div>
+                <div class="day-name">THU</div>
+                <div class="day-name">FRI</div>
+                <div class="day-name">SAT</div>
+            </div>
+            <div id="calendar-grid" class="calendar-grid"></div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto mt-8 space-y-8">
+        <div id="ai-chat-section" class="p-6 bg-white rounded-xl shadow-lg">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Chat with your Goal-Aware Calendar AI</h3>
+            <div id="chat-messages" class="h-64 overflow-y-auto p-4 bg-gray-50 rounded-lg mb-4 flex flex-col space-y-2"></div>
+            <div class="flex space-x-2">
+                <input type="text" id="chat-input" placeholder="Ask about campaigns or revenue goals..." class="flex-grow block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <button id="chat-send-btn" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:bg-indigo-300">Send</button>
+            </div>
+        </div>
+
+        <button id="commit-calendar-btn" class="w-full px-6 py-3 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-700 disabled:bg-green-300 disabled:cursor-not-allowed" disabled>Authorize & Commit to Google Sheet</button>
+
+        <div id="import-log-section" class="hidden p-6 bg-gray-50 rounded-xl shadow-inner">
+            <h3 class="text-xl font-bold text-gray-800">Import Log</h3>
+            <pre id="import-log-content" class="mt-4 bg-gray-900 text-white text-xs p-4 rounded-md overflow-x-auto"></pre>
+        </div>
+        
+        <div id="commit-log-section" class="hidden p-6 bg-gray-50 rounded-xl shadow-inner">
+            <h3 class="text-xl font-bold text-gray-800">Commit Log</h3>
+            <pre id="commit-log-content" class="mt-4 bg-gray-900 text-white text-xs p-4 rounded-md overflow-x-auto"></pre>
+        </div>
+    </div>
+
+    <!-- Main Modal -->
+    <div id="modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div id="modal-transform-container" class="bg-white rounded-lg shadow-xl w-full max-w-2xl transform transition-all scale-95">
+            <div id="modal-content-area" class="modal-content-area p-6"></div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0 z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all scale-95 p-6">
+            <h3 id="confirmation-title" class="text-lg font-medium leading-6 text-gray-900">Confirmation</h3>
+            <div class="mt-2">
+                <p id="confirmation-message" class="text-sm text-gray-500">Are you sure?</p>
+            </div>
+            <div class="mt-4 flex justify-end space-x-3">
+                <button id="confirmation-cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
+                <button id="confirmation-confirm-btn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- UTILITY FUNCTIONS ---
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        // --- STATE MANAGEMENT ---
+        let currentDate = new Date(2025, 8, 1);
+        let campaignData = {};
+        let originalCampaignDataAfterImport = null;
+        let draggedEventId = null;
+        let clients = [];
+        let currentClientId = null;
+        let undoStack = [];
+        let chatHistory = [];
+        let currentGoals = [];
+        
+        // --- Initialization State ---
+        let gapiInited = false;
+        let gisInited = false;
+        let firebaseReady = false;
+        let tokenClient;
+
+        // --- Firebase/API State ---
+        let db, auth, userId, appId;
+        const GOOGLE_API_KEY = "AIzaSyAMeP8IjAfqmHAh7MeN5lpu2OpHhfRTTEg";
+        const GOOGLE_CLIENT_ID = "1058910766003-pqu4avth8ltclpbtpk81k0ln21dl8jue.apps.googleusercontent.com"; 
+        const SCOPES = 'https://www.googleapis.com/auth/documents.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets';
+        const GEMINI_API_KEY = "AIzaSyDZxn9-FekvRhcvRfneulDrebD0RFxUpvs";
+
+        // --- CAMPAIGN TYPE REVENUE MULTIPLIERS ---
+        const REVENUE_MULTIPLIERS = {
+            'RRB Promotion': 1.5,
+            'Cheese Club': 2.0,
+            'Nurturing/Education': 0.8,
+            'Community/Lifestyle': 0.7,
+            'Re-engagement': 1.2,
+            'SMS Alert': 1.3,
+            'default': 1.0
+        };
+
+        // --- DOM ELEMENTS ---
+        const modal = document.getElementById('modal');
+        const modalTransformContainer = document.getElementById('modal-transform-container');
+        const modalContentArea = document.getElementById('modal-content-area');
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const calendarGrid = document.getElementById('calendar-grid');
+        const calendarTitle = document.getElementById('calendar-title');
+        const prevMonthBtn = document.getElementById('prev-month-btn');
+        const nextMonthBtn = document.getElementById('next-month-btn');
+        const importPlanBtn = document.getElementById('import-plan-btn');
+        const importBtnText = document.getElementById('import-btn-text');
+        const importLoader = document.getElementById('import-loader');
+        const saveChangesBtn = document.getElementById('save-changes-btn');
+        const undoBtn = document.getElementById('undo-btn');
+        const commitCalendarBtn = document.getElementById('commit-calendar-btn');
+        const importLogSection = document.getElementById('import-log-section');
+        const importLogContent = document.getElementById('import-log-content');
+        const commitLogSection = document.getElementById('commit-log-section');
+        const commitLogContent = document.getElementById('commit-log-content');
+        const clientSelector = document.getElementById('client-selector');
+        const addClientBtn = document.getElementById('add-client-btn');
+        const deleteClientBtn = document.getElementById('delete-client-btn');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const goalsDashboard = document.getElementById('goals-dashboard');
+        const goalsContent = document.getElementById('goals-content');
+
+        // --- CORE FUNCTIONS ---
+        function log(message, type = 'import') {
+            console.log(message);
+            const logSection = type === 'commit' ? commitLogSection : importLogSection;
+            const logContent = type === 'commit' ? commitLogContent : importLogContent;
+            if (logSection.classList.contains('hidden')) {
+                logSection.classList.remove('hidden');
+            }
+            logContent.textContent += `\n${new Date().toLocaleTimeString()} - ${message}`;
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+        
+        function pushToUndoStack() {
+            undoStack.push(JSON.parse(JSON.stringify(campaignData)));
+            if (undoStack.length > 20) undoStack.shift();
+            undoBtn.disabled = false;
+        }
+
+        // --- GOALS FUNCTIONS ---
+        async function loadClientGoals(clientId) {
+            try {
+                const goalsQuery = query(
+                    collection(db, 'goals'),
+                    where('client_id', '==', clientId),
+                    orderBy('created_at', 'desc')
+                );
+                
+                const querySnapshot = await getDocs(goalsQuery);
+                currentGoals = [];
+                
+                querySnapshot.forEach((doc) => {
+                    const goalData = doc.data();
+                    goalData.id = doc.id;
+                    currentGoals.push(goalData);
+                });
+                
+                if (currentGoals.length > 0) {
+                    goalsDashboard.classList.remove('hidden');
+                    renderGoals();
+                } else {
+                    goalsDashboard.classList.add('hidden');
+                }
+                
+                log(`Loaded ${currentGoals.length} goals for client`);
+                
+            } catch (error) {
+                console.error('Error loading goals:', error);
+                log(`Error loading goals: ${error.message}`);
+                goalsDashboard.classList.add('hidden');
+            }
+        }
+
+        function calculateEstimatedRevenue(events) {
+            let totalEstimated = 0;
+            const baseRevenuePerCampaign = 500; // Base estimate
+            
+            Object.values(events).forEach(event => {
+                const campaignType = detectCampaignType(event.title, event.content);
+                const multiplier = REVENUE_MULTIPLIERS[campaignType] || REVENUE_MULTIPLIERS.default;
+                totalEstimated += baseRevenuePerCampaign * multiplier;
+            });
+            
+            return totalEstimated;
+        }
+
+        function detectCampaignType(title, content) {
+            const text = `${title} ${content}`.toLowerCase();
+            
+            if (text.includes('rrb') || text.includes('promotion')) return 'RRB Promotion';
+            if (text.includes('cheese club')) return 'Cheese Club';
+            if (text.includes('nurturing') || text.includes('education')) return 'Nurturing/Education';
+            if (text.includes('community') || text.includes('lifestyle')) return 'Community/Lifestyle';
+            if (text.includes('re-engagement')) return 'Re-engagement';
+            if (text.includes('sms')) return 'SMS Alert';
+            
+            return 'default';
+        }
+
+        function renderGoals() {
+            if (currentGoals.length === 0) {
+                goalsContent.innerHTML = '<p class="text-gray-500">No goals set for this client</p>';
+                return;
+            }
+            
+            // Get current month's campaigns
+            const currentMonthEvents = getEventsForMonth(currentDate.getFullYear(), currentDate.getMonth());
+            const estimatedRevenue = calculateEstimatedRevenue(currentMonthEvents);
+            
+            // Find goal for current viewing month
+            const currentMonthGoal = currentGoals.find(g => 
+                g.year === currentDate.getFullYear() && 
+                g.month === currentDate.getMonth() + 1
+            );
+            
+            let goalsHTML = '';
+            
+            if (currentMonthGoal) {
+                const targetRevenue = currentMonthGoal.revenue_goal || 0;
+                const progress = targetRevenue > 0 ? (estimatedRevenue / targetRevenue) * 100 : 0;
+                
+                goalsHTML += `
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-semibold text-gray-900">
+                                    ${currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })} Goal
+                                </h3>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    Target: $${targetRevenue.toLocaleString()} | 
+                                    Estimated: $${estimatedRevenue.toLocaleString()}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-2xl font-bold ${progress >= 100 ? 'text-green-600' : progress >= 75 ? 'text-yellow-600' : 'text-red-600'}">
+                                    ${Math.round(progress)}%
+                                </span>
+                            </div>
+                        </div>
+                        <div class="goal-progress-bar">
+                            <div class="goal-progress-fill" style="width: ${Math.min(progress, 100)}%"></div>
+                        </div>
+                        <div class="mt-3 text-sm text-gray-600">
+                            <p>Campaigns scheduled: ${Object.keys(currentMonthEvents).length}</p>
+                            ${progress < 75 ? `<p class="text-orange-600 font-medium mt-1">⚠️ Consider adding more high-value campaigns</p>` : ''}
+                            ${progress >= 100 ? `<p class="text-green-600 font-medium mt-1">✅ On track to meet goal!</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show recent goals
+            const recentGoals = currentGoals.slice(0, 3);
+            if (recentGoals.length > 0) {
+                goalsHTML += '<div class="mt-4"><h4 class="font-medium text-gray-700 mb-2">Recent Goals</h4>';
+                recentGoals.forEach(goal => {
+                    const monthName = new Date(goal.year, goal.month - 1).toLocaleString('default', { month: 'short', year: 'numeric' });
+                    goalsHTML += `
+                        <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                            <span class="text-sm text-gray-600">${monthName}</span>
+                            <span class="text-sm font-medium">$${(goal.revenue_goal || 0).toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+                goalsHTML += '</div>';
+            }
+            
+            goalsContent.innerHTML = goalsHTML;
+        }
+
+        function getEventsForMonth(year, month) {
+            const monthEvents = {};
+            const startDate = new Date(year, month, 1);
+            const endDate = new Date(year, month + 1, 0);
+            
+            Object.entries(campaignData).forEach(([id, event]) => {
+                const eventDate = new Date(event.date);
+                if (eventDate >= startDate && eventDate <= endDate) {
+                    monthEvents[id] = event;
+                }
+            });
+            
+            return monthEvents;
+        }
+
+        async function performSave() {
+            if (!currentClientId || !firebaseReady) return;
+            const originalText = saveChangesBtn.textContent;
+            saveChangesBtn.textContent = 'Saving...';
+            saveChangesBtn.disabled = true;
+
+            try {
+                const clientDocRef = doc(db, `clients/${currentClientId}`);
+                const dataToSave = {
+                    name: clients.find(c => c.id === currentClientId)?.name,
+                    campaignData: JSON.parse(JSON.stringify(campaignData)),
+                    originalCampaignDataAfterImport: originalCampaignDataAfterImport,
+                    lastModified: new Date().toISOString()
+                };
+                await setDoc(clientDocRef, dataToSave, { merge: true });
+                log(`Saved changes for client: ${dataToSave.name}`, 'import');
+                saveChangesBtn.textContent = 'Saved!';
+                
+                // Update goals display after save
+                renderGoals();
+            } catch (error) {
+                console.error('Save error:', error);
+                log(`Error saving client data: ${error.message}`, 'import');
+                saveChangesBtn.textContent = 'Save Failed';
+            } finally {
+                setTimeout(() => {
+                    saveChangesBtn.textContent = originalText;
+                    saveChangesBtn.disabled = false;
+                }, 2000);
+            }
+        }
+        
+        const autoSaveClientData = debounce(performSave, 2000);
+
+        async function loadClientData(clientId) {
+            if (currentClientId === clientId) return;
+            
+            currentClientId = clientId;
+            undoStack = [];
+            chatHistory = [];
+            chatMessages.innerHTML = '';
+            undoBtn.disabled = true;
+            saveChangesBtn.disabled = false;
+            
+            // Enable import button if APIs are ready
+            if (gapiInited && gisInited && firebaseReady) {
+                importPlanBtn.disabled = false;
+            }
+            
+            try {
+                const clientRef = doc(db, `clients/${clientId}`);
+                const clientSnap = await getDoc(clientRef);
+
+                if (clientSnap.exists()) {
+                    const data = clientSnap.data();
+                    campaignData = data.campaignData || {};
+                    originalCampaignDataAfterImport = data.originalCampaignDataAfterImport || null;
+                    log(`Loaded data for client: ${data.name}`);
+                } else {
+                    campaignData = {};
+                    originalCampaignDataAfterImport = null;
+                    log(`No data found for client: ${clientId}`);
+                }
+                
+                generateCalendar();
+                await loadClientGoals(clientId);
+            } catch (error) {
+                console.error('Load error:', error);
+                log(`Error loading client data: ${error.message}`);
+                saveChangesBtn.disabled = true;
+            }
+        }
+        
+        function generateCalendar() {
+            const fragment = document.createDocumentFragment();
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            calendarTitle.textContent = `${currentDate.toLocaleString('default', { month: 'long' })} ${year}`;
+
+            const firstDay = new Date(year, month, 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const startDayOfWeek = firstDay.getDay();
+            const prevDays = new Date(year, month, 0).getDate();
+            
+            for (let i = startDayOfWeek; i > 0; i--) fragment.appendChild(createDayElement(prevDays - i + 1, new Date(year, month - 1, prevDays - i + 1), true));
+            for (let day = 1; day <= daysInMonth; day++) fragment.appendChild(createDayElement(day, new Date(year, month, day)));
+            const nextDays = 42 - (startDayOfWeek + daysInMonth);
+            for (let day = 1; day <= nextDays; day++) fragment.appendChild(createDayElement(day, new Date(year, month + 1, day), true));
+            
+            calendarGrid.innerHTML = '';
+            calendarGrid.appendChild(fragment);
+            
+            renderAllEvents();
+            renderGoals(); // Update goals when calendar changes
+        }
+
+        function createDayElement(dayNumber, date, isOtherMonth = false) {
+            const dayEl = document.createElement('div');
+            const dateString = date.toISOString().split('T')[0];
+            dayEl.className = `day ${isOtherMonth ? 'text-gray-400 bg-gray-50' : ''}`;
+            dayEl.dataset.date = dateString;
+
+            const dayNumberEl = document.createElement('div');
+            dayNumberEl.className = 'day-number';
+            dayNumberEl.textContent = dayNumber;
+            dayEl.appendChild(dayNumberEl);
+
+            const addBtn = document.createElement('button');
+            addBtn.className = 'add-event-btn text-gray-400 hover:text-indigo-600';
+            addBtn.innerHTML = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"></path></svg>';
+            addBtn.addEventListener('click', () => { renderModalContent(null, dateString); openModal(); });
+            dayEl.appendChild(addBtn);
+
+            dayEl.addEventListener('dragover', e => e.preventDefault());
+            dayEl.addEventListener('drop', e => {
+                e.preventDefault();
+                if (draggedEventId) {
+                    pushToUndoStack();
+                    const dayEl = e.currentTarget;
+                    const draggedEl = document.getElementById(draggedEventId);
+                    dayEl.appendChild(draggedEl);
+                    campaignData[draggedEventId].date = dayEl.dataset.date;
+                    draggedEventId = null;
+                    autoSaveClientData();
+                }
+            });
+            return dayEl;
+        }
+        
+        function renderAllEvents() {
+            const existingEvents = document.querySelectorAll('.event');
+            existingEvents.forEach(el => el.remove());
+            
+            const fragment = document.createDocumentFragment();
+            const eventsByDate = {};
+            
+            Object.keys(campaignData).forEach(eventId => {
+                const event = campaignData[eventId];
+                if (!eventsByDate[event.date]) {
+                    eventsByDate[event.date] = [];
+                }
+                eventsByDate[event.date].push({ id: eventId, data: event });
+            });
+            
+            Object.keys(eventsByDate).forEach(date => {
+                const dayEl = document.querySelector(`.day[data-date="${date}"]`);
+                if (dayEl) {
+                    const dayFragment = document.createDocumentFragment();
+                    eventsByDate[date].forEach(({ id, data }) => {
+                        dayFragment.appendChild(createEventElement(id, data));
+                    });
+                    dayEl.appendChild(dayFragment);
+                }
+            });
+        }
+        
+        function createEventElement(eventId, eventData) {
+            const eventEl = document.createElement('div');
+            eventEl.id = eventId;
+            eventEl.className = `event ${eventData.color || 'bg-gray-200 text-gray-800'}`;
+            eventEl.draggable = true;
+            eventEl.textContent = eventData.title;
+            addEventListenersToEvent(eventEl);
+            return eventEl;
+        }
+        
+        function addEventListenersToEvent(eventEl) {
+            eventEl.addEventListener('click', (e) => { e.stopPropagation(); renderModalContent(eventEl.id); openModal(); });
+            eventEl.addEventListener('dragstart', (e) => { draggedEventId = e.target.id; setTimeout(() => e.target.classList.add('dragging'), 0); });
+            eventEl.addEventListener('dragend', (e) => e.target.classList.remove('dragging'));
+        }
+
+        function saveEvent(eventId, date) {
+            pushToUndoStack();
+            const newTitle = document.getElementById('edit-title').value;
+            const newContent = document.getElementById('edit-content').value.replace(/\n/g, '<br>');
+            const campaignType = detectCampaignType(newTitle, newContent);
+            const colorMap = {
+                'RRB Promotion': 'bg-red-300 text-red-800',
+                'Cheese Club': 'bg-green-200 text-green-800',
+                'Nurturing/Education': 'bg-blue-200 text-blue-800',
+                'Community/Lifestyle': 'bg-purple-200 text-purple-800',
+                'Re-engagement': 'bg-yellow-200 text-yellow-800',
+                'SMS Alert': 'bg-orange-300 text-orange-800',
+                'default': 'bg-gray-200 text-gray-800'
+            };
+            
+            if (eventId) {
+                campaignData[eventId].title = newTitle;
+                campaignData[eventId].content = newContent;
+                campaignData[eventId].color = colorMap[campaignType] || colorMap.default;
+            } else {
+                const newId = 'event-' + Date.now();
+                campaignData[newId] = { 
+                    date, 
+                    title: newTitle, 
+                    content: newContent, 
+                    color: colorMap[campaignType] || colorMap.default
+                };
+            }
+            generateCalendar();
+            autoSaveClientData();
+            closeModal();
+        }
+
+        function deleteEvent(eventId) {
+            pushToUndoStack();
+            delete campaignData[eventId];
+            generateCalendar();
+            autoSaveClientData();
+            closeModal();
+        }
+
+        function duplicateEvent(eventId) {
+            pushToUndoStack();
+            const originalEvent = campaignData[eventId];
+            const newId = 'event-dupe-' + Date.now();
+            const newEventData = JSON.parse(JSON.stringify(originalEvent));
+            newEventData.title = `${originalEvent.title} (Copy)`;
+            campaignData[newId] = newEventData;
+            generateCalendar();
+            autoSaveClientData();
+            closeModal();
+        }
+        
+        // --- EVENT LISTENERS ---
+        prevMonthBtn.addEventListener('click', () => { 
+            currentDate.setMonth(currentDate.getMonth() - 1); 
+            generateCalendar(); 
+        });
+        
+        nextMonthBtn.addEventListener('click', () => { 
+            currentDate.setMonth(currentDate.getMonth() + 1); 
+            generateCalendar(); 
+        });
+        
+        saveChangesBtn.addEventListener('click', performSave);
+        
+        undoBtn.addEventListener('click', () => {
+            if (undoStack.length > 0) {
+                campaignData = undoStack.pop();
+                generateCalendar();
+                autoSaveClientData();
+                log('Last change undone.');
+                if (undoStack.length === 0) undoBtn.disabled = true;
+            }
+        });
+        
+        importPlanBtn.addEventListener('click', () => {
+            if (!gapiInited || !gisInited) {
+                log('Google API is not ready. Please wait a moment and try again.');
+                return;
+            }
+            if (!currentClientId) {
+                log('Please select a client first.');
+                return;
+            }
+            log('Import button clicked. Requesting authorization...');
+            importBtnText.textContent = 'Authorizing...';
+            importLoader.classList.remove('hidden');
+            importPlanBtn.disabled = true;
+            
+            tokenClient.callback = (resp) => {
+                if (resp.error) {
+                    log(`OAuth error: ${resp.error}`);
+                    resetImportButton();
+                    return;
+                }
+                log('Authorization successful. Opening Google Picker...');
+                createPicker(resp.access_token);
+            };
+            
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        });
+
+        function createPicker(accessToken) {
+            try {
+                const picker = new google.picker.PickerBuilder()
+                    .addView(google.picker.ViewId.DOCS)
+                    .setOAuthToken(accessToken)
+                    .setDeveloperKey(GOOGLE_API_KEY)
+                    .setCallback(async (data) => {
+                        if (data.action === google.picker.Action.PICKED) {
+                            const doc = data.docs[0];
+                            log(`Selected document: ${doc.name} (ID: ${doc.id})`);
+                            importBtnText.textContent = 'Processing...';
+                            importLoader.classList.remove('hidden');
+                            importPlanBtn.disabled = true;
+                            await processPlanFromDoc(doc.id, accessToken);
+                        } else if (data.action === google.picker.Action.CANCEL) {
+                            log('Document selection cancelled.');
+                            resetImportButton();
+                        }
+                    })
+                    .build();
+                picker.setVisible(true);
+                log('Google Picker opened.');
+            } catch (error) {
+                console.error('Error creating picker:', error);
+                log(`Error opening Google Picker: ${error.message}`);
+                resetImportButton();
+            }
+        }
+
+        async function processPlanFromDoc(docId, accessToken) {
+            try {
+                log(`Fetching document content for ID: ${docId}`);
+                
+                gapi.client.setToken({ access_token: accessToken });
+                
+                const response = await gapi.client.docs.documents.get({ documentId: docId });
+                const doc = response.result;
+                
+                let docText = '';
+                if (doc.body && doc.body.content) {
+                    docText = extractTextFromDocument(doc.body.content);
+                }
+                
+                if (!docText.trim()) {
+                    log('No text content found in document');
+                    resetImportButton();
+                    return;
+                }
+                
+                log(`Extracted ${docText.length} characters from document`);
+                log(`Processing document content with Gemini...`);
+                
+                const aiResponse = await processWithGemini(docText);
+                if (aiResponse) {
+                    originalCampaignDataAfterImport = JSON.parse(JSON.stringify(campaignData));
+                    await applyAiResponseToCalendar(aiResponse);
+                    log('Document processing completed successfully!');
+                } else {
+                    log('Failed to process document with AI');
+                }
+            } catch (error) {
+                console.error('Error processing document:', error);
+                log(`Error processing document: ${error.message || JSON.stringify(error)}`);
+            } finally {
+                resetImportButton();
+            }
+        }
+
+        function extractTextFromDocument(content) {
+            let text = '';
+            for (const element of content) {
+                if (element.paragraph) {
+                    for (const paragraphElement of element.paragraph.elements) {
+                        if (paragraphElement.textRun) {
+                            text += paragraphElement.textRun.content;
+                        }
+                    }
+                } else if (element.table) {
+                    for (const row of element.table.tableRows) {
+                        for (const cell of row.tableCells) {
+                            text += extractTextFromDocument(cell.content);
+                        }
+                    }
+                }
+            }
+            return text;
+        }
+
+        async function processWithGemini(docText) {
+            const prompt = `
+You are a marketing campaign calendar assistant. Please analyze this campaign planning document and extract campaign information. Return a JSON array of campaign objects with this exact structure:
+
+[
+  {
+    "date": "YYYY-MM-DD",
+    "title": "Campaign Title",
+    "content": "Campaign details including segment, send time, subject lines, etc.",
+    "color": "bg-blue-200 text-blue-800"
+  }
+]
+
+Use these color classes based on campaign type:
+- RRB Promotion: "bg-red-300 text-red-800"
+- Cheese Club: "bg-green-200 text-green-800"  
+- Nurturing/Education: "bg-blue-200 text-blue-800"
+- Community/Lifestyle: "bg-purple-200 text-purple-800"
+- Re-engagement: "bg-yellow-200 text-yellow-800"
+- SMS Alert: "bg-orange-300 text-orange-800"
+
+Document content:
+${docText}
+`;
+            try {
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                };
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`Gemini API error: ${response.status} ${errorBody}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const aiText = result.candidates[0].content.parts[0].text;
+                    log(`Gemini response received: ${aiText.substring(0, 200)}...`);
+                    const jsonMatch = aiText.match(/\[[\s\S]*\]/);
+                    if (jsonMatch) {
+                        return JSON.parse(jsonMatch[0]);
+                    } else {
+                        throw new Error('No valid JSON found in AI response');
+                    }
+                } else {
+                    throw new Error('Unexpected response structure from Gemini');
+                }
+            } catch (error) {
+                console.error('Gemini processing error:', error);
+                log(`AI processing error: ${error.message}`);
+                return null;
+            }
+        }
+        
+        async function chatWithGemini(currentChatHistory, newMessage) {
+            const currentClientName = clients.find(c => c.id === currentClientId)?.name || 'the current client';
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Get current month goal info
+            const currentMonthEvents = getEventsForMonth(currentDate.getFullYear(), currentDate.getMonth());
+            const estimatedRevenue = calculateEstimatedRevenue(currentMonthEvents);
+            const currentMonthGoal = currentGoals.find(g => 
+                g.year === currentDate.getFullYear() && 
+                g.month === currentDate.getMonth() + 1
+            );
+            
+            let goalsContext = '';
+            if (currentMonthGoal) {
+                const targetRevenue = currentMonthGoal.revenue_goal || 0;
+                const progress = targetRevenue > 0 ? (estimatedRevenue / targetRevenue) * 100 : 0;
+                goalsContext = `
+**REVENUE GOALS CONTEXT**
+- Current Month Goal: $${targetRevenue.toLocaleString()}
+- Estimated Revenue from Scheduled Campaigns: $${estimatedRevenue.toLocaleString()}
+- Progress: ${Math.round(progress)}%
+- Campaigns Scheduled: ${Object.keys(currentMonthEvents).length}
+${progress < 75 ? '- WARNING: Revenue goal may not be met. Consider adding high-value campaigns.' : ''}
+`;
+            }
+
+            const systemInstruction = `You are a Goal-Aware Calendar AI Assistant. Your capabilities are to answer questions about the calendar events, revenue goals, and to perform actions to modify the calendar. The calendar contains ONLY Email, SMS, and Push notification campaigns.
+
+**CONTEXT**
+- Today's date is: ${today}.
+- The current client is: ${currentClientName}.
+- The calendar data is a JSON object where the keys are unique event IDs.
+${goalsContext}
+
+**CAMPAIGN TYPE REVENUE MULTIPLIERS**
+- RRB Promotion: 1.5x base revenue
+- Cheese Club: 2.0x base revenue
+- Nurturing/Education: 0.8x base revenue
+- Community/Lifestyle: 0.7x base revenue
+- Re-engagement: 1.2x base revenue
+- SMS Alert: 1.3x base revenue
+
+**INSTRUCTIONS**
+1. **Analyze the User's Request:** Understand if the user is asking about campaigns, revenue goals, or requesting an action.
+2. **For Questions:** Answer based on calendar data, goals, and revenue projections.
+3. **For Actions:** Respond with a single JSON object describing the action.
+4. **Goal Awareness:** When suggesting campaigns, prioritize high-revenue types if goal achievement is at risk.
+
+**ACTION JSON FORMATS**
+- **Delete:** \`{"action": "delete", "eventId": "EVENT_ID_TO_DELETE"}\`
+- **Update:** \`{"action": "update", "eventId": "EVENT_ID_TO_UPDATE", "updates": {"field_to_change": "new_value"}}\`
+- **Create:** \`{"action": "create", "event": {"date": "YYYY-MM-DD", "title": "New Event Title", "content": "Details..."}}\`
+
+**Campaign Data:**
+${JSON.stringify(campaignData, null, 2)}
+
+**Goals Data:**
+${JSON.stringify(currentGoals, null, 2)}
+`;
+            
+            const contents = [
+                ...currentChatHistory,
+                { role: "user", parts: [{ text: newMessage }] }
+            ];
+
+            try {
+                const payload = {
+                    contents: contents,
+                    systemInstruction: { parts: [{ text: systemInstruction }] }
+                };
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`Gemini API error: ${response.status} ${errorBody}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    throw new Error('Unexpected response structure from Gemini');
+                }
+            } catch (error) {
+                console.error('Gemini chat error:', error);
+                return "I'm sorry, I encountered an error trying to process your request.";
+            }
+        }
+
+        async function applyAiResponseToCalendar(campaigns) {
+            log(`Applying ${campaigns.length} campaigns to calendar...`);
+            pushToUndoStack();
+            
+            for (const campaign of campaigns) {
+                const eventId = 'ai-import-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                campaignData[eventId] = {
+                    date: campaign.date,
+                    title: campaign.title,
+                    content: campaign.content || '',
+                    color: campaign.color || 'bg-gray-200 text-gray-800'
+                };
+                log(`Added campaign: ${campaign.title} on ${campaign.date}`);
+            }
+            
+            generateCalendar();
+            autoSaveClientData();
+        }
+
+        function resetImportButton() {
+            importBtnText.textContent = 'Import from Google Doc';
+            importLoader.classList.add('hidden');
+            importPlanBtn.disabled = false;
+        }
+
+        addClientBtn.addEventListener('click', async () => {
+            showPromptModal("Enter the new client's name:", async (clientName) => {
+                if (clientName && clientName.trim()) {
+                    const newClient = {
+                        id: clientName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                        name: clientName.trim()
+                    };
+                    clients.push(newClient);
+                    await setDoc(doc(db, `clients/${newClient.id}`), { name: newClient.name });
+                    updateClientSelector();
+                    clientSelector.value = newClient.id;
+                    await loadClientData(newClient.id);
+                }
+            });
+        });
+
+        deleteClientBtn.addEventListener('click', async () => {
+            if (!currentClientId) {
+                log('Please select a client to delete.');
+                return;
+            }
+            
+            const currentClient = clients.find(c => c.id === currentClientId);
+            if (!currentClient) {
+                log('Selected client not found.');
+                return;
+            }
+            
+            showConfirmationModal(`Are you sure you want to delete the client "${currentClient.name}"? This action cannot be undone.`, async () => {
+                try {
+                    await deleteDoc(doc(db, `clients/${currentClientId}`));
+                    clients = clients.filter(c => c.id !== currentClientId);
+                    campaignData = {};
+                    originalCampaignDataAfterImport = null;
+                    const deletedClientName = currentClient.name;
+                    currentClientId = null;
+                    updateClientSelector();
+                    generateCalendar();
+                    log(`Successfully deleted client: ${deletedClientName}`);
+                    
+                    if (clients.length > 0) {
+                        clientSelector.value = clients[0].id;
+                        await loadClientData(clients[0].id);
+                    } else {
+                        saveChangesBtn.disabled = true;
+                        importPlanBtn.disabled = true;
+                        log('No clients remaining. Please add a new client.');
+                    }
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    log(`Error deleting client: ${error.message}`);
+                }
+            });
+        });
+        
+        clientSelector.addEventListener('change', (e) => loadClientData(e.target.value));
+
+        // --- INITIALIZATION ---
+        function checkApisReady() {
+            log(`Service Status - Firebase: ${firebaseReady}, GAPI: ${gapiInited}, GIS: ${gisInited}`);
+            if (gapiInited && gisInited && firebaseReady) {
+                log('All services are ready. Application is fully functional. ✅');
+                if (currentClientId) {
+                    importPlanBtn.disabled = false;
+                }
+                commitCalendarBtn.disabled = false;
+            }
+        }
+
+        function initializeGisClient() {
+            try {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: SCOPES,
+                    callback: '',
+                });
+                log('GIS client initialized.');
+                gisInited = true;
+                checkApisReady();
+            } catch (error) {
+                console.error('GIS Init Error:', error);
+                log(`ERROR initializing GIS: ${error.message}`);
+            }
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.defer = true;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        
+        function performAiAction(action) {
+            let confirmationMessage = "I'm sorry, I couldn't perform that action.";
+            let actionTaken = false;
+
+            pushToUndoStack();
+
+            switch (action.action) {
+                case 'delete':
+                    if (campaignData[action.eventId]) {
+                        delete campaignData[action.eventId];
+                        actionTaken = true;
+                        confirmationMessage = `Okay, I've deleted the event.`;
+                    } else {
+                        confirmationMessage = `I couldn't find an event with the ID ${action.eventId} to delete.`;
+                    }
+                    break;
+                case 'update':
+                    if (campaignData[action.eventId]) {
+                        Object.assign(campaignData[action.eventId], action.updates);
+                        actionTaken = true;
+                        confirmationMessage = `Okay, I've updated the event.`;
+                    } else {
+                        confirmationMessage = `I couldn't find an event with the ID ${action.eventId} to update.`;
+                    }
+                    break;
+                case 'create':
+                    const newId = 'ai-event-' + Date.now();
+                    const campaignType = detectCampaignType(action.event.title, action.event.content);
+                    const colorMap = {
+                        'RRB Promotion': 'bg-red-300 text-red-800',
+                        'Cheese Club': 'bg-green-200 text-green-800',
+                        'Nurturing/Education': 'bg-blue-200 text-blue-800',
+                        'Community/Lifestyle': 'bg-purple-200 text-purple-800',
+                        'Re-engagement': 'bg-yellow-200 text-yellow-800',
+                        'SMS Alert': 'bg-orange-300 text-orange-800',
+                        'default': 'bg-gray-200 text-gray-800'
+                    };
+                    campaignData[newId] = {
+                        ...action.event,
+                        color: colorMap[campaignType] || colorMap.default
+                    };
+                    actionTaken = true;
+                    confirmationMessage = `Okay, I've created the new event: "${action.event.title}".`;
+                    break;
+            }
+
+            if(actionTaken) {
+                generateCalendar();
+                performSave();
+            } else {
+                undoStack.pop();
+            }
+            
+            const aiBubble = document.createElement('div');
+            aiBubble.className = 'chat-bubble chat-bubble-ai';
+            aiBubble.textContent = confirmationMessage;
+            chatMessages.appendChild(aiBubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            chatHistory.push({ role: "model", parts: [{ text: confirmationMessage }] });
+        }
+
+        const handleChatSend = async () => {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            chatInput.value = '';
+            chatSendBtn.disabled = true;
+
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble chat-bubble-user';
+            userBubble.textContent = message;
+            chatMessages.appendChild(userBubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            const loadingBubble = document.createElement('div');
+            loadingBubble.className = 'chat-bubble chat-bubble-ai loading';
+            loadingBubble.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+            chatMessages.appendChild(loadingBubble);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            const aiResponse = await chatWithGemini(chatHistory, message);
+            loadingBubble.remove();
+            
+            chatHistory.push({ role: "user", parts: [{ text: message }] });
+
+            try {
+                const action = JSON.parse(aiResponse);
+                performAiAction(action);
+            } catch (e) {
+                const aiBubble = document.createElement('div');
+                aiBubble.className = 'chat-bubble chat-bubble-ai';
+                aiBubble.textContent = aiResponse;
+                chatMessages.appendChild(aiBubble);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                chatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+            }
+            
+            if (chatHistory.length > 10) {
+                chatHistory = chatHistory.slice(-10);
+            }
+
+            chatSendBtn.disabled = false;
+            chatInput.focus();
+        };
+
+        chatSendBtn.addEventListener('click', handleChatSend);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleChatSend();
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            log('Initializing EmailPilot Calendar...');
+            try {
+                // Updated Firebase configuration for EmailPilot
+                const firebaseConfig = {
+                    apiKey: "AIzaSyB0RrH7hbER2R-SzXfNmFe0O32HhH7HBEM",
+                    authDomain: "emailpilot-438321.firebaseapp.com",
+                    projectId: "emailpilot-438321",
+                    storageBucket: "emailpilot-438321.appspot.com",
+                    messagingSenderId: "104067375141",
+                    appId: "1:104067375141:web:2b65c86eec8e8c8b4c9f3a"
+                };
+                log('Firebase config loaded for EmailPilot project.');
+                
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = 'emailpilot';
+                log('Firebase initialized. Authenticating...');
+                
+                await signInAnonymously(auth);
+                userId = auth.currentUser.uid;
+                log(`Authenticated with User ID: ${userId}`);
+                firebaseReady = true;
+
+                // Load Google APIs
+                await loadScript('https://accounts.google.com/gsi/client');
+                initializeGisClient();
+                
+                await loadScript('https://apis.google.com/js/api.js');
+                gapi.load('client:picker', () => {
+                    gapi.client.init({
+                        apiKey: GOOGLE_API_KEY,
+                        discoveryDocs: [
+                            "https://sheets.googleapis.com/$discovery/rest?version=v4",
+                            "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+                            "https://docs.googleapis.com/$discovery/rest?version=v1"
+                        ],
+                    }).then(() => {
+                        log('GAPI client initialized.');
+                        gapiInited = true;
+                        checkApisReady();
+                    }).catch((error) => {
+                        console.error('Full GAPI Init Failure Object:', error);
+                        const errorMessage = error.details || JSON.stringify(error) || 'An unknown error occurred.';
+                        log(`ERROR initializing GAPI: ${errorMessage}`);
+                    });
+                });
+
+                // Load initial data
+                const clientsCollectionRef = collection(db, `clients`);
+                log('Fetching client list from Firebase...');
+                const querySnapshot = await getDocs(clientsCollectionRef);
+                clients = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                if (clients.length > 0) {
+                    log(`Successfully fetched ${clients.length} clients.`);
+                    updateClientSelector();
+                    await loadClientData(clients[0].id);
+                } else {
+                    log('No clients found in Firebase. Please add one.');
+                    generateCalendar();
+                    saveChangesBtn.disabled = true;
+                    importPlanBtn.disabled = true;
+                }
+            } catch (error) {
+                 console.error("Initialization failed:", error);
+                 log(`FATAL ERROR during initialization: ${error.message}.`);
+            }
+        });
+
+        // --- MODAL AND HELPER FUNCTIONS ---
+        function openModal() { 
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalTransformContainer.classList.remove('scale-95');
+                modalTransformContainer.classList.add('scale-100');
+            }, 10);
+        }
+        
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modalTransformContainer.classList.add('scale-95');
+            modalTransformContainer.classList.remove('scale-100');
+            setTimeout(() => modal.classList.add('hidden'), 300); 
+        }
+
+        function showConfirmationModal(message, onConfirm) {
+            const confirmBtn = document.getElementById('confirmation-confirm-btn');
+            const cancelBtn = document.getElementById('confirmation-cancel-btn');
+            document.getElementById('confirmation-message').textContent = message;
+
+            const close = () => {
+                confirmationModal.classList.add('opacity-0');
+                confirmationModal.querySelector('.transform').classList.add('scale-95');
+                setTimeout(() => confirmationModal.classList.add('hidden'), 300);
+            };
+
+            const confirmHandler = () => {
+                onConfirm();
+                close();
+            };
+            const cancelHandler = () => close();
+
+            confirmBtn.onclick = confirmHandler;
+            cancelBtn.onclick = cancelHandler;
+            
+            confirmationModal.classList.remove('hidden');
+            setTimeout(() => {
+                confirmationModal.classList.remove('opacity-0');
+                confirmationModal.querySelector('.transform').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function showPromptModal(message, onSave) {
+            modalContentArea.innerHTML = `
+                <h3 class="text-lg font-medium leading-6 text-gray-900">${message}</h3>
+                <div class="mt-4">
+                    <input type="text" id="prompt-input" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
+                <div class="mt-4 flex justify-end space-x-3">
+                    <button id="prompt-cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button id="prompt-save-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Save</button>
+                </div>
+            `;
+            
+            const input = modalContentArea.querySelector('#prompt-input');
+            modalContentArea.querySelector('#prompt-save-btn').onclick = () => {
+                onSave(input.value);
+                closeModal();
+            };
+            modalContentArea.querySelector('#prompt-cancel-btn').onclick = closeModal;
+            
+            openModal();
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function renderModalContent(eventId = null, date = null) {
+            const isNew = !eventId;
+            const data = isNew ? { title: '', content: '<strong>Segment:</strong> <br><strong>Send Time:</strong> <br><strong>Subject A:</strong> <br><strong>Subject B:</strong> <br><strong>Preview Text:</strong> <br><strong>Main CTA:</strong> <br><strong>Offer:</strong> <br><strong>A/B Test:</strong> ' } : campaignData[eventId];
+            modalContentArea.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <h2 class="text-xl font-bold text-gray-800">${isNew ? 'Create New Campaign' : data.title}</h2>
+                    <button id="modal-close-btn" class="text-gray-400 hover:text-gray-600 text-3xl leading-none">&times;</button>
+                </div>
+                <div id="modal-view-mode" class="${isNew ? 'hidden' : ''}">
+                    <div class="mt-4 text-sm text-gray-600 space-y-3">${data.content}</div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button id="modal-duplicate-btn" class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">Duplicate</button>
+                        <button id="modal-edit-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Edit</button>
+                    </div>
+                </div>
+                <div id="modal-edit-mode" class="${isNew ? '' : 'hidden'}">
+                    <div class="mt-4 space-y-4">
+                        <div><label class="block text-sm font-medium text-gray-700">Campaign Title</label><input type="text" id="edit-title" value="${data.title}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm"></div>
+                        <div><label class="block text-sm font-medium text-gray-700">Campaign Details</label><textarea id="edit-content" rows="8" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm">${data.content.replace(/<br>/g, '\n')}</textarea></div>
+                    </div>
+                    <div class="mt-6 flex justify-between">
+                        <button id="modal-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 ${isNew ? 'hidden' : ''}">Delete</button>
+                        <div class="flex justify-end space-x-3">
+                            <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
+                            <button id="modal-save-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Save</button>
+                        </div>
+                    </div>
+                </div>`;
+            
+            const viewMode = modalContentArea.querySelector('#modal-view-mode');
+            const editMode = modalContentArea.querySelector('#modal-edit-mode');
+
+            modalContentArea.querySelector('#modal-close-btn').addEventListener('click', closeModal);
+            modalContentArea.querySelector('#modal-edit-btn')?.addEventListener('click', () => {
+                viewMode.classList.add('hidden');
+                editMode.classList.remove('hidden');
+            });
+            modalContentArea.querySelector('#modal-duplicate-btn')?.addEventListener('click', () => duplicateEvent(eventId));
+            modalContentArea.querySelector('#modal-cancel-btn').addEventListener('click', isNew ? closeModal : () => {
+                editMode.classList.add('hidden');
+                viewMode.classList.remove('hidden');
+            });
+            modalContentArea.querySelector('#modal-save-btn').addEventListener('click', () => saveEvent(eventId, date));
+            modalContentArea.querySelector('#modal-delete-btn')?.addEventListener('click', () => deleteEvent(eventId));
+        }
+        
+        function updateClientSelector() {
+            const fragment = document.createDocumentFragment();
+            clients.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = client.name;
+                if (client.id === currentClientId) {
+                    option.selected = true;
+                }
+                fragment.appendChild(option);
+            });
+            clientSelector.innerHTML = '';
+            clientSelector.appendChild(fragment);
+        }
+    </script>
+</body>
+</html>

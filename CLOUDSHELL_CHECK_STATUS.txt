@@ -1,0 +1,13 @@
+echo "=== MCP Deployment Status Check ==="
+echo ""
+echo "1. Current Cloud Run revision:"
+gcloud run revisions list --service=emailpilot-api --region=us-central1 --limit=1 --format="table(name,status,traffic)"
+echo ""
+echo "2. Testing MCP endpoints:"
+echo -n "  /api/mcp/models: "
+curl -s -o /dev/null -w "HTTP %{http_code}\n" https://emailpilot-api-935786836546.us-central1.run.app/api/mcp/models
+echo -n "  /api/mcp/clients: "
+curl -s -o /dev/null -w "HTTP %{http_code}\n" https://emailpilot-api-935786836546.us-central1.run.app/api/mcp/clients
+echo ""
+echo "3. If both show HTTP 200 = ✅ Working"
+echo "   If both show HTTP 404 = ❌ Not integrated yet"

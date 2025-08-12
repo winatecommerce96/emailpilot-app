@@ -1,0 +1,86 @@
+{
+  "auto_integration": true,
+  "package_name": "MCP Management System with Auto-Integration",
+  "version": "1.0.0",
+  "requires_confirmation": true,
+  "estimated_downtime": "30-60 seconds",
+  
+  "integration_steps": {
+    "backup": {
+      "enabled": true,
+      "description": "Create backup of main_firestore.py and critical files"
+    },
+    "api_integration": {
+      "enabled": true,
+      "description": "Add MCP API routes to main_firestore.py",
+      "routes_added": ["/api/mcp/models", "/api/mcp/clients", "/api/mcp/execute", "/api/mcp/usage/*"]
+    },
+    "file_installation": {
+      "enabled": true,
+      "description": "Install MCP files to application directories",
+      "file_mappings": {
+        "api/mcp.py": "/app/app/api/mcp.py",
+        "services/mcp_service.py": "/app/app/services/mcp_service.py",
+        "services/secret_manager.py": "/app/app/services/secret_manager.py",
+        "models/mcp_client.py": "/app/app/models/mcp_client.py",
+        "schemas/mcp_client.py": "/app/app/schemas/mcp_client.py",
+        "core/auth.py": "/app/app/core/auth.py"
+      }
+    },
+    "migration": {
+      "enabled": true,
+      "description": "Run database migration to create MCP tables",
+      "script": "migrate_mcp_only.py"
+    },
+    "service_restart": {
+      "enabled": true,
+      "description": "Restart Cloud Run service to load new code",
+      "service_name": "emailpilot-api",
+      "region": "us-central1",
+      "health_check_url": "https://emailpilot.ai/health"
+    },
+    "verification": {
+      "enabled": true,
+      "description": "Verify MCP endpoints are responding",
+      "test_endpoints": [
+        "/api/mcp/models",
+        "/api/mcp/clients"
+      ]
+    }
+  },
+  
+  "rollback": {
+    "enabled": true,
+    "description": "Automatic rollback on failure",
+    "creates_script": true
+  },
+  
+  "warnings": [
+    "⚠️ This deployment will temporarily stop the EmailPilot service",
+    "⚠️ Service will be unavailable for 30-60 seconds during restart", 
+    "⚠️ All user sessions may be interrupted",
+    "⚠️ Backup will be created automatically for rollback if needed"
+  ],
+  
+  "success_criteria": [
+    "All MCP API endpoints return HTTP 200 or 401 (auth required)",
+    "Service health check passes",
+    "Main application starts without errors",
+    "Database migration completes successfully"
+  ],
+  
+  "post_deployment": {
+    "instructions": [
+      "1. Navigate to https://emailpilot.ai/admin",
+      "2. Go to MCP Management section", 
+      "3. Verify testing buttons are now functional",
+      "4. Run Quick Test to verify system health",
+      "5. Create your first MCP client configuration"
+    ],
+    "verification_urls": [
+      "https://emailpilot.ai/health",
+      "https://emailpilot.ai/admin",
+      "https://emailpilot.ai/api/mcp/models"
+    ]
+  }
+}

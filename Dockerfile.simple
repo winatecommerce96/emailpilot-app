@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install just the basics
+COPY test_requirements.txt .
+RUN pip install -r test_requirements.txt
+
+# Copy the simple test app
+COPY test_main.py .
+
+EXPOSE 8080
+
+CMD ["uvicorn", "test_main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,0 +1,24 @@
+{
+  "integration": {
+    "type": "calendar_tab_replacement",
+    "target": "/calendar",
+    "component": "EmailPilotCalendarTab"
+  },
+  "apiEndpoints": {
+    "base": "/api/firebase-calendar",
+    "clients": "/api/firebase-calendar/clients",
+    "events": "/api/firebase-calendar/events",
+    "chat": "/api/firebase-calendar/chat",
+    "stats": "/api/firebase-calendar/client",
+    "import": "/api/firebase-calendar/import/google-doc",
+    "export": "/api/firebase-calendar/export"
+  },
+  "features": {
+    "dragAndDrop": true,
+    "aiChat": true,
+    "realTimeSync": true,
+    "googleDocImport": true,
+    "exportData": true,
+    "multiClient": true
+  }
+}

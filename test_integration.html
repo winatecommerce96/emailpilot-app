@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EmailPilot Integration Test</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>EmailPilot.ai Integration Test</h1>
+    <div id="status"></div>
+    <button onclick="testAuth()">1. Test Authentication</button>
+    <button onclick="testClients()">2. Test Clients</button>
+    <button onclick="testGoals()">3. Test Goals</button>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'https://emailpilot.ai';
+        let authToken = null;
+
+        async function testAuth() {
+            const status = document.getElementById('status');
+            const results = document.getElementById('results');
+            
+            try {
+                const response = await axios.post(`${API_BASE}/api/auth/google/callback`, {
+                    email: 'damon@winatecommerce.com',
+                    name: 'Test User',
+                    picture: ''
+                }, {
+                    withCredentials: true
+                });
+                
+                if (response.status === 200) {
+                    status.innerHTML = '✅ Authentication successful';
+                    authToken = response.data.access_token;
+                    results.innerHTML = `<pre>${JSON.stringify(response.data.user, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                status.innerHTML = `❌ Auth failed: ${error.message}`;
+                results.innerHTML = `<pre>${error.response?.data?.detail || error.message}</pre>`;
+            }
+        }
+
+        async function testClients() {
+            const status = document.getElementById('status');
+            const results = document.getElementById('results');
+            
+            try {
+                const response = await axios.get(`${API_BASE}/api/clients/`, {
+                    withCredentials: true
+                });
+                
+                if (response.status === 200) {
+                    const clients = response.data;
+                    status.innerHTML = `✅ Retrieved ${clients.length} clients`;
+                    
+                    let html = '<h3>Clients:</h3><ul>';
+                    clients.forEach(client => {
+                        html += `<li>${client.name} (ID: ${client.id}, Active: ${client.is_active})</li>`;
+                    });
+                    html += '</ul>';
+                    results.innerHTML = html;
+                }
+            } catch (error) {
+                status.innerHTML = `❌ Clients failed: ${error.message}`;
+                results.innerHTML = `<pre>${error.response?.data?.detail || error.message}</pre>`;
+            }
+        }
+
+        async function testGoals() {
+            const status = document.getElementById('status');
+            const results = document.getElementById('results');
+            
+            try {
+                const response = await axios.get(`${API_BASE}/api/goals/clients`, {
+                    withCredentials: true
+                });
+                
+                if (response.status === 200) {
+                    const clients = response.data;
+                    status.innerHTML = `✅ Retrieved ${clients.length} clients with goals`;
+                    
+                    let html = '<h3>Clients with Goals:</h3><ul>';
+                    clients.forEach(client => {
+                        html += `<li>${client.name}: ${client.goals_count} goals (Avg: $${(client.avg_goal || 0).toFixed(2)})</li>`;
+                    });
+                    html += '</ul>';
+                    results.innerHTML = html;
+                }
+            } catch (error) {
+                status.innerHTML = `❌ Goals failed: ${error.message}`;
+                results.innerHTML = `<pre>${error.response?.data?.detail || error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

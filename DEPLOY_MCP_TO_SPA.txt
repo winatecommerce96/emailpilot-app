@@ -1,0 +1,364 @@
+#!/bin/bash
+# Deploy MCP to EmailPilot SPA - Complete Integration
+# Copy and paste this into Cloud Shell
+
+echo "=== EmailPilot MCP SPA Integration ==="
+echo "This will add MCP Management as a modal overlay to EmailPilot"
+echo ""
+
+# Configuration
+PROJECT_ID="emailpilot-438321"
+SERVICE_NAME="emailpilot-api"
+REGION="us-central1"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+# Step 1: Create deployment directory
+echo "1. Setting up deployment files..."
+cd ~
+rm -rf mcp-spa-deploy
+mkdir -p mcp-spa-deploy
+cd mcp-spa-deploy
+
+# Step 2: Create React component files
+echo "2. Creating MCP React component..."
+cat > MCPManagement.jsx << 'COMPONENT'
+import React, { useState, useEffect } from 'react';
+
+const MCP_ENDPOINTS = {
+    models: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+    clients: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+    health: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+};
+
+const MCPManagement = ({ isOpen, onClose }) => {
+    const [models, setModels] = useState([]);
+    const [clients, setClients] = useState([]);
+    const [health, setHealth] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [testResults, setTestResults] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            loadMCPData();
+        }
+    }, [isOpen]);
+
+    const loadMCPData = async () => {
+        setLoading(true);
+        try {
+            const [modelsRes, clientsRes, healthRes] = await Promise.all([
+                fetch(MCP_ENDPOINTS.models),
+                fetch(MCP_ENDPOINTS.clients),
+                fetch(MCP_ENDPOINTS.health)
+            ]);
+            
+            setModels(await modelsRes.json());
+            setClients(await clientsRes.json());
+            setHealth(await healthRes.json());
+        } catch (error) {
+            console.error('Error loading MCP data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const testEndpoints = async () => {
+        let results = 'Testing MCP Endpoints...\n\n';
+        for (const [name, url] of Object.entries(MCP_ENDPOINTS)) {
+            try {
+                const start = Date.now();
+                const response = await fetch(url);
+                const time = Date.now() - start;
+                await response.json();
+                results += `✅ ${name}: OK (${time}ms)\n`;
+            } catch (error) {
+                results += `❌ ${name}: Failed\n`;
+            }
+        }
+        setTestResults(results);
+    };
+
+    if (!isOpen) return null;
+
+    return React.createElement('div', {
+        className: 'mcp-overlay',
+        onClick: onClose,
+        style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+        }
+    },
+        React.createElement('div', {
+            className: 'mcp-modal',
+            onClick: (e) => e.stopPropagation(),
+            style: {
+                background: 'white',
+                width: '90%',
+                maxWidth: '1200px',
+                maxHeight: '90vh',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }
+        },
+            React.createElement('div', {
+                style: {
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    padding: '20px 30px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }
+            },
+                React.createElement('h1', { style: { margin: 0 } }, '🤖 MCP Management'),
+                React.createElement('button', {
+                    onClick: onClose,
+                    style: {
+                        background: 'none',
+                        border: 'none',
+                        color: 'white',
+                        fontSize: '30px',
+                        cursor: 'pointer'
+                    }
+                }, '×')
+            ),
+            React.createElement('div', {
+                style: {
+                    padding: '30px',
+                    overflowY: 'auto',
+                    maxHeight: 'calc(90vh - 80px)'
+                }
+            },
+                loading ? 
+                    React.createElement('div', {}, 'Loading MCP data...') :
+                    React.createElement('div', {},
+                        React.createElement('div', {
+                            style: {
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                gap: '20px',
+                                marginBottom: '30px'
+                            }
+                        },
+                            React.createElement('div', {
+                                style: {
+                                    background: '#f0fdf4',
+                                    padding: '20px',
+                                    borderRadius: '8px'
+                                }
+                            },
+                                React.createElement('div', {}, 'System Status'),
+                                React.createElement('div', { style: { fontSize: '24px', fontWeight: 'bold' } }, '✅ Active')
+                            ),
+                            React.createElement('div', {
+                                style: {
+                                    background: '#fef3c7',
+                                    padding: '20px',
+                                    borderRadius: '8px'
+                                }
+                            },
+                                React.createElement('div', {}, 'Available Models'),
+                                React.createElement('div', { style: { fontSize: '24px', fontWeight: 'bold' } }, models.length)
+                            )
+                        ),
+                        React.createElement('h2', {}, 'Available AI Models'),
+                        React.createElement('div', { style: { display: 'grid', gap: '15px' } },
+                            models.map(model => 
+                                React.createElement('div', {
+                                    key: model.id,
+                                    style: {
+                                        padding: '20px',
+                                        background: '#f8fafc',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0'
+                                    }
+                                },
+                                    React.createElement('h3', {}, model.display_name),
+                                    React.createElement('p', {}, `Provider: ${model.provider} | Model: ${model.model_name}`)
+                                )
+                            )
+                        ),
+                        React.createElement('div', { style: { marginTop: '30px' } },
+                            React.createElement('button', {
+                                onClick: testEndpoints,
+                                style: {
+                                    padding: '10px 20px',
+                                    background: '#667eea',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    marginRight: '10px'
+                                }
+                            }, 'Test Endpoints'),
+                            React.createElement('button', {
+                                onClick: loadMCPData,
+                                style: {
+                                    padding: '10px 20px',
+                                    background: '#10b981',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                }
+                            }, 'Refresh Data')
+                        ),
+                        testResults && React.createElement('pre', {
+                            style: {
+                                marginTop: '20px',
+                                padding: '15px',
+                                background: '#1e293b',
+                                color: '#e2e8f0',
+                                borderRadius: '6px',
+                                whiteSpace: 'pre-wrap'
+                            }
+                        }, testResults)
+                    )
+            )
+        )
+    );
+};
+
+export default MCPManagement;
+COMPONENT
+
+# Step 3: Create integration patch
+echo "3. Creating app integration patch..."
+cat > app-integration.js << 'INTEGRATION'
+// MCP Integration for EmailPilot SPA
+// This adds the MCP button and modal to the main app
+
+// Wait for React to be available
+function integrateWhenReady() {
+    if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+        setTimeout(integrateWhenReady, 100);
+        return;
+    }
+    
+    // Create MCP button element
+    const mcpButton = document.createElement('div');
+    mcpButton.id = 'mcp-button-container';
+    document.body.appendChild(mcpButton);
+    
+    // Define button component
+    const MCPButton = () => {
+        const [showMCP, setShowMCP] = React.useState(false);
+        
+        return React.createElement(React.Fragment, {},
+            React.createElement('button', {
+                onClick: () => setShowMCP(true),
+                style: {
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    zIndex: 1000,
+                    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                }
+            }, '🤖 MCP Management'),
+            showMCP && React.createElement(MCPManagement, {
+                isOpen: showMCP,
+                onClose: () => setShowMCP(false)
+            })
+        );
+    };
+    
+    // Render MCP button
+    ReactDOM.render(React.createElement(MCPButton), mcpButton);
+}
+
+// Start integration
+integrateWhenReady();
+INTEGRATION
+
+# Step 4: Create Dockerfile to build new container
+echo "4. Creating Dockerfile..."
+cat > Dockerfile << 'DOCKERFILE'
+# Use the current EmailPilot image as base
+FROM gcr.io/emailpilot-438321/emailpilot-api:latest
+
+# Add MCP component files
+COPY MCPManagement.jsx /app/static/js/MCPManagement.jsx
+COPY app-integration.js /app/static/js/app-integration.js
+
+# Modify index.html to include MCP integration
+RUN if [ -f /app/static/index.html ]; then \
+    echo '<script src="/static/js/MCPManagement.jsx"></script>' >> /app/static/index.html && \
+    echo '<script src="/static/js/app-integration.js"></script>' >> /app/static/index.html; \
+    fi
+
+# Alternative: Modify the main JavaScript bundle if index.html doesn't exist
+RUN if [ -f /app/static/js/main.js ]; then \
+    echo '// MCP Integration' >> /app/static/js/main.js && \
+    cat /app/static/js/app-integration.js >> /app/static/js/main.js; \
+    fi
+
+# Alternative: Add to any HTML file served
+RUN find /app -name "*.html" -type f -exec sh -c 'echo "<script src=\"/static/js/app-integration.js\"></script>" >> {}' \;
+
+DOCKERFILE
+
+# Step 5: Build and deploy
+echo "5. Building new container with MCP..."
+echo ""
+echo "Current service status:"
+gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)" || echo "Service not found"
+
+echo ""
+echo "Building new image..."
+NEW_IMAGE="gcr.io/$PROJECT_ID/$SERVICE_NAME:mcp-spa-$TIMESTAMP"
+gcloud builds submit --tag $NEW_IMAGE --timeout=30m
+
+echo ""
+echo "6. Deploying to Cloud Run..."
+gcloud run deploy $SERVICE_NAME \
+    --image=$NEW_IMAGE \
+    --region=$REGION \
+    --platform=managed \
+    --allow-unauthenticated \
+    --port=8080 \
+    --memory=512Mi \
+    --min-instances=1 \
+    --max-instances=10
+
+echo ""
+echo "7. Verifying deployment..."
+sleep 5
+
+# Test service health
+SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
+echo "Testing service at: $SERVICE_URL"
+curl -s "$SERVICE_URL/health" | head -20 || echo "Health check failed"
+
+echo ""
+echo "Testing MCP endpoints..."
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health | head -20
+
+echo ""
+echo "=== ✅ MCP SPA Integration Complete ==="
+echo ""
+echo "The MCP Management button should now be visible at:"
+echo "https://emailpilot.ai"
+echo ""
+echo "Look for the '🤖 MCP Management' button in the top-right corner"
+echo ""
+echo "If not visible immediately:"
+echo "1. Clear browser cache (Ctrl+Shift+R)"
+echo "2. Try incognito mode"
+echo "3. Check browser console for errors"

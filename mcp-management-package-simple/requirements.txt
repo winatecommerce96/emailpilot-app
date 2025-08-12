@@ -1,0 +1,19 @@
+# MCP Management System Dependencies
+# NOTE: These dependencies are NOT automatically installed
+# They must be manually reviewed and added to EmailPilot's main requirements.txt
+
+# AI Model Provider SDKs
+openai>=1.0.0           # OpenAI GPT models
+anthropic>=0.18.0       # Claude models
+google-generativeai>=0.3.0  # Gemini models
+
+# HTTP and Authentication
+httpx>=0.24.0          # Async HTTP client for API calls
+PyJWT>=2.8.0           # JWT token handling for authentication
+
+# These dependencies should already be present in EmailPilot:
+# - fastapi (API framework)
+# - sqlalchemy (Database ORM)
+# - pydantic (Data validation)
+# - google-cloud-secret-manager (Secret storage)
+# - google-cloud-firestore (Database)

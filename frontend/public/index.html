@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot - Klaviyo Automation Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        @keyframes gradientShift {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        
+        .animated-gradient-nav {
+            background: linear-gradient(90deg, #3369DC, #8A6CF7, #3369DC);
+            background-size: 200% 100%;
+            animation: gradientShift 8s ease infinite;
+        }
+        
+        /* Force logo size in navigation */
+        .animated-gradient-nav img {
+            object-fit: contain !important;
+            height: auto !important;
+            width: auto !important;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .animated-gradient-nav {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+    <!-- Load Firebase Calendar Service first -->
+    <script src="components/FirebaseCalendarService.js"></script>
+    <!-- Load simple calendar (no babel needed) -->
+    <script src="components/CalendarViewSimple.js"></script>
+    <!-- Calendar Components -->
+    <script type="text/babel" src="components/Calendar.js"></script>
+    <script type="text/babel" src="components/EventModal.js"></script>
+    <script type="text/babel" src="components/CalendarChat.js"></script>
+    <script type="text/babel" src="components/CalendarView.js"></script>
+    <!-- Goals Components -->
+    <script type="text/babel" src="components/GoalsAwareCalendarDashboard.js"></script>
+    <script type="text/babel" src="components/GoalsEnhancedDashboard.js"></script>
+    <script type="text/babel" src="components/GoalsCompanyDashboard.js"></script>
+    <script type="text/babel" src="components/GoalsDataStatus.js"></script>
+    <script type="text/babel" src="components/GoalGeneratorPanel.js"></script>
+    <!-- MCP Management Component -->
+    <script type="text/babel" src="components/MCPManagement.js"></script>
+    <!-- Main App -->
+    <script type="text/babel" src="app.js"></script>
+    <!-- Debug script to check loading -->
+    <script>
+        setTimeout(() => {
+            console.log('Component check after 3 seconds:');
+            console.log('CalendarViewSimple:', typeof window.CalendarViewSimple);
+            console.log('CalendarView:', typeof window.CalendarView);
+            console.log('Calendar:', typeof window.Calendar);
+            console.log('EventModal:', typeof window.EventModal);
+        }, 3000);
+    </script>
+</body>
+</html>

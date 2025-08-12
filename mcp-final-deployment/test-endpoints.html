@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Cloud Function Endpoint Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #1f2937;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .endpoint-grid {
+            display: grid;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .endpoint-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .endpoint-card.testing {
+            border-color: #fbbf24;
+            background: #fefbeb;
+        }
+        
+        .endpoint-card.success {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        
+        .endpoint-card.error {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .endpoint-name {
+            font-weight: 700;
+            font-size: 18px;
+            color: #1f2937;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .endpoint-url {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: #6b7280;
+            background: #f3f4f6;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            word-break: break-all;
+        }
+        
+        .status {
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status.error {
+            background: #fecaca;
+            color: #991b1b;
+        }
+        
+        .response-data {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .summary {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .summary-title {
+            font-weight: 700;
+            color: #0c4a6e;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span>🔍</span>
+            MCP Cloud Function Test Suite
+        </h1>
+        <div class="subtitle">
+            Test all MCP Management Cloud Function endpoints to verify connectivity and responses
+        </div>
+        
+        <div class="controls">
+            <button class="btn-primary" onclick="runAllTests()">
+                🚀 Run All Tests
+            </button>
+            <button class="btn-secondary" onclick="testIndividual()">
+                🎯 Test Individual
+            </button>
+            <button class="btn-warning" onclick="clearResults()">
+                🧹 Clear Results
+            </button>
+        </div>
+        
+        <div class="endpoint-grid" id="endpoint-grid">
+            <!-- Endpoint cards will be populated here -->
+        </div>
+        
+        <div class="summary" id="summary" style="display: none;">
+            <div class="summary-title">📊 Test Results Summary</div>
+            <div class="summary-stats" id="summary-stats">
+                <!-- Summary stats will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // FIXED Cloud Function endpoints - same as production
+        const ENDPOINTS = {
+            models: {
+                name: 'Models API',
+                url: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+                description: 'Retrieve available AI models',
+                icon: '🤖'
+            },
+            clients: {
+                name: 'Clients API', 
+                url: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+                description: 'Retrieve MCP client configurations',
+                icon: '👥'
+            },
+            health: {
+                name: 'Health Check',
+                url: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health',
+                description: 'System health and status',
+                icon: '💚'
+            }
+        };
+        
+        let testResults = {};
+        
+        function initializeGrid() {
+            const grid = document.getElementById('endpoint-grid');
+            grid.innerHTML = '';
+            
+            Object.entries(ENDPOINTS).forEach(([key, endpoint]) => {
+                const card = document.createElement('div');
+                card.className = 'endpoint-card';
+                card.id = `card-${key}`;
+                
+                card.innerHTML = `
+                    <div class="endpoint-name">
+                        <span>${endpoint.icon}</span>
+                        ${endpoint.name}
+                    </div>
+                    <div class="endpoint-url">${endpoint.url}</div>
+                    <div class="status pending" id="status-${key}">⏳ Pending</div>
+                    <div style="color: #64748b; font-size: 14px; margin-bottom: 10px;">
+                        ${endpoint.description}
+                    </div>
+                    <div class="response-data" id="response-${key}" style="display: none;"></div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        async function testEndpoint(key, endpoint) {
+            const card = document.getElementById(`card-${key}`);
+            const status = document.getElementById(`status-${key}`);
+            const response = document.getElementById(`response-${key}`);
+            
+            // Set testing state
+            card.className = 'endpoint-card testing';
+            status.className = 'status pending pulse';
+            status.textContent = '⏳ Testing...';
+            response.style.display = 'none';
+            
+            const startTime = Date.now();
+            
+            try {
+                console.log(`🔍 Testing ${endpoint.name}...`);
+                
+                const fetchResponse = await fetch(endpoint.url, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const endTime = Date.now();
+                const responseTime = endTime - startTime;
+                
+                if (!fetchResponse.ok) {
+                    throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}`);
+                }
+                
+                const data = await fetchResponse.json();
+                
+                // Success state
+                card.className = 'endpoint-card success';
+                status.className = 'status success';
+                status.textContent = `✅ Success (${responseTime}ms)`;
+                
+                response.style.display = 'block';
+                response.textContent = JSON.stringify(data, null, 2);
+                
+                testResults[key] = {
+                    success: true,
+                    status: fetchResponse.status,
+                    responseTime,
+                    data,
+                    error: null
+                };
+                
+                console.log(`✅ ${endpoint.name} - Success (${responseTime}ms):`, data);
+                
+            } catch (error) {
+                const endTime = Date.now();
+                const responseTime = endTime - startTime;
+                
+                // Error state
+                card.className = 'endpoint-card error';
+                status.className = 'status error';
+                status.textContent = `❌ Failed (${responseTime}ms)`;
+                
+                response.style.display = 'block';
+                response.textContent = `Error: ${error.message}`;
+                
+                testResults[key] = {
+                    success: false,
+                    status: 0,
+                    responseTime,
+                    data: null,
+                    error: error.message
+                };
+                
+                console.error(`❌ ${endpoint.name} - Failed:`, error);
+            }
+        }
+        
+        async function runAllTests() {
+            console.log('🚀 Starting MCP endpoint tests...');
+            
+            testResults = {};
+            const summary = document.getElementById('summary');
+            summary.style.display = 'none';
+            
+            // Run all tests in parallel
+            const testPromises = Object.entries(ENDPOINTS).map(([key, endpoint]) => 
+                testEndpoint(key, endpoint)
+            );
+            
+            await Promise.all(testPromises);
+            
+            updateSummary();
+            console.log('🎉 All tests completed!');
+        }
+        
+        async function testIndividual() {
+            const keys = Object.keys(ENDPOINTS);
+            const selected = prompt(`Select endpoint to test:\n${keys.map((k, i) => `${i + 1}. ${ENDPOINTS[k].name}`).join('\n')}\n\nEnter number (1-${keys.length}):`);
+            
+            if (selected && selected >= 1 && selected <= keys.length) {
+                const key = keys[selected - 1];
+                await testEndpoint(key, ENDPOINTS[key]);
+                updateSummary();
+            }
+        }
+        
+        function clearResults() {
+            testResults = {};
+            initializeGrid();
+            document.getElementById('summary').style.display = 'none';
+            console.clear();
+            console.log('🧹 Results cleared');
+        }
+        
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const stats = document.getElementById('summary-stats');
+            
+            const total = Object.keys(testResults).length;
+            const successful = Object.values(testResults).filter(r => r.success).length;
+            const failed = total - successful;
+            const avgResponseTime = total > 0 ? 
+                Math.round(Object.values(testResults).reduce((sum, r) => sum + r.responseTime, 0) / total) : 0;
+            
+            stats.innerHTML = `
+                <div class="stat">
+                    <div class="stat-value" style="color: #10b981;">${successful}</div>
+                    <div class="stat-label">Successful</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" style="color: ${failed > 0 ? '#ef4444' : '#64748b'};">${failed}</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" style="color: #6366f1;">${total}</div>
+                    <div class="stat-label">Total Tests</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" style="color: #f59e0b;">${avgResponseTime}ms</div>
+                    <div class="stat-label">Avg Response</div>
+                </div>
+            `;
+            
+            summary.style.display = 'block';
+            
+            // Log summary to console
+            console.group('📊 Test Summary');
+            console.log(`Successful: ${successful}/${total}`);
+            console.log(`Failed: ${failed}/${total}`);
+            console.log(`Average Response Time: ${avgResponseTime}ms`);
+            console.log('Detailed Results:', testResults);
+            console.groupEnd();
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeGrid();
+            console.log('🔍 MCP Endpoint Test Suite loaded');
+            console.log('📍 Testing endpoints:', Object.values(ENDPOINTS).map(e => e.url));
+            console.log('💡 Click "Run All Tests" to start testing');
+        });
+        
+        // Auto-run tests if requested via URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autorun') === 'true') {
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(runAllTests, 1000);
+            });
+        }
+    </script>
+</body>
+</html>

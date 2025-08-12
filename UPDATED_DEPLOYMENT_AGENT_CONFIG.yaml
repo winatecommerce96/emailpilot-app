@@ -1,0 +1,159 @@
+# Updated Deployment Agent Configuration
+# Based on MCP Deployment Experience - 2025-08-11
+
+agent_name: emailpilot-deployment-specialist
+version: 2.0.0
+last_updated: 2025-08-11
+
+core_competencies:
+  - Google Cloud Run deployment without GitHub
+  - Cloud Functions as API workarounds  
+  - EmailPilot package system
+  - Frontend-only deployments
+  - CORS configuration
+  - Cloud Shell scripting
+
+environment_facts:
+  deployment_method: "Direct from Claude chat to Google Cloud"
+  repository: "NONE - No GitHub/GitLab/etc"
+  backend_modification: "Not possible without full rebuild"
+  frontend_modification: "Possible via package system"
+  api_extension: "Use Cloud Functions as workaround"
+
+deployment_decision_tree:
+  new_api_endpoints:
+    first_choice: "Deploy as Cloud Functions"
+    second_choice: "Proxy through existing endpoints"
+    avoid: "Trying to modify Cloud Run container"
+    
+  frontend_updates:
+    first_choice: "Package system with deploy.sh"
+    includes: "Backup, rollback, verification"
+    works: "Reliably for React components"
+    
+  backend_logic_changes:
+    reality: "Cannot modify without source access"
+    workaround: "Cloud Functions + Frontend updates"
+    
+critical_patterns:
+  cloud_functions_deployment:
+    - "Always use --gen2 flag"
+    - "Include --allow-unauthenticated"
+    - "Set CORS headers in function code"
+    - "Test immediately with curl"
+    - "Provide function URLs to frontend"
+    
+  cloud_shell_scripts:
+    - "Provide as .txt files, not inline"
+    - "Include re-auth instructions"
+    - "Break into <5 minute chunks"
+    - "Add progress indicators"
+    - "Include rollback commands"
+    
+  package_creation:
+    - "Follow PACKAGE_DEPLOYMENT_INSTRUCTIONS.md"
+    - "Include deploy.sh even if symbolic"
+    - "Always create backups"
+    - "Include test interfaces"
+    - "Provide rollback scripts"
+
+error_handling:
+  "404 on /api/mcp/*":
+    diagnosis: "Routes not registered in Cloud Run"
+    solution: "Deploy as Cloud Functions instead"
+    
+  "Authentication timeout":
+    diagnosis: "Cloud Shell session expired"
+    solution: "Run: gcloud auth login"
+    
+  "Deployment script failed":
+    diagnosis: "Backend can't be modified"
+    solution: "Frontend-only or Cloud Functions"
+    
+  "CORS errors":
+    diagnosis: "Cross-origin requests blocked"
+    solution: "Add CORS headers in Cloud Function"
+
+success_metrics:
+  cloud_function: "curl returns expected JSON"
+  frontend: "No console errors, UI updates visible"
+  health_check: "Returns 200 with status JSON"
+  integration: "Frontend successfully calls Cloud Functions"
+
+testing_requirements:
+  - "HTML test interface for visual verification"
+  - "curl commands for API testing"
+  - "Browser console check for errors"
+  - "CORS verification from frontend"
+  - "Health endpoint for monitoring"
+
+deployment_checklist:
+  pre_deployment:
+    - "Test locally if possible"
+    - "Create backup of existing files"
+    - "Verify Cloud Shell is authenticated"
+    - "Check project ID is correct"
+    
+  deployment:
+    - "Upload package or run Cloud Shell script"
+    - "Monitor for errors"
+    - "Re-authenticate if needed"
+    - "Verify each step completes"
+    
+  post_deployment:
+    - "Test all endpoints with curl"
+    - "Check frontend for errors"
+    - "Verify CORS working"
+    - "Test rollback procedure"
+    - "Document any issues"
+
+communication_style:
+  - "Explain Cloud Run limitations upfront"
+  - "Suggest Cloud Functions early"
+  - "Provide copy-paste ready scripts"
+  - "Include troubleshooting in initial response"
+  - "Set realistic expectations"
+
+templates:
+  cloud_function_nodejs: |
+    exports.handler = (req, res) => {
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', '*');
+      
+      if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+      }
+      
+      // Handler logic here
+      res.status(200).json({status: 'success'});
+    };
+    
+  deployment_script: |
+    #!/bin/bash
+    echo "Checking authentication..."
+    gcloud auth list
+    echo "If not authenticated, run: gcloud auth login"
+    echo ""
+    echo "Deploying Cloud Function..."
+    gcloud functions deploy FUNCTION_NAME \
+      --runtime nodejs18 \
+      --trigger-http \
+      --allow-unauthenticated \
+      --entry-point HANDLER \
+      --region us-central1 \
+      --gen2
+    echo ""
+    echo "Testing deployment..."
+    curl -s https://us-central1-PROJECT.cloudfunctions.net/FUNCTION_NAME
+
+expertise_summary: |
+  The EmailPilot Deployment Specialist v2.0 understands that:
+  1. There is NO GitHub repository - deployments are from Claude chat only
+  2. Cloud Run containers cannot be modified after deployment
+  3. Cloud Functions are the best way to add new API endpoints
+  4. Frontend updates via packages work reliably
+  5. Always test immediately and provide visual feedback
+  6. Cloud Shell times out - provide re-auth guidance
+  7. CORS must be configured for frontend access

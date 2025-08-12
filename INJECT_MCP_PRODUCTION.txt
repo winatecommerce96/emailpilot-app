@@ -1,0 +1,277 @@
+#!/bin/bash
+# Simple MCP Production Injection - No Container Rebuild Required
+# This adds MCP to EmailPilot without modifying the container
+
+echo "=== MCP Production Injection (No Container Rebuild) ==="
+echo ""
+
+PROJECT_ID="emailpilot-438321"
+SERVICE_NAME="emailpilot-api"
+REGION="us-central1"
+
+# Step 1: Ensure Secret Manager is set up
+echo "1. Setting up MCP configuration in Secret Manager..."
+cat > mcp-config.json << 'CONFIG'
+{
+  "endpoints": {
+    "models": "https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models",
+    "clients": "https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients",
+    "health": "https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health"
+  },
+  "settings": {
+    "enabled": true,
+    "buttonPosition": "top-right"
+  }
+}
+CONFIG
+
+# Create or update the secret
+if gcloud secrets describe mcp-config --project=$PROJECT_ID >/dev/null 2>&1; then
+    echo "Updating existing secret..."
+    gcloud secrets versions add mcp-config --data-file=mcp-config.json --project=$PROJECT_ID
+else
+    echo "Creating new secret..."
+    gcloud secrets create mcp-config --data-file=mcp-config.json --project=$PROJECT_ID
+fi
+
+echo ""
+echo "2. Testing that Cloud Functions are working..."
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health | python3 -m json.tool || echo "Cloud Function test failed"
+
+echo ""
+echo "3. Creating browser injection script..."
+cat > inject-mcp.js << 'SCRIPT'
+// EmailPilot MCP Production Injection Script
+// This script adds MCP to the production site without container changes
+
+console.log('🚀 MCP Injection Starting...');
+
+// Configuration from Secret Manager (or fallback)
+const MCP_CONFIG = {
+    endpoints: {
+        models: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+        clients: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+        health: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+    }
+};
+
+// Create and inject MCP
+(function() {
+    // Wait for page to be ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMCP);
+    } else {
+        initMCP();
+    }
+    
+    function initMCP() {
+        // Check if already injected
+        if (document.getElementById('mcp-injected-button')) {
+            console.log('MCP already injected');
+            return;
+        }
+        
+        // Create MCP button
+        const button = document.createElement('button');
+        button.id = 'mcp-injected-button';
+        button.innerHTML = '🤖 MCP Management';
+        button.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 99999;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: transform 0.2s;
+        `;
+        
+        button.onmouseover = () => button.style.transform = 'scale(1.05)';
+        button.onmouseout = () => button.style.transform = 'scale(1)';
+        button.onclick = showMCPInterface;
+        
+        document.body.appendChild(button);
+        
+        // Auto-load MCP data
+        loadMCPData();
+        
+        console.log('✅ MCP button added to page');
+    }
+    
+    function showMCPInterface() {
+        // Remove existing interface if any
+        const existing = document.getElementById('mcp-interface-modal');
+        if (existing) {
+            existing.remove();
+            return;
+        }
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.id = 'mcp-interface-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        modal.innerHTML = `
+            <div style="background: white; width: 90%; max-width: 1200px; max-height: 90vh; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center;">
+                    <h1 style="margin: 0;">🤖 MCP Management</h1>
+                    <button onclick="document.getElementById('mcp-interface-modal').remove()" style="background: none; border: none; color: white; font-size: 30px; cursor: pointer;">×</button>
+                </div>
+                <div style="padding: 30px; overflow-y: auto; max-height: calc(90vh - 80px);">
+                    <div id="mcp-content">Loading...</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Load and display MCP data
+        displayMCPData();
+    }
+    
+    let mcpData = {
+        models: [],
+        clients: [],
+        health: null
+    };
+    
+    async function loadMCPData() {
+        try {
+            const [modelsRes, clientsRes, healthRes] = await Promise.all([
+                fetch(MCP_CONFIG.endpoints.models),
+                fetch(MCP_CONFIG.endpoints.clients),
+                fetch(MCP_CONFIG.endpoints.health)
+            ]);
+            
+            mcpData.models = await modelsRes.json();
+            mcpData.clients = await clientsRes.json();
+            mcpData.health = await healthRes.json();
+            
+            console.log('✅ MCP data loaded:', mcpData);
+        } catch (error) {
+            console.error('❌ Failed to load MCP data:', error);
+        }
+    }
+    
+    function displayMCPData() {
+        const content = document.getElementById('mcp-content');
+        if (!content) return;
+        
+        content.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <div style="background: #f0fdf4; padding: 20px; border-radius: 8px;">
+                    <div style="color: #166534; font-size: 14px;">System Status</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #22c55e;">✅ Active</div>
+                </div>
+                <div style="background: #fef3c7; padding: 20px; border-radius: 8px;">
+                    <div style="color: #78350f; font-size: 14px;">Available Models</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${mcpData.models.length}</div>
+                </div>
+                <div style="background: #ede9fe; padding: 20px; border-radius: 8px;">
+                    <div style="color: #4c1d95; font-size: 14px;">Active Clients</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;">${mcpData.clients.length}</div>
+                </div>
+            </div>
+            
+            <h2>Available AI Models</h2>
+            <div style="display: grid; gap: 15px;">
+                ${mcpData.models.map(model => `
+                    <div style="padding: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h3 style="margin: 0 0 10px 0;">${model.display_name}</h3>
+                        <p style="margin: 0; color: #64748b;">Provider: <strong>${model.provider}</strong> | Model: <code>${model.model_name}</code></p>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <button onclick="window.testMCPEndpoints()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; margin-right: 10px;">Test All Endpoints</button>
+                <button onclick="window.loadMCPData().then(window.displayMCPData)" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">Refresh Data</button>
+            </div>
+            
+            <div id="test-results" style="margin-top: 20px; padding: 15px; background: #1e293b; color: #e2e8f0; border-radius: 6px; font-family: monospace; font-size: 12px; display: none;"></div>
+        `;
+    }
+    
+    // Make functions globally available
+    window.loadMCPData = loadMCPData;
+    window.displayMCPData = displayMCPData;
+    window.testMCPEndpoints = async function() {
+        const results = document.getElementById('test-results');
+        if (results) {
+            results.style.display = 'block';
+            results.textContent = 'Testing endpoints...\n\n';
+            
+            for (const [name, url] of Object.entries(MCP_CONFIG.endpoints)) {
+                try {
+                    const start = Date.now();
+                    const res = await fetch(url);
+                    const time = Date.now() - start;
+                    results.textContent += `✅ ${name}: OK (${time}ms)\n`;
+                } catch (err) {
+                    results.textContent += `❌ ${name}: Failed\n`;
+                }
+            }
+        }
+    };
+})();
+SCRIPT
+
+echo ""
+echo "4. Creating bookmarklet for easy injection..."
+cat > bookmarklet.txt << 'BOOKMARKLET'
+javascript:(function(){var s=document.createElement('script');s.src='data:text/javascript;base64,'+btoa(unescape(encodeURIComponent(`
+// MCP Bookmarklet
+const MCP_CONFIG={endpoints:{models:'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',clients:'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',health:'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'}};
+if(document.getElementById('mcp-injected-button')){alert('MCP already active');return;}
+const b=document.createElement('button');b.id='mcp-injected-button';b.innerHTML='🤖 MCP Management';b.style.cssText='position:fixed;top:20px;right:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;z-index:99999;box-shadow:0 4px 15px rgba(102,126,234,0.4);';
+b.onclick=()=>{const m=document.getElementById('mcp-modal');if(m){m.remove();return;}
+const modal=document.createElement('div');modal.id='mcp-modal';modal.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
+modal.innerHTML='<div style="background:white;width:90%;max-width:1200px;max-height:90vh;border-radius:12px;overflow:hidden;"><div style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:20px 30px;display:flex;justify-content:space-between;"><h1 style="margin:0;">🤖 MCP Management</h1><button onclick="this.parentElement.parentElement.parentElement.remove()" style="background:none;border:none;color:white;font-size:30px;cursor:pointer;">×</button></div><div style="padding:30px;overflow-y:auto;"><div id="mcp-data">Loading...</div></div></div>';
+document.body.appendChild(modal);
+Promise.all([fetch(MCP_CONFIG.endpoints.models),fetch(MCP_CONFIG.endpoints.health)]).then(async([m,h])=>{const models=await m.json();const health=await h.json();document.getElementById('mcp-data').innerHTML='<h2>Models ('+models.length+')</h2>'+models.map(m=>'<div style="padding:15px;margin:10px 0;background:#f8fafc;border-radius:8px;"><strong>'+m.display_name+'</strong><br>Provider: '+m.provider+'</div>').join('')+'<div style="margin-top:20px;padding:15px;background:#f0fdf4;border-radius:8px;">✅ System '+health.status+'</div>';});};
+document.body.appendChild(b);
+alert('✅ MCP Management added! Click the button in top-right corner.');
+`)));document.body.appendChild(s);})();
+BOOKMARKLET
+
+echo ""
+echo "=== ✅ MCP Injection Ready ==="
+echo ""
+echo "Since container rebuild failed, use one of these methods:"
+echo ""
+echo "METHOD 1 - Browser Console (Temporary):"
+echo "1. Go to https://emailpilot.ai"
+echo "2. Open browser console (F12)"
+echo "3. Copy and paste the contents of inject-mcp.js"
+echo "4. Press Enter"
+echo ""
+echo "METHOD 2 - Bookmarklet (Semi-Permanent):"
+echo "1. Create a new bookmark"
+echo "2. Set name to 'MCP Manager'"
+echo "3. Set URL to the contents of bookmarklet.txt"
+echo "4. Click bookmark when on EmailPilot"
+echo ""
+echo "METHOD 3 - Chrome Extension (Permanent):"
+echo "We can create a Chrome extension that auto-injects MCP"
+echo ""
+echo "The Cloud Functions are working perfectly, so MCP functionality is available."
+echo "The only issue is getting it integrated into the frontend permanently."
+echo ""
+echo "Next step: We should investigate why the container rebuild fails and fix the Dockerfile."

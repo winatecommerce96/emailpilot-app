@@ -1,0 +1,181 @@
+#!/bin/bash
+# Investigate EmailPilot Container Structure
+# This will help us understand how to properly rebuild the container
+
+echo "=== EmailPilot Container Investigation ==="
+echo ""
+
+PROJECT_ID="emailpilot-438321"
+SERVICE_NAME="emailpilot-api"
+REGION="us-central1"
+
+# Step 1: Get current container details
+echo "1. Getting current container information..."
+echo "----------------------------------------"
+CURRENT_IMAGE=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(spec.template.spec.containers[0].image)")
+echo "Current image: $CURRENT_IMAGE"
+
+CURRENT_REVISION=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.latestCreatedRevisionName)")
+echo "Current revision: $CURRENT_REVISION"
+
+echo ""
+echo "2. Checking container configuration..."
+echo "----------------------------------------"
+gcloud run services describe $SERVICE_NAME --region=$REGION --format=export > service-config.yaml
+echo "Service configuration saved to service-config.yaml"
+
+echo ""
+echo "3. Checking recent deployment logs for clues..."
+echo "----------------------------------------"
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=$SERVICE_NAME AND resource.labels.revision_name=$CURRENT_REVISION" \
+    --limit=50 \
+    --format="value(textPayload)" | head -100
+
+echo ""
+echo "4. Checking build history..."
+echo "----------------------------------------"
+gcloud builds list --limit=5 --format="table(id,status,createTime,source.storageSource.bucket,tags)"
+
+echo ""
+echo "5. Attempting to pull and inspect the container locally..."
+echo "----------------------------------------"
+# Try to pull the image for inspection
+echo "Attempting to pull image for inspection..."
+docker pull $CURRENT_IMAGE 2>/dev/null || gcloud auth configure-docker --quiet && docker pull $CURRENT_IMAGE
+
+if [ $? -eq 0 ]; then
+    echo "Successfully pulled image. Inspecting..."
+    
+    # Create a temporary container to explore
+    echo ""
+    echo "6. Exploring container structure..."
+    echo "----------------------------------------"
+    CONTAINER_ID=$(docker create $CURRENT_IMAGE)
+    
+    echo "Checking root directory structure:"
+    docker export $CONTAINER_ID | tar -t | head -50
+    
+    echo ""
+    echo "Looking for app directories:"
+    docker export $CONTAINER_ID | tar -t | grep -E "^app/|^usr/src/|^var/www/|^home/" | head -30
+    
+    echo ""
+    echo "Looking for static files:"
+    docker export $CONTAINER_ID | tar -t | grep -E "\.html$|\.js$|index\." | head -30
+    
+    echo ""
+    echo "Looking for Python files:"
+    docker export $CONTAINER_ID | tar -t | grep -E "\.py$|main\.|app\." | head -30
+    
+    echo ""
+    echo "Checking for package.json or requirements.txt:"
+    docker export $CONTAINER_ID | tar -t | grep -E "package\.json|requirements\.txt|Pipfile" | head -10
+    
+    echo ""
+    echo "Extracting potential entry points:"
+    docker export $CONTAINER_ID | tar -t | grep -E "start\.|run\.|main\.|index\.|app\." | head -20
+    
+    # Clean up
+    docker rm $CONTAINER_ID >/dev/null 2>&1
+    
+    echo ""
+    echo "7. Checking container metadata..."
+    echo "----------------------------------------"
+    docker inspect $CURRENT_IMAGE --format='{{json .Config}}' | python3 -m json.tool | head -50
+    
+else
+    echo "Could not pull image locally. Trying alternative investigation..."
+    
+    echo ""
+    echo "6. Checking Cloud Build configurations..."
+    echo "----------------------------------------"
+    # Look for recent successful builds
+    RECENT_BUILD=$(gcloud builds list --limit=1 --filter="status=SUCCESS" --format="value(id)")
+    if [ ! -z "$RECENT_BUILD" ]; then
+        echo "Recent successful build: $RECENT_BUILD"
+        gcloud builds describe $RECENT_BUILD --format="yaml" | head -100
+    fi
+fi
+
+echo ""
+echo "8. Checking environment variables and secrets..."
+echo "----------------------------------------"
+gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(spec.template.spec.containers[0].env[].name)"
+
+echo ""
+echo "9. Testing current endpoints to understand structure..."
+echo "----------------------------------------"
+SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
+
+echo "Testing root:"
+curl -s -I "$SERVICE_URL/" | head -10
+
+echo ""
+echo "Testing /static/:"
+curl -s -I "$SERVICE_URL/static/" | head -5
+
+echo ""
+echo "Testing /api/:"
+curl -s "$SERVICE_URL/api/" | head -5 || echo "No /api/ endpoint"
+
+echo ""
+echo "Testing /health:"
+curl -s "$SERVICE_URL/health" | python3 -m json.tool || echo "No JSON response"
+
+echo ""
+echo "Testing common static paths:"
+for path in "static/js/main.js" "static/index.html" "index.html" "app.js" "bundle.js" "static/js/bundle.js"; do
+    echo -n "Testing /$path: "
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/$path")
+    echo "HTTP $STATUS"
+done
+
+echo ""
+echo "10. Creating a working Dockerfile based on findings..."
+echo "----------------------------------------"
+cat > fixed-dockerfile.txt << 'DOCKERFILE'
+# Based on investigation, here's a better Dockerfile approach
+
+# Option 1: If it's a Python FastAPI app
+FROM gcr.io/emailpilot-438321/emailpilot-api:latest
+
+# Add MCP integration as a static file
+RUN mkdir -p /app/static/js || true
+COPY mcp-integration.js /app/static/js/mcp-integration.js
+
+# Try multiple injection points
+# For Python apps serving static files
+RUN if [ -f /app/main.py ]; then \
+    echo "# MCP Static Route" >> /app/main.py && \
+    echo "app.mount('/mcp', StaticFiles(directory='static/js'), name='mcp')" >> /app/main.py; \
+    fi
+
+# For template-based apps
+RUN find /app -name "*.html" -type f 2>/dev/null | while read file; do \
+    if grep -q "</body>" "$file"; then \
+        sed -i 's|</body>|<script src="/static/js/mcp-integration.js"></script></body>|' "$file"; \
+    fi; \
+    done || true
+
+# Ensure port is correct
+ENV PORT=8080
+EXPOSE 8080
+
+# Option 2: If it's a Node.js app
+# FROM gcr.io/emailpilot-438321/emailpilot-api:latest
+# COPY mcp-integration.js /app/public/js/mcp-integration.js || \
+#      COPY mcp-integration.js /app/static/js/mcp-integration.js || \
+#      COPY mcp-integration.js /app/dist/js/mcp-integration.js
+DOCKERFILE
+
+echo ""
+echo "=== Investigation Complete ==="
+echo ""
+echo "Based on the findings above, we can now create a proper Dockerfile."
+echo "Look for:"
+echo "  - The directory structure (especially /app location)"
+echo "  - Where static files are served from"
+echo "  - The main application file (main.py, app.py, index.js, etc.)"
+echo "  - How HTML is served (templates, static, or API-generated)"
+echo ""
+echo "Next step: Create a new deployment script with the correct paths."

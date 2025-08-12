@@ -1,0 +1,208 @@
+# Deployment Agent Configuration v4.0
+# Updated with MCP deployment lessons - CRITICAL FIXES
+# Date: 2025-08-11
+
+agent_name: emailpilot-deployment-specialist
+version: 4.0.0
+last_updated: 2025-08-11
+
+# CRITICAL LESSONS FROM MCP DEPLOYMENT FAILURE
+critical_failures_to_avoid:
+  proxy_trap:
+    mistake: "Using /api/* paths in frontend that rely on CRA dev proxy"
+    consequence: "Works locally, 404s in production"
+    solution: |
+      ALWAYS use full URLs in production code:
+      ❌ fetch('/api/mcp/models')
+      ✅ fetch('https://us-central1-PROJECT.cloudfunctions.net/mcp-models')
+      
+      Or use environment variables:
+      const API_URL = process.env.REACT_APP_API_URL || 'https://prod-url.com'
+      
+  container_modification:
+    mistake: "Trying to rebuild Docker containers without source code"
+    consequence: "Broke Admin tab, lost functionality"
+    solution: |
+      DO NOT modify containers unless you have:
+      - Complete source code
+      - Understanding of build process
+      - Ability to test locally first
+      
+      PREFER: Frontend injection, Cloud Functions, client-side solutions
+      
+  authentication_errors:
+    mistake: "Hardcoding GOOGLE_APPLICATION_CREDENTIALS path in Dockerfile"
+    consequence: "Container crashes on startup looking for missing file"
+    solution: |
+      Use Application Default Credentials (ADC):
+      ❌ ENV GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      ✅ Let Cloud Run use its service account automatically
+      
+  relative_imports:
+    mistake: "Using relative imports that break in production"
+    consequence: "Scripts fail to load, 'Unexpected token <' errors"
+    solution: |
+      Use absolute URLs or proper build paths:
+      ❌ import './components/something.js'
+      ✅ Ensure files are in build output and use correct paths
+
+deployment_best_practices:
+  frontend_features:
+    preferred_approach: "Client-side injection"
+    steps:
+      - Test Cloud Function endpoints first
+      - Use full URLs, never relative paths
+      - Handle both React 17 and React 18
+      - Include CORS mode in fetch requests
+      - Test in production-like environment
+    
+  api_endpoints:
+    preferred_approach: "Cloud Functions"
+    reasons:
+      - No container rebuild required
+      - Independent scaling
+      - Easy rollback
+      - Immediate deployment
+    implementation: |
+      1. Deploy Cloud Functions with CORS headers
+      2. Update frontend to use Cloud Function URLs
+      3. NO proxy dependencies
+      
+  testing_strategy:
+    required_tests:
+      - Endpoint availability (curl/fetch)
+      - CORS headers (OPTIONS preflight)
+      - Error handling (network failures)
+      - React version compatibility
+      - Production environment (no dev proxy)
+
+code_patterns:
+  correct_fetch:
+    pattern: |
+      const ENDPOINTS = {
+        models: process.env.REACT_APP_MODELS_URL || 
+                'https://us-central1-project.cloudfunctions.net/models',
+        health: process.env.REACT_APP_HEALTH_URL || 
+                'https://us-central1-project.cloudfunctions.net/health'
+      };
+      
+      fetch(ENDPOINTS.models, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        mode: 'cors' // CRITICAL for cross-origin requests
+      })
+  
+  react_mounting:
+    pattern: |
+      // Handle both React 17 and 18
+      const mount = document.getElementById('root');
+      if (ReactDOM.createRoot) {
+        // React 18
+        ReactDOM.createRoot(mount).render(element);
+      } else {
+        // React 17
+        ReactDOM.render(element, mount);
+      }
+  
+  safe_injection:
+    pattern: |
+      // Check if already injected
+      if (document.getElementById('my-feature')) {
+        console.log('Already loaded');
+        return;
+      }
+      
+      // Wait for dependencies
+      function waitForDeps() {
+        if (typeof React === 'undefined') {
+          setTimeout(waitForDeps, 100);
+          return;
+        }
+        // Proceed with injection
+      }
+
+deployment_checklist:
+  pre_deployment:
+    - "Test all API endpoints with curl"
+    - "Verify CORS headers are present"
+    - "Check for hardcoded localhost/dev URLs"
+    - "Ensure no proxy dependencies"
+    - "Test in incognito mode (no cache)"
+    
+  deployment:
+    - "Use injection scripts, not container rebuilds"
+    - "Deploy Cloud Functions before frontend"
+    - "Use environment variables for URLs"
+    - "Include comprehensive error handling"
+    
+  post_deployment:
+    - "Check browser console for errors"
+    - "Verify network tab shows 200s, not 404s"
+    - "Test in multiple browsers"
+    - "Confirm CORS not blocking requests"
+    - "Document rollback procedure"
+
+environment_specific:
+  development:
+    proxy_config: "Fine for development only"
+    urls: "Can use relative /api/* paths"
+    
+  production:
+    proxy_config: "DOES NOT EXIST"
+    urls: "MUST use absolute URLs"
+    cors: "MUST be configured on API"
+
+common_errors:
+  "Unexpected token '<'":
+    cause: "URL returning HTML instead of JS"
+    fix: "Check file paths and server routing"
+    
+  "404 Not Found on /api/*":
+    cause: "No proxy in production"
+    fix: "Use full URLs to actual endpoints"
+    
+  "CORS blocked":
+    cause: "Missing CORS headers on API"
+    fix: "Add proper CORS headers, use mode: 'cors'"
+    
+  "Container failed to start":
+    cause: "Missing files or bad config"
+    fix: "Don't modify containers without source"
+
+recommended_architecture:
+  frontend: "React SPA with environment-based config"
+  api: "Cloud Functions with CORS enabled"
+  deployment: "Frontend injection or CDN hosting"
+  avoid: "Container modifications, proxy dependencies"
+
+success_metrics:
+  deployment_success:
+    - "Zero 404 errors in network tab"
+    - "All API calls return data"
+    - "No CORS errors in console"
+    - "Feature visible and functional"
+    - "Works after cache clear"
+
+expert_advice: |
+  After the MCP deployment experience, ALWAYS:
+  
+  1. Start with Cloud Functions for new APIs
+  2. Use absolute URLs in production code
+  3. Test without dev server/proxy
+  4. Prefer injection over container changes
+  5. Handle errors gracefully
+  6. Document rollback procedures
+  7. Test in production-like environment
+  
+  NEVER:
+  1. Rely on CRA proxy in production
+  2. Use relative API paths without env config
+  3. Modify containers without full source
+  4. Skip CORS configuration
+  5. Assume dev behavior matches prod
+  
+  The MCP deployment taught us that the simplest solution
+  (Cloud Functions + injection) is often the best solution.

@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot Calendar - Firebase Integration</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        .day { border: 1px solid #e5e7eb; min-height: 120px; position: relative; padding: 4px; }
+        .day:hover { background-color: #f9fafb; }
+        .event { 
+            font-size: 0.75rem; padding: 2px 6px; margin: 2px 0; border-radius: 4px; 
+            cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .goal-progress-bar { height: 8px; background-color: #e5e7eb; border-radius: 4px; overflow: hidden; }
+        .goal-progress-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.5s ease; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="calendar-root" class="min-h-screen p-4"></div>
+
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB0RrH7hbER2R-SzXfNmFe0O32HhH7HBEM",
+            authDomain: "emailpilot-438321.firebaseapp.com",
+            projectId: "emailpilot-438321",
+            storageBucket: "emailpilot-438321.appspot.com",
+            messagingSenderId: "104067375141",
+            appId: "1:104067375141:web:2b65c86eec8e8c8b4c9f3a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // Campaign colors
+        const CAMPAIGN_COLORS = {
+            'RRB Promotion': 'bg-red-300 text-red-800',
+            'Cheese Club': 'bg-green-200 text-green-800',
+            'Nurturing/Education': 'bg-blue-200 text-blue-800',
+            'Community/Lifestyle': 'bg-purple-200 text-purple-800',
+            'Re-engagement': 'bg-yellow-200 text-yellow-800',
+            'SMS Alert': 'bg-orange-300 text-orange-800',
+            'default': 'bg-gray-200 text-gray-800'
+        };
+
+        // Firebase service
+        class FirebaseCalendarService {
+            constructor() {
+                this.initialized = false;
+            }
+
+            async initialize() {
+                if (this.initialized) return true;
+                try {
+                    await auth.signInAnonymously();
+                    this.initialized = true;
+                    console.log('Firebase initialized successfully');
+                    return true;
+                } catch (error) {
+                    console.error('Firebase initialization error:', error);
+                    return false;
+                }
+            }
+
+            async getClients() {
+                try {
+                    const snapshot = await db.collection('clients').get();
+                    const clients = [];
+                    snapshot.forEach(doc => {
+                        clients.push({ id: doc.id, ...doc.data() });
+                    });
+                    return clients;
+                } catch (error) {
+                    console.error('Error fetching clients:', error);
+                    return [];
+                }
+            }
+
+            async getClientData(clientId) {
+                try {
+                    const doc = await db.collection('clients').doc(clientId).get();
+                    return doc.exists ? doc.data() : null;
+                } catch (error) {
+                    console.error('Error fetching client data:', error);
+                    return null;
+                }
+            }
+
+            async saveClientData(clientId, data) {
+                try {
+                    await db.collection('clients').doc(clientId).set({
+                        ...data,
+                        lastModified: new Date().toISOString()
+                    }, { merge: true });
+                    return true;
+                } catch (error) {
+                    console.error('Error saving client data:', error);
+                    return false;
+                }
+            }
+
+            async getClientGoals(clientId) {
+                try {
+                    const snapshot = await db.collection('goals')
+                        .where('client_id', '==', clientId)
+                        .get();
+                    
+                    const goals = [];
+                    snapshot.forEach(doc => {
+                        goals.push({ id: doc.id, ...doc.data() });
+                    });
+                    return goals;
+                } catch (error) {
+                    console.log('Goals query error (may need Firebase index):', error.message);
+                    return [];
+                }
+            }
+
+            async createClient(name) {
+                try {
+                    const clientId = name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now();
+                    await db.collection('clients').doc(clientId).set({
+                        name: name,
+                        campaignData: {},
+                        created: new Date().toISOString()
+                    });
+                    return clientId;
+                } catch (error) {
+                    console.error('Error creating client:', error);
+                    return null;
+                }
+            }
+
+            detectCampaignType(title, content) {
+                const text = `${title} ${content}`.toLowerCase();
+                if (text.includes('rrb') || text.includes('promotion')) return 'RRB Promotion';
+                if (text.includes('cheese club')) return 'Cheese Club';
+                if (text.includes('nurturing') || text.includes('education')) return 'Nurturing/Education';
+                if (text.includes('community') || text.includes('lifestyle')) return 'Community/Lifestyle';
+                if (text.includes('re-engagement')) return 'Re-engagement';
+                if (text.includes('sms')) return 'SMS Alert';
+                return 'default';
+            }
+        }
+
+        const firebaseService = new FirebaseCalendarService();
+
+        // React Components
+        const { useState, useEffect, useRef } = React;
+        const { createRoot } = ReactDOM;
+
+        function CalendarApp() {
+            const [clients, setClients] = useState([]);
+            const [selectedClient, setSelectedClient] = useState(null);
+            const [goals, setGoals] = useState([]);
+            const [campaigns, setCampaigns] = useState({});
+            const [currentDate, setCurrentDate] = useState(new Date(2025, 8, 1));
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [editingEvent, setEditingEvent] = useState(null);
+
+            useEffect(() => {
+                loadClients();
+            }, []);
+
+            const loadClients = async () => {
+                try {
+                    setLoading(true);
+                    await firebaseService.initialize();
+                    const clientsData = await firebaseService.getClients();
+                    setClients(clientsData);
+                    
+                    if (clientsData.length > 0) {
+                        const firstClient = clientsData[0];
+                        setSelectedClient(firstClient);
+                        await loadClientData(firstClient.id);
+                    }
+                    setError(null);
+                } catch (error) {
+                    console.error('Failed to load clients:', error);
+                    setError(`Failed to load clients: ${error.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadClientData = async (clientId) => {
+                try {
+                    const clientData = await firebaseService.getClientData(clientId);
+                    const campaignData = clientData?.campaignData || {};
+                    setCampaigns(campaignData);
+
+                    const goals = await firebaseService.getClientGoals(clientId);
+                    setGoals(goals);
+                } catch (error) {
+                    console.error('Error loading client data:', error);
+                }
+            };
+
+            const handleClientChange = async (clientId) => {
+                const client = clients.find(c => c.id === clientId);
+                setSelectedClient(client);
+                if (client) {
+                    await loadClientData(client.id);
+                }
+            };
+
+            const createClient = async () => {
+                const name = prompt('Enter client name:');
+                if (name && name.trim()) {
+                    const clientId = await firebaseService.createClient(name.trim());
+                    if (clientId) {
+                        await loadClients();
+                        setSelectedClient({ id: clientId, name: name.trim() });
+                        await loadClientData(clientId);
+                    }
+                }
+            };
+
+            const generateCalendarDays = () => {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                
+                const firstDay = new Date(year, month, 1);
+                const startDate = new Date(firstDay);
+                startDate.setDate(startDate.getDate() - firstDay.getDay());
+                
+                const days = [];
+                const currentDay = new Date(startDate);
+                
+                for (let i = 0; i < 42; i++) {
+                    const dateString = currentDay.toISOString().split('T')[0];
+                    const isCurrentMonth = currentDay.getMonth() === month;
+                    const dayEvents = Object.entries(campaigns).filter(([id, campaign]) => campaign.date === dateString);
+                    
+                    days.push({
+                        date: new Date(currentDay),
+                        dateString,
+                        dayNumber: currentDay.getDate(),
+                        isCurrentMonth,
+                        events: dayEvents
+                    });
+                    
+                    currentDay.setDate(currentDay.getDate() + 1);
+                }
+                
+                return days;
+            };
+
+            const createEvent = async (date, title, content) => {
+                if (!selectedClient || !title.trim()) return;
+
+                const eventId = 'event-' + Date.now();
+                const campaignType = firebaseService.detectCampaignType(title, content);
+                
+                const newCampaigns = {
+                    ...campaigns,
+                    [eventId]: {
+                        date: date,
+                        title: title.trim(),
+                        content: content || '',
+                        color: CAMPAIGN_COLORS[campaignType] || CAMPAIGN_COLORS.default
+                    }
+                };
+
+                setCampaigns(newCampaigns);
+                
+                const success = await firebaseService.saveClientData(selectedClient.id, {
+                    name: selectedClient.name,
+                    campaignData: newCampaigns
+                });
+
+                if (!success) {
+                    setCampaigns(campaigns); // Revert on failure
+                    alert('Failed to save event');
+                }
+            };
+
+            const handleEventClick = (eventId, eventData) => {
+                setEditingEvent({ id: eventId, ...eventData });
+                setShowModal(true);
+            };
+
+            const handleDayClick = (dateString) => {
+                setEditingEvent({ date: dateString, title: '', content: '' });
+                setShowModal(true);
+            };
+
+            const saveEvent = async (eventData) => {
+                if (eventData.id && campaigns[eventData.id]) {
+                    // Update existing
+                    const updatedCampaigns = {
+                        ...campaigns,
+                        [eventData.id]: {
+                            ...campaigns[eventData.id],
+                            title: eventData.title,
+                            content: eventData.content
+                        }
+                    };
+                    setCampaigns(updatedCampaigns);
+                    await firebaseService.saveClientData(selectedClient.id, {
+                        name: selectedClient.name,
+                        campaignData: updatedCampaigns
+                    });
+                } else {
+                    // Create new
+                    await createEvent(eventData.date, eventData.title, eventData.content);
+                }
+                setShowModal(false);
+                setEditingEvent(null);
+            };
+
+            const deleteEvent = async (eventId) => {
+                if (!eventId || !campaigns[eventId]) return;
+                
+                const updatedCampaigns = { ...campaigns };
+                delete updatedCampaigns[eventId];
+                
+                setCampaigns(updatedCampaigns);
+                await firebaseService.saveClientData(selectedClient.id, {
+                    name: selectedClient.name,
+                    campaignData: updatedCampaigns
+                });
+                
+                setShowModal(false);
+                setEditingEvent(null);
+            };
+
+            const calendarDays = generateCalendarDays();
+
+            // Goals Dashboard
+            const GoalsDashboard = () => {
+                if (!goals.length) return null;
+
+                const currentMonthGoal = goals.find(g => 
+                    g.year === currentDate.getFullYear() && 
+                    g.month === currentDate.getMonth() + 1
+                );
+
+                const currentMonthCampaigns = Object.values(campaigns).filter(campaign => {
+                    const campaignDate = new Date(campaign.date);
+                    return campaignDate.getMonth() === currentDate.getMonth() && 
+                           campaignDate.getFullYear() === currentDate.getFullYear();
+                });
+
+                const estimatedRevenue = currentMonthCampaigns.length * 500;
+
+                return React.createElement('div', {
+                    className: "bg-white rounded-xl shadow-lg p-6 mb-6"
+                }, [
+                    React.createElement('h2', {
+                        key: 'title',
+                        className: "text-xl font-bold text-gray-800 mb-4"
+                    }, 'Revenue Goals & Progress'),
+                    
+                    currentMonthGoal ? React.createElement('div', {
+                        key: 'goal',
+                        className: "bg-gray-50 rounded-lg p-4"
+                    }, [
+                        React.createElement('div', {
+                            key: 'header',
+                            className: "flex justify-between items-start mb-3"
+                        }, [
+                            React.createElement('div', { key: 'left' }, [
+                                React.createElement('h3', {
+                                    key: 'month',
+                                    className: "font-semibold text-gray-900"
+                                }, currentDate.toLocaleString('default', { month: 'long', year: 'numeric' }) + ' Goal'),
+                                React.createElement('p', {
+                                    key: 'amounts',
+                                    className: "text-sm text-gray-600 mt-1"
+                                }, `Target: $${currentMonthGoal.revenue_goal?.toLocaleString() || '0'} | Estimated: $${estimatedRevenue.toLocaleString()}`)
+                            ]),
+                            React.createElement('span', {
+                                key: 'right',
+                                className: "text-2xl font-bold text-blue-600"
+                            }, `${Math.round((estimatedRevenue / (currentMonthGoal.revenue_goal || 1)) * 100)}%`)
+                        ]),
+                        React.createElement('div', {
+                            key: 'progress',
+                            className: "goal-progress-bar mb-3"
+                        }, React.createElement('div', {
+                            className: "goal-progress-fill",
+                            style: { width: `${Math.min((estimatedRevenue / (currentMonthGoal.revenue_goal || 1)) * 100, 100)}%` }
+                        })),
+                        React.createElement('p', {
+                            key: 'campaigns',
+                            className: "text-sm text-gray-600"
+                        }, `Campaigns scheduled: ${currentMonthCampaigns.length}`)
+                    ]) : React.createElement('p', {
+                        key: 'no-goal',
+                        className: "text-gray-500"
+                    }, 'No goals set for this month')
+                ]);
+            };
+
+            // Event Modal
+            const EventModal = () => {
+                const [title, setTitle] = useState(editingEvent?.title || '');
+                const [content, setContent] = useState(editingEvent?.content || '');
+
+                useEffect(() => {
+                    setTitle(editingEvent?.title || '');
+                    setContent(editingEvent?.content || '');
+                }, [editingEvent]);
+
+                if (!showModal || !editingEvent) return null;
+
+                return React.createElement('div', {
+                    className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+                }, React.createElement('div', {
+                    className: "bg-white rounded-lg shadow-xl w-full max-w-md p-6"
+                }, [
+                    React.createElement('h3', {
+                        key: 'title',
+                        className: "text-lg font-medium leading-6 text-gray-900 mb-4"
+                    }, editingEvent.id ? 'Edit Campaign' : 'Create Campaign'),
+                    
+                    React.createElement('div', {
+                        key: 'form',
+                        className: "space-y-4"
+                    }, [
+                        React.createElement('div', { key: 'title-field' }, [
+                            React.createElement('label', {
+                                key: 'label',
+                                className: "block text-sm font-medium text-gray-700"
+                            }, 'Title'),
+                            React.createElement('input', {
+                                key: 'input',
+                                type: 'text',
+                                value: title,
+                                onChange: (e) => setTitle(e.target.value),
+                                className: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm",
+                                style: { border: '1px solid #d1d5db', padding: '8px' }
+                            })
+                        ]),
+                        React.createElement('div', { key: 'content-field' }, [
+                            React.createElement('label', {
+                                key: 'label',
+                                className: "block text-sm font-medium text-gray-700"
+                            }, 'Content'),
+                            React.createElement('textarea', {
+                                key: 'textarea',
+                                value: content,
+                                onChange: (e) => setContent(e.target.value),
+                                rows: 4,
+                                className: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm",
+                                style: { border: '1px solid #d1d5db', padding: '8px' }
+                            })
+                        ])
+                    ]),
+                    
+                    React.createElement('div', {
+                        key: 'buttons',
+                        className: "mt-6 flex justify-between"
+                    }, [
+                        editingEvent.id ? React.createElement('button', {
+                            key: 'delete',
+                            onClick: () => deleteEvent(editingEvent.id),
+                            className: "px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                        }, 'Delete') : React.createElement('div', { key: 'spacer' }),
+                        
+                        React.createElement('div', {
+                            key: 'right',
+                            className: "flex space-x-3"
+                        }, [
+                            React.createElement('button', {
+                                key: 'cancel',
+                                onClick: () => {
+                                    setShowModal(false);
+                                    setEditingEvent(null);
+                                },
+                                className: "px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                            }, 'Cancel'),
+                            React.createElement('button', {
+                                key: 'save',
+                                onClick: () => saveEvent({
+                                    ...editingEvent,
+                                    title,
+                                    content
+                                }),
+                                className: "px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                            }, 'Save')
+                        ])
+                    ])
+                ]));
+            };
+
+            if (loading) {
+                return React.createElement('div', {
+                    className: "flex items-center justify-center h-64"
+                }, React.createElement('div', {
+                    className: "text-center"
+                }, [
+                    React.createElement('div', {
+                        key: 'spinner',
+                        className: "inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"
+                    }),
+                    React.createElement('p', {
+                        key: 'text',
+                        className: "mt-2 text-sm text-gray-500"
+                    }, 'Loading Firebase calendar...')
+                ]));
+            }
+
+            if (error) {
+                return React.createElement('div', {
+                    className: "flex items-center justify-center h-64"
+                }, React.createElement('div', {
+                    className: "text-center"
+                }, [
+                    React.createElement('div', {
+                        key: 'error',
+                        className: "text-red-600 mb-4"
+                    }, '❌ Error Loading Calendar'),
+                    React.createElement('p', {
+                        key: 'message',
+                        className: "text-sm text-gray-600 mb-4"
+                    }, error),
+                    React.createElement('button', {
+                        key: 'retry',
+                        onClick: loadClients,
+                        className: "px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    }, 'Try Again')
+                ]));
+            }
+
+            return React.createElement('div', {
+                className: "max-w-7xl mx-auto space-y-6"
+            }, [
+                // Header
+                React.createElement('div', {
+                    key: 'header',
+                    className: "flex justify-between items-center"
+                }, [
+                    React.createElement('h1', {
+                        key: 'title',
+                        className: "text-3xl font-bold text-gray-900"
+                    }, 'EmailPilot Firebase Calendar'),
+                    
+                    clients.length > 0 && React.createElement('div', {
+                        key: 'controls',
+                        className: "flex items-center space-x-4"
+                    }, [
+                        React.createElement('select', {
+                            key: 'select',
+                            value: selectedClient?.id || '',
+                            onChange: (e) => handleClientChange(e.target.value),
+                            className: "border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                            style: { border: '1px solid #d1d5db' }
+                        }, clients.map(client => 
+                            React.createElement('option', {
+                                key: client.id,
+                                value: client.id
+                            }, client.name)
+                        )),
+                        React.createElement('button', {
+                            key: 'add',
+                            onClick: createClient,
+                            className: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                        }, 'Add Client')
+                    ])
+                ]),
+
+                // Goals Dashboard
+                selectedClient && React.createElement(GoalsDashboard, { key: 'goals' }),
+
+                // Calendar
+                selectedClient && React.createElement('div', {
+                    key: 'calendar',
+                    className: "bg-white rounded-xl shadow-lg"
+                }, [
+                    // Calendar header
+                    React.createElement('div', {
+                        key: 'cal-header',
+                        className: "p-6 border-b border-gray-200"
+                    }, React.createElement('div', {
+                        className: "flex justify-between items-center"
+                    }, [
+                        React.createElement('h2', {
+                            key: 'month',
+                            className: "text-2xl font-bold text-gray-800"
+                        }, currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })),
+                        
+                        React.createElement('div', {
+                            key: 'nav',
+                            className: "flex items-center space-x-2"
+                        }, [
+                            React.createElement('button', {
+                                key: 'prev',
+                                onClick: () => {
+                                    const newDate = new Date(currentDate);
+                                    newDate.setMonth(newDate.getMonth() - 1);
+                                    setCurrentDate(newDate);
+                                },
+                                className: "p-2 rounded-full text-gray-500 hover:bg-gray-100"
+                            }, '←'),
+                            React.createElement('button', {
+                                key: 'next',
+                                onClick: () => {
+                                    const newDate = new Date(currentDate);
+                                    newDate.setMonth(newDate.getMonth() + 1);
+                                    setCurrentDate(newDate);
+                                },
+                                className: "p-2 rounded-full text-gray-500 hover:bg-gray-100"
+                            }, '→')
+                        ])
+                    ])),
+
+                    // Legend
+                    React.createElement('div', {
+                        key: 'legend',
+                        className: "p-4 border-b border-gray-200"
+                    }, React.createElement('div', {
+                        className: "flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
+                    }, Object.entries(CAMPAIGN_COLORS).filter(([key]) => key !== 'default').map(([type, colorClass]) =>
+                        React.createElement('div', {
+                            key: type,
+                            className: "flex items-center space-x-2"
+                        }, [
+                            React.createElement('div', {
+                                key: 'color',
+                                className: `w-4 h-4 rounded-full ${colorClass.split(' ')[0]}`
+                            }),
+                            React.createElement('span', {
+                                key: 'label',
+                                className: "text-xs text-gray-600 font-medium"
+                            }, type)
+                        ])
+                    ))),
+
+                    // Calendar grid
+                    React.createElement('div', {
+                        key: 'grid',
+                        className: "p-4"
+                    }, [
+                        // Day headers
+                        React.createElement('div', {
+                            key: 'headers',
+                            className: "grid grid-cols-7 mb-2"
+                        }, ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day =>
+                            React.createElement('div', {
+                                key: day,
+                                className: "text-center text-xs font-semibold text-gray-600 py-2"
+                            }, day)
+                        )),
+
+                        // Calendar days
+                        React.createElement('div', {
+                            key: 'days',
+                            className: "calendar-grid"
+                        }, calendarDays.map((day, index) =>
+                            React.createElement('div', {
+                                key: index,
+                                className: `day ${day.isCurrentMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 text-gray-400'}`,
+                                onClick: () => handleDayClick(day.dateString)
+                            }, [
+                                React.createElement('div', {
+                                    key: 'number',
+                                    className: "text-sm font-medium mb-1"
+                                }, day.dayNumber),
+                                
+                                React.createElement('div', {
+                                    key: 'events',
+                                    className: "space-y-1"
+                                }, day.events.map(([eventId, event]) =>
+                                    React.createElement('div', {
+                                        key: eventId,
+                                        className: `event ${event.color || 'bg-gray-200 text-gray-800'}`,
+                                        onClick: (e) => {
+                                            e.stopPropagation();
+                                            handleEventClick(eventId, event);
+                                        },
+                                        title: event.title
+                                    }, event.title)
+                                ))
+                            ])
+                        ))
+                    ])
+                ]),
+
+                // Status
+                selectedClient && React.createElement('div', {
+                    key: 'status',
+                    className: "bg-green-50 border border-green-200 rounded-lg p-4"
+                }, React.createElement('div', {
+                    className: "flex items-center"
+                }, [
+                    React.createElement('div', {
+                        key: 'icon',
+                        className: "text-green-600 mr-2"
+                    }, '✅'),
+                    React.createElement('div', { key: 'text' }, [
+                        React.createElement('h4', {
+                            key: 'title',
+                            className: "text-sm font-medium text-green-900"
+                        }, 'Firebase Integration Active'),
+                        React.createElement('p', {
+                            key: 'details',
+                            className: "text-xs text-green-700 mt-1"
+                        }, `Connected to EmailPilot project (emailpilot-438321) • ${Object.keys(campaigns).length} campaigns loaded • ${goals.length} goals available`)
+                    ])
+                ])),
+
+                // No clients message
+                clients.length === 0 && !loading && React.createElement('div', {
+                    key: 'no-clients',
+                    className: "text-center py-12"
+                }, [
+                    React.createElement('div', {
+                        key: 'message',
+                        className: "text-gray-500 mb-4"
+                    }, 'No clients found in Firebase'),
+                    React.createElement('button', {
+                        key: 'create',
+                        onClick: createClient,
+                        className: "px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                    }, 'Create First Client')
+                ]),
+
+                // Modal
+                React.createElement(EventModal, { key: 'modal' })
+            ]);
+        }
+
+        // Mount the app
+        const container = document.getElementById('calendar-root');
+        const root = createRoot(container);
+        root.render(React.createElement(CalendarApp));
+    </script>
+</body>
+</html>

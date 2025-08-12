@@ -1,0 +1,69 @@
+#!/bin/bash
+# Check MCP Deployment Status on EmailPilot
+
+echo "=== Checking MCP Deployment Status ==="
+echo ""
+
+# 1. Check if Cloud Functions are still working
+echo "1. Testing Cloud Functions (these should work):"
+echo "-------------------------------------------"
+echo "Testing MCP Models endpoint..."
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models | head -50 || echo "Failed"
+
+echo ""
+echo "Testing MCP Health endpoint..."
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health || echo "Failed"
+
+echo ""
+echo ""
+
+# 2. Check Cloud Run service status
+echo "2. Checking Cloud Run Service:"
+echo "-------------------------------"
+gcloud run services describe emailpilot-api --region=us-central1 --format="value(status.url)" || echo "Service not found"
+
+echo ""
+echo "Latest revision:"
+gcloud run services describe emailpilot-api --region=us-central1 --format="value(status.latestCreatedRevisionName)" || echo "No revision"
+
+echo ""
+echo "Current image:"
+gcloud run services describe emailpilot-api --region=us-central1 --format="value(spec.template.spec.containers[0].image)" || echo "No image"
+
+echo ""
+echo ""
+
+# 3. Check recent builds
+echo "3. Recent Cloud Builds (last 3):"
+echo "---------------------------------"
+gcloud builds list --limit=3 --format="table(id,status,createTime.date(tz=LOCAL),duration)" || echo "No builds found"
+
+echo ""
+echo ""
+
+# 4. Check recent deployments
+echo "4. Recent Cloud Run Revisions (last 5):"
+echo "----------------------------------------"
+gcloud run revisions list --service=emailpilot-api --region=us-central1 --limit=5 --format="table(name:label=REVISION,service:label=SERVICE,active.yesno(yes='*'),traffic_percent,creationTimestamp.date(tz=LOCAL))" || echo "No revisions"
+
+echo ""
+echo ""
+
+# 5. Check if there's an MCP route in production
+echo "5. Testing if /admin/mcp route exists:"
+echo "---------------------------------------"
+echo "Checking https://emailpilot.ai/admin/mcp ..."
+curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://emailpilot.ai/admin/mcp
+
+echo ""
+echo ""
+echo "=== Diagnosis ==="
+echo ""
+echo "If the Cloud Functions work but /admin/mcp returns 404:"
+echo "  → The frontend container was not successfully rebuilt"
+echo "  → The deployment may have failed or timed out"
+echo ""
+echo "Next steps:"
+echo "1. If deployment is still running, wait for completion"
+echo "2. If deployment failed, we need to try a simpler approach"
+echo "3. The Cloud Functions are working, so we can use injection as fallback"

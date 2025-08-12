@@ -1,0 +1,20 @@
+🎯 GOALS ENHANCEMENT DEPLOYMENT
+================================
+
+PREREQUISITE: Basic Calendar Tab must be working first\!
+
+1. Upload these files to your server:
+   - firebase_goals_calendar_integration.py → root directory
+   - app/api/goals_aware_calendar.py → app/api/
+   - app/services/goals_aware_gemini_service.py → app/services/
+   - frontend/public/components/GoalsAwareCalendarDashboard.js → frontend/public/components/
+
+2. Update main.py:
+   Add import: from app.api import goals_aware_calendar
+   Add router: app.include_router(goals_aware_calendar.router, prefix="/api/goals-calendar", tags=["Goals-Aware Calendar"])
+
+3. Restart your application
+
+4. Test: https://emailpilot.ai/api/goals-calendar/dashboard/{client_id}
+
+The enhancement will automatically integrate with your existing Calendar Tab\!

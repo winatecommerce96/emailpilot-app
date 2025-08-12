@@ -1,0 +1,15 @@
+echo "Creating simple Cloud Function for MCP..."
+cd ~
+mkdir -p mcp-function
+cd mcp-function
+cat > index.js << 'EOF'
+exports.mcp = (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json([
+    {id: 1, provider: 'claude', model_name: 'claude-3-opus', display_name: 'Claude 3 Opus'},
+    {id: 2, provider: 'openai', model_name: 'gpt-4', display_name: 'GPT-4'}
+  ]);
+};
+EOF
+gcloud functions deploy mcp-simple --runtime nodejs18 --trigger-http --allow-unauthenticated --entry-point mcp --region us-central1
+echo "Test with: curl https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-simple"

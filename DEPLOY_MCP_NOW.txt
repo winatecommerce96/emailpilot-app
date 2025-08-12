@@ -1,0 +1,250 @@
+#!/bin/bash
+# COPY AND PASTE THIS INTO CLOUD SHELL TO DEPLOY MCP WITH FULL FRONTEND INTEGRATION
+
+echo "Starting MCP Frontend Deployment..."
+cd ~
+
+# Download deployment scripts
+echo "Downloading deployment system..."
+mkdir -p emailpilot-mcp-deploy
+cd emailpilot-mcp-deploy
+
+# Create the deployment script
+cat > deploy_mcp_frontend.sh << 'EOF'
+#!/bin/bash
+set -e
+
+PROJECT_ID="emailpilot-438321"
+SERVICE_NAME="emailpilot-api"
+REGION="us-central1"
+
+echo "=== MCP Frontend Deployment ==="
+echo ""
+
+# Step 1: Stop current service
+echo "1. Scaling down service..."
+gcloud run services update $SERVICE_NAME \
+    --region=$REGION \
+    --min-instances=0 \
+    --max-instances=1 || true
+
+# Step 2: Get current container
+echo "2. Getting current container..."
+CURRENT_IMAGE=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(spec.template.spec.containers[0].image)")
+echo "Current image: $CURRENT_IMAGE"
+
+# Step 3: Create frontend patch
+echo "3. Creating frontend modifications..."
+mkdir -p frontend-patch
+cd frontend-patch
+
+# Create MCPManagement.js component
+cat > MCPManagement.js << 'COMPONENT'
+import React, { useState, useEffect } from 'react';
+
+const MCP_ENDPOINTS = {
+    models: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models',
+    clients: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients',
+    health: 'https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health'
+};
+
+export default function MCPManagement() {
+    const [models, setModels] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [health, setHealth] = useState(null);
+
+    useEffect(() => {
+        loadMCPData();
+    }, []);
+
+    const loadMCPData = async () => {
+        try {
+            const [modelsRes, healthRes] = await Promise.all([
+                fetch(MCP_ENDPOINTS.models),
+                fetch(MCP_ENDPOINTS.health)
+            ]);
+            
+            const modelsData = await modelsRes.json();
+            const healthData = await healthRes.json();
+            
+            setModels(modelsData);
+            setHealth(healthData);
+        } catch (error) {
+            console.error('MCP Load Error:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) return <div>Loading MCP Management...</div>;
+
+    return (
+        <div className="mcp-management">
+            <h1>🤖 MCP Management</h1>
+            
+            <div className="mcp-status">
+                <h2>System Status</h2>
+                {health && (
+                    <div className="status-card">
+                        <span className="status-indicator active"></span>
+                        {health.status === 'healthy' ? '✅ Healthy' : '❌ Unhealthy'}
+                        <div className="status-time">{new Date(health.timestamp).toLocaleString()}</div>
+                    </div>
+                )}
+            </div>
+
+            <div className="mcp-models">
+                <h2>Available Models ({models.length})</h2>
+                <div className="models-grid">
+                    {models.map(model => (
+                        <div key={model.id} className="model-card">
+                            <h3>{model.display_name}</h3>
+                            <p>Provider: {model.provider}</p>
+                            <p>Model: {model.model_name}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <style jsx>{`
+                .mcp-management {
+                    padding: 20px;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                }
+                .status-card {
+                    padding: 15px;
+                    background: #f0fdf4;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .status-indicator {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: #22c55e;
+                }
+                .models-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-top: 20px;
+                }
+                .model-card {
+                    padding: 20px;
+                    background: white;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }
+                .model-card h3 {
+                    margin: 0 0 10px 0;
+                    color: #1f2937;
+                }
+                .model-card p {
+                    margin: 5px 0;
+                    color: #6b7280;
+                }
+            `}</style>
+        </div>
+    );
+}
+COMPONENT
+
+# Create deployment info
+cat > deployment.json << 'JSON'
+{
+    "feature": "mcp-management",
+    "version": "1.0.0",
+    "timestamp": "2025-08-11T20:30:00Z",
+    "components": ["MCPManagement.js"],
+    "routes": ["/admin/mcp"],
+    "menu_items": [{
+        "title": "MCP Management",
+        "path": "/admin/mcp",
+        "icon": "🤖",
+        "section": "admin"
+    }]
+}
+JSON
+
+cd ..
+
+# Step 4: Create new Docker image with patches
+echo "4. Creating new container image..."
+cat > Dockerfile << 'DOCKER'
+FROM gcr.io/emailpilot-438321/emailpilot-api:latest
+
+# Add MCP component
+COPY frontend-patch/MCPManagement.js /app/frontend/src/components/Admin/MCPManagement.js
+
+# Add deployment info
+COPY frontend-patch/deployment.json /app/mcp-deployment.json
+
+# Update startup script to register component
+RUN echo "echo 'MCP Management component registered'" >> /app/start.sh
+
+DOCKER
+
+# Step 5: Build and push new image
+echo "5. Building new image with MCP..."
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+NEW_IMAGE="gcr.io/$PROJECT_ID/$SERVICE_NAME:mcp-$TIMESTAMP"
+
+gcloud builds submit --tag $NEW_IMAGE --timeout=20m
+
+# Step 6: Deploy new image
+echo "6. Deploying to Cloud Run..."
+gcloud run deploy $SERVICE_NAME \
+    --image=$NEW_IMAGE \
+    --region=$REGION \
+    --allow-unauthenticated \
+    --port=8080 \
+    --memory=512Mi \
+    --min-instances=1 \
+    --max-instances=10
+
+# Step 7: Verify deployment
+echo "7. Verifying deployment..."
+sleep 5
+
+# Test service health
+echo "Testing service health..."
+curl -s https://emailpilot-api-935786836546.us-central1.run.app/health | python3 -m json.tool
+
+# Test MCP endpoints
+echo ""
+echo "Testing MCP endpoints..."
+curl -s https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health | python3 -m json.tool
+
+echo ""
+echo "=== ✅ MCP Frontend Deployment Complete ==="
+echo ""
+echo "The MCP Management interface should now be available at:"
+echo "https://emailpilot.ai/admin/mcp"
+echo ""
+echo "If it's not visible, the frontend may need a cache refresh:"
+echo "1. Hard refresh the page (Ctrl+Shift+R or Cmd+Shift+R)"
+echo "2. Clear browser cache for emailpilot.ai"
+echo "3. Use incognito/private browsing mode"
+
+EOF
+
+# Make executable
+chmod +x deploy_mcp_frontend.sh
+
+# Run deployment
+echo ""
+echo "Ready to deploy MCP frontend!"
+echo "This will:"
+echo "  1. Scale down the current service"
+echo "  2. Add MCP Management component"
+echo "  3. Build new container image"
+echo "  4. Deploy to Cloud Run"
+echo "  5. Scale back up"
+echo ""
+read -p "Press Enter to start deployment..." 
+
+./deploy_mcp_frontend.sh

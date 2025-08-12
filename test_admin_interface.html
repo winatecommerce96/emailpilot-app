@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Interface</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .error {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .info {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        pre {
+            background: #1f2937;
+            color: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 EmailPilot Admin Interface Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Backend Connection Test</h2>
+        <button onclick="testBackend()">Test Backend API</button>
+        <button onclick="testAdminEndpoints()">Test Admin Endpoints</button>
+        <div id="backend-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Environment Variables</h2>
+        <button onclick="getEnvironmentVars()">Get Environment Variables</button>
+        <button onclick="testUpdateEnvVar()">Test Update Env Variable</button>
+        <div id="env-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Slack Integration</h2>
+        <button onclick="testSlackWebhook()">Send Slack Test Message</button>
+        <div id="slack-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. System Status</h2>
+        <button onclick="getSystemStatus()">Get System Status</button>
+        <div id="status-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Direct Admin Access</h2>
+        <p>Click the links below to access the admin interface directly:</p>
+        <ul>
+            <li><a href="http://localhost:8080/frontend/public/index.html" target="_blank">Local Frontend (Port 8080)</a></li>
+            <li><a href="http://localhost:8080/" target="_blank">Backend API Root</a></li>
+            <li><a href="http://localhost:8080/docs" target="_blank">API Documentation (Swagger)</a></li>
+        </ul>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+
+        function showResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="test-result ${type}">${message}</div>`;
+        }
+
+        async function testBackend() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/health`);
+                const data = await response.json();
+                showResult('backend-result', `✅ Backend is running: ${JSON.stringify(data, null, 2)}`, 'success');
+            } catch (error) {
+                showResult('backend-result', `❌ Backend connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAdminEndpoints() {
+            const endpoints = [
+                '/api/admin/health',
+                '/api/admin/system/status',
+                '/api/admin/environment'
+            ];
+            
+            let results = [];
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${API_BASE}${endpoint}`);
+                    results.push(`✅ ${endpoint}: ${response.status}`);
+                } catch (error) {
+                    results.push(`❌ ${endpoint}: Failed`);
+                }
+            }
+            
+            showResult('backend-result', `<pre>${results.join('\n')}</pre>`, 'info');
+        }
+
+        async function getEnvironmentVars() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/environment`);
+                const data = await response.json();
+                
+                let html = '<h3>Environment Variables:</h3><ul>';
+                for (const [key, config] of Object.entries(data.variables)) {
+                    const status = config.is_set ? '✅ Set' : '❌ Not Set';
+                    const value = config.value || '(empty)';
+                    html += `<li><strong>${key}</strong>: ${status} - ${value}</li>`;
+                }
+                html += '</ul>';
+                
+                showResult('env-result', html, 'info');
+            } catch (error) {
+                showResult('env-result', `❌ Failed to get environment variables: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUpdateEnvVar() {
+            const testKey = 'TEST_VARIABLE';
+            const testValue = `test_${Date.now()}`;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/environment`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        key: testKey,
+                        value: testValue
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('env-result', `✅ Successfully updated ${testKey} to ${testValue}`, 'success');
+                } else {
+                    showResult('env-result', `❌ Failed to update: ${data.detail || data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('env-result', `❌ Update failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSlackWebhook() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/slack/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    showResult('slack-result', `✅ ${data.message}`, 'success');
+                } else {
+                    showResult('slack-result', `❌ ${data.message || 'Slack test failed'}`, 'error');
+                }
+            } catch (error) {
+                showResult('slack-result', `❌ Slack test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function getSystemStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/system/status`);
+                const data = await response.json();
+                
+                let html = '<h3>System Components:</h3><ul>';
+                for (const [component, info] of Object.entries(data.components)) {
+                    const icon = info.status === 'operational' ? '✅' : '⚠️';
+                    html += `<li>${icon} <strong>${component}</strong>: ${info.status} - ${info.details}</li>`;
+                }
+                html += `</ul><p><strong>Environment:</strong> ${data.environment}</p>`;
+                html += `<p><strong>Debug Mode:</strong> ${data.debug ? 'Enabled' : 'Disabled'}</p>`;
+                
+                showResult('status-result', html, 'info');
+            } catch (error) {
+                showResult('status-result', `❌ Failed to get system status: ${error.message}`, 'error');
+            }
+        }
+
+        // Test backend on page load
+        window.onload = () => {
+            testBackend();
+        };
+    </script>
+</body>
+</html>

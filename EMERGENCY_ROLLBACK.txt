@@ -1,0 +1,58 @@
+#!/bin/bash
+# Emergency Rollback to Previous Working Version
+
+echo "=== EMERGENCY ROLLBACK ==="
+echo ""
+
+PROJECT_ID="emailpilot-438321"
+SERVICE_NAME="emailpilot-api"
+REGION="us-central1"
+
+# Step 1: List recent revisions
+echo "1. Finding previous working revision..."
+echo "Recent revisions:"
+gcloud run revisions list --service=$SERVICE_NAME --region=$REGION --limit=10 --format="table(name,active,traffic,createTime)"
+
+echo ""
+echo "2. Getting the previous stable revision (before MCP attempts)..."
+# Look for revision before the MCP attempts (should be around 00050-00053)
+PREVIOUS_REVISION=$(gcloud run revisions list --service=$SERVICE_NAME --region=$REGION --limit=10 --format="value(name)" | grep -E "00050|00051|00052|00053" | head -1)
+
+if [ -z "$PREVIOUS_REVISION" ]; then
+    echo "Could not auto-detect previous revision."
+    echo "Please specify manually from the list above."
+    echo "Look for a revision from before today's MCP deployment attempts"
+    read -p "Enter revision name (e.g., emailpilot-api-00050-xxx): " PREVIOUS_REVISION
+fi
+
+echo ""
+echo "3. Rolling back to: $PREVIOUS_REVISION"
+gcloud run services update-traffic $SERVICE_NAME \
+    --to-revisions=$PREVIOUS_REVISION=100 \
+    --region=$REGION
+
+echo ""
+echo "4. Verifying rollback..."
+sleep 5
+
+# Check current active revision
+CURRENT_ACTIVE=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.traffic[0].revisionName)")
+echo "Now serving from revision: $CURRENT_ACTIVE"
+
+# Test the service
+SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
+echo ""
+echo "Testing service health..."
+curl -s "$SERVICE_URL/health" | python3 -m json.tool
+
+echo ""
+echo "=== ROLLBACK COMPLETE ==="
+echo ""
+echo "✅ Service rolled back to previous working version"
+echo "✅ Please check https://emailpilot.ai - Admin tab should be restored"
+echo ""
+echo "Next steps:"
+echo "1. Verify the Admin tab is working again"
+echo "2. We should NOT modify the base container"
+echo "3. Instead, we'll use client-side injection for MCP"
+echo "4. The Cloud Functions are still working for MCP functionality"

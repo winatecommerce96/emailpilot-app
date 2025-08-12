@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot Component Debug</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <h1 class="text-2xl font-bold mb-4">Component Loading Debug</h1>
+    
+    <div id="debug-info" class="space-y-2 mb-8"></div>
+    
+    <h2 class="text-xl font-semibold mb-2">Component Status:</h2>
+    <div id="component-status" class="space-y-1"></div>
+    
+    <!-- Load Calendar Components -->
+    <script type="text/babel" src="components/Calendar.js"></script>
+    <script type="text/babel" src="components/EventModal.js"></script>
+    <script type="text/babel" src="components/CalendarChat.js"></script>
+    <script type="text/babel" src="components/CalendarView.js"></script>
+    
+    <script type="text/babel">
+        // Debug script to check component loading
+        window.API_BASE_URL = 'https://emailpilot.ai';
+        
+        setTimeout(() => {
+            const components = [
+                'Calendar',
+                'EventModal', 
+                'CalendarChat',
+                'CalendarView'
+            ];
+            
+            const statusEl = document.getElementById('component-status');
+            
+            components.forEach(comp => {
+                const loaded = window[comp] !== undefined;
+                const div = document.createElement('div');
+                div.className = loaded ? 'text-green-600' : 'text-red-600';
+                div.textContent = `${comp}: ${loaded ? '✅ Loaded' : '❌ Not Found'}`;
+                statusEl.appendChild(div);
+                
+                if (loaded) {
+                    console.log(`${comp} component:`, window[comp]);
+                }
+            });
+            
+            // Also check React
+            const reactDiv = document.createElement('div');
+            reactDiv.className = 'text-blue-600 mt-4';
+            reactDiv.textContent = `React: ${window.React ? '✅ Loaded' : '❌ Not Found'}`;
+            statusEl.appendChild(reactDiv);
+            
+            // Check API_BASE_URL
+            const apiDiv = document.createElement('div');
+            apiDiv.className = 'text-blue-600';
+            apiDiv.textContent = `API_BASE_URL: ${window.API_BASE_URL || 'Not Set'}`;
+            statusEl.appendChild(apiDiv);
+            
+        }, 2000); // Wait 2 seconds for components to load
+    </script>
+</body>
+</html>

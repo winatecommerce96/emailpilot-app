@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "emailpilot-438321",
+  "private_key_id": "027379ea4c47326f0a842a73a3c4db2dab2f849e",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCjeAA4maGuYYuk\nd7pJjUHuNHF0DHbmxurooMhPk7aJzBCSvXkcvRXwRoBbuvnR3NtiOGLpeIGhREQ2\n6iLzY6ZB26+npqjlZ/QGKguvsg6DYr5HpUcNcyOmR0XgPAeYGDDAvVyWZvpv8SJM\nD775oHdTOX960w3shq9HhyE7PFoFEY/mmd0pB3ywDtF2b3mSJTh3KQ0GS/VPfCLv\nKZVhSCJYUlAKjEzJHxd/nZ+JapqAOlmbToCJTSNSwN0WV+2zhLqJuKPUi6Ta5dTF\nNhfNjdssA/HDvPhPlxesaDLtJoOO2nZv4JwB4N0PnLg41mb1HNqAPvY3JTcUWEZZ\nlRD1ObOJAgMBAAECggEADZo5nybDki8/mjjfRBRly9Sf1d8H/DCfEVVNuHd2F/XR\nMZC5gFdzTk+ONJ6KAA6qJRHEQ0wPMgmW8+CG9iymLp1BUDNOoxZDyJ6HjerEXpD2\nfJ+SGm+ouVhSxh5gqGU861Dmiy+4VQfM9DosM06ebKBgd//nd6AxJi57qKz0iwQh\nYpLjTxXHdp0G4H/9YM4bj7qdSt9/bZyhKWwdc14bBkQ0eXH0idKuS4EgzuxpIdt/\nYQKt3SPAVog7r7iNr862Hvas7QhbNYqlTATi3oemYuxsMPicjSWb1juWfYZjSSx8\ndqitMW/YGHUCwLrdogHGMi6gLq7C3/KfWwwKslVKPQKBgQDbmB8nQ3j/rIfVn8Lm\n1LJFeBYSsLSAFFlM0+Vw1yrj1bkec0OI9e5OmMpz1WIZhdfqU55udBUqATU+lBCp\nDmJXV9DIzCtZ08hqYtXCgD7r6J2kxBxC0EqWz4YI5tnVTNlsRP8iQxdKPaenyOwW\nh/vSMpy5KXEJL4Rm8EcENl9MZQKBgQC+kdZuV1OmmT+pfMrRbSxUZC1i4ImJc1L+\nsbSl0EudAzQqNb5prmaAa7RniJ3Dsu1b/2+Ppv2v9OtkbUaYgOwr70yUvMrbrARa\nBVOa6yZHLiS0RzqlWjTRRJ+QogXuRgVEFqJIEf4A4zAu21C/Fbi2J6xKaPW4hsP/\n4VHROEOeVQKBgQDB/dlHrmuuMpStO73KfgwfIr8dM83BeDiLjoYa8XqKW7x2Eg2P\naPNlq8TuH4vSUFM2RzinCxXHTdnjtpohPvvRfVqMiRGjAV0D3txIP1NWxOC/NiBh\nRfEe2aXnJ0k5DfLlmu5pLivdAiqiJvWp0ee9AclCKkIZg0jMR2f1aLM3oQKBgQCC\nqa3T1A5n8TVkOUs60tcNOe6gmAHVe3wRY7jP5ASkMFkpA9Z90XU4YiC8yEAbuWfj\npz1Pypiwd4aaQg6ga+0Cpr3kUZnpioUlT/emBcsmDO5fqWL9kt8aCSo62cylNd9Q\ncxBrx+JXq24TAo7XpcYTJxqLnnG0RrrGjDAz+pbqTQKBgHuesPIF9047tcKR6+Nv\nY6oarSiiA6N5C1ocb3XUMx03IckCfdqdozgf3haIv7Gm+QROMPUHJdq2jtde7dt9\nBcOix8MYhDrjtCReEoBf4sk/yPxJ9GK3jUMa57AiFr4tlOXC/Lv5d19cCDV3+AKe\nq+III427RJX/5ZvBvW/m/oao\n-----END PRIVATE KEY-----\n",
+  "client_email": "emailpilot-firestore@emailpilot-438321.iam.gserviceaccount.com",
+  "client_id": "110245810934261456817",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/emailpilot-firestore%40emailpilot-438321.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

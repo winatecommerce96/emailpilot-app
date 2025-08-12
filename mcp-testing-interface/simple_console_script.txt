@@ -1,0 +1,65 @@
+// SIMPLE MCP TESTING BUTTON ADDER
+// Copy everything between the START and END markers
+
+// ===== START COPY HERE =====
+
+var headers = document.querySelectorAll('h2');
+var mcpHeader = null;
+for (var i = 0; i < headers.length; i++) {
+    if (headers[i].textContent.indexOf('MCP') !== -1 || headers[i].textContent.indexOf('Client Management') !== -1) {
+        mcpHeader = headers[i];
+        break;
+    }
+}
+
+if (!mcpHeader) {
+    alert('Please navigate to MCP Management section first');
+} else {
+    var headerParent = mcpHeader.parentElement;
+    var buttons = headerParent.querySelectorAll('button');
+    var buttonContainer = buttons[0] ? buttons[0].parentElement : headerParent;
+    
+    // Create Quick Test button
+    var quickBtn = document.createElement('button');
+    quickBtn.className = 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-3';
+    quickBtn.textContent = '⚡ Quick Test';
+    quickBtn.onclick = function() {
+        fetch('/api/mcp/models', {
+            headers: {'Authorization': 'Bearer ' + localStorage.getItem('token')}
+        }).then(function(r) {
+            if (r.ok) {
+                alert('✅ MCP API is working!');
+            } else {
+                alert('❌ MCP API test failed. Status: ' + r.status);
+            }
+        }).catch(function(e) {
+            alert('Error: ' + e.message);
+        });
+    };
+    
+    // Create Full Test button
+    var testBtn = document.createElement('button');
+    testBtn.className = 'bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 mr-3';
+    testBtn.textContent = '🧪 Production Testing';
+    testBtn.onclick = function() {
+        var content = document.querySelector('.p-6');
+        if (content) {
+            content.innerHTML = '<div style="padding:20px;background:white;border-radius:8px;"><h2 style="font-size:24px;font-weight:bold;margin-bottom:20px;">🧪 MCP Testing Interface</h2><button onclick="location.reload()" style="color:blue;margin-bottom:20px;">← Back</button><div style="background:#f5f5f5;padding:20px;border-radius:8px;"><h3>Quick Tests</h3><button onclick="fetch(\'/api/mcp/models\',{headers:{Authorization:\'Bearer \'+localStorage.getItem(\'token\')}}).then(r=>r.json()).then(d=>alert(\'Models: \'+d.length)).catch(e=>alert(\'Error: \'+e.message))" style="background:#3b82f6;color:white;padding:10px 20px;border-radius:6px;margin:10px;">Test Models API</button><button onclick="fetch(\'/api/mcp/clients\',{headers:{Authorization:\'Bearer \'+localStorage.getItem(\'token\')}}).then(r=>r.json()).then(d=>alert(\'Clients: \'+d.length)).catch(e=>alert(\'Error: \'+e.message))" style="background:#8b5cf6;color:white;padding:10px 20px;border-radius:6px;margin:10px;">Test Clients API</button></div><div style="margin-top:20px;padding:20px;background:#f9f9f9;border-radius:8px;"><h3>Test Results</h3><p>Click the test buttons above to run tests.</p></div></div>';
+        } else {
+            alert('Could not find content area');
+        }
+    };
+    
+    // Add buttons
+    if (buttons[0]) {
+        buttonContainer.insertBefore(quickBtn, buttons[0]);
+        buttonContainer.insertBefore(testBtn, buttons[0]);
+    } else {
+        buttonContainer.appendChild(quickBtn);
+        buttonContainer.appendChild(testBtn);
+    }
+    
+    alert('✅ Testing buttons added!\n\nLook for:\n• ⚡ Quick Test - Instant API check\n• 🧪 Production Testing - Full test interface');
+}
+
+// ===== END COPY HERE =====

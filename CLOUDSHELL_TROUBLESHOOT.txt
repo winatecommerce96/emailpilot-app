@@ -1,0 +1,23 @@
+echo "=== MCP Deployment Troubleshooting ==="
+echo ""
+echo "Checking what might have gone wrong..."
+echo ""
+echo "1. Did the build complete?"
+gcloud builds list --limit=1 --format="value(status)"
+echo ""
+echo "2. Current working directory:"
+pwd
+ls -la | grep deploy_mcp.sh
+echo ""
+echo "3. Check if script is still running:"
+ps aux | grep deploy_mcp
+echo ""
+echo "4. Check Cloud Run service URL:"
+gcloud run services describe emailpilot-api --region=us-central1 --format="value(status.url)"
+echo ""
+echo "5. Test with service URL:"
+SERVICE_URL=$(gcloud run services describe emailpilot-api --region=us-central1 --format="value(status.url)")
+echo "Testing: $SERVICE_URL/api/mcp/models"
+curl -s "$SERVICE_URL/api/mcp/models" | head -20
+echo ""
+echo "If nothing appears above, deployment may have failed."

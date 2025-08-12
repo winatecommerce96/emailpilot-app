@@ -1,0 +1,21 @@
+{
+  "name": "mcp-cloud-functions",
+  "version": "1.0.0",
+  "description": "MCP Cloud Functions for EmailPilot",
+  "main": "index.js",
+  "engines": {
+    "node": "18"
+  },
+  "scripts": {
+    "deploy:models": "gcloud functions deploy mcp-models --runtime nodejs18 --trigger-http --allow-unauthenticated --entry-point mcpModels --region us-central1 --gen2",
+    "deploy:clients": "gcloud functions deploy mcp-clients --runtime nodejs18 --trigger-http --allow-unauthenticated --entry-point mcpClients --region us-central1 --gen2",
+    "deploy:health": "gcloud functions deploy mcp-health --runtime nodejs18 --trigger-http --allow-unauthenticated --entry-point mcpHealth --region us-central1 --gen2",
+    "deploy:all": "npm run deploy:models && npm run deploy:clients && npm run deploy:health",
+    "test:models": "curl https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-models",
+    "test:clients": "curl https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-clients",
+    "test:health": "curl https://us-central1-emailpilot-438321.cloudfunctions.net/mcp-health"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "private": true
+}

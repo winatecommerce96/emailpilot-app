@@ -1,0 +1,27 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+jinja2==3.1.2
+aiofiles==23.2.1
+anyio==3.7.1
+starlette==0.27.0
+requests>=2.31.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0
+
+# Google Cloud dependencies
+google-cloud-firestore>=2.13.1
+google-auth>=2.25.2
+google-cloud-core>=2.3.3
+google-cloud-secret-manager>=2.18.0
+google-generativeai>=0.3.0
+
+# Session management
+itsdangerous>=2.1.2
+
+# JSON/data handling
+pydantic>=2.5.0
+
+# Async HTTP client for performance monitor
+httpx>=0.24.0

@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot Calendar - Production</title>
+    
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/axios@1.6.0/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .calendar-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+        }
+        
+        .calendar-grid { 
+            display: grid; 
+            grid-template-columns: repeat(7, minmax(0, 1fr)); 
+            gap: 1px;
+            background-color: #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .calendar-day { 
+            background: white;
+            min-height: 120px; 
+            position: relative; 
+            padding: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .calendar-day:hover { 
+            background-color: #f8fafc;
+            transform: scale(1.02);
+        }
+        
+        .calendar-day.other-month {
+            background-color: #f9fafb;
+            color: #9ca3af;
+        }
+        
+        .event-item { 
+            font-size: 0.75rem; 
+            padding: 4px 8px; 
+            margin: 2px 0; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+        
+        .event-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        .goal-progress-bar { 
+            height: 8px; 
+            background: linear-gradient(90deg, #e5e7eb, #f3f4f6);
+            border-radius: 4px; 
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .goal-progress-fill { 
+            height: 100%; 
+            background: linear-gradient(90deg, #3b82f6, #06b6d4, #10b981); 
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 4px;
+        }
+        
+        .dashboard-card {
+            background: linear-gradient(145deg, #ffffff, #f8fafc);
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .chat-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background: linear-gradient(to bottom, #f8fafc, #ffffff);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected { background-color: #10b981; }
+        .status-warning { background-color: #f59e0b; }
+        .status-error { background-color: #ef4444; }
+
+        .auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="calendar-root" class="min-h-screen p-6"></div>
+
+    <script>
+        const { useState, useEffect, useCallback } = React;
+        const { createRoot } = ReactDOM;
+        
+        // API Configuration - Production endpoints with authentication
+        const API_BASE_URL = window.location.origin;
+        
+        // Campaign Colors
+        const CAMPAIGN_COLORS = {
+            'RRB Promotion': 'bg-red-300 text-red-800 border-red-400',
+            'Cheese Club': 'bg-green-200 text-green-800 border-green-400',
+            'Nurturing/Education': 'bg-blue-200 text-blue-800 border-blue-400',
+            'Community/Lifestyle': 'bg-purple-200 text-purple-800 border-purple-400',
+            'Re-engagement': 'bg-yellow-200 text-yellow-800 border-yellow-400',
+            'SMS Alert': 'bg-orange-300 text-orange-800 border-orange-400',
+            'default': 'bg-gray-200 text-gray-800 border-gray-400'
+        };
+
+        // Authentication Manager
+        class AuthManager {
+            constructor() {
+                this.token = localStorage.getItem('emailpilot_token');
+                this.user = this.token ? JSON.parse(localStorage.getItem('emailpilot_user') || '{}') : null;
+            }
+
+            isAuthenticated() {
+                return !!this.token && !!this.user;
+            }
+
+            async login(email, password = 'demo') {
+                try {
+                    const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+                        email,
+                        password
+                    }, {
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        transformRequest: [(data) => {
+                            return Object.keys(data).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).join('&');
+                        }]
+                    });
+
+                    this.token = response.data.access_token;
+                    this.user = response.data.user;
+
+                    localStorage.setItem('emailpilot_token', this.token);
+                    localStorage.setItem('emailpilot_user', JSON.stringify(this.user));
+
+                    // Set default authorization header
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+
+                    return { success: true, user: this.user };
+                } catch (error) {
+                    console.error('Login error:', error);
+                    return { success: false, error: error.response?.data?.detail || 'Login failed' };
+                }
+            }
+
+            logout() {
+                this.token = null;
+                this.user = null;
+                localStorage.removeItem('emailpilot_token');
+                localStorage.removeItem('emailpilot_user');
+                delete axios.defaults.headers.common['Authorization'];
+            }
+
+            setupAxiosInterceptor() {
+                if (this.token) {
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+                }
+
+                // Add response interceptor to handle auth errors
+                axios.interceptors.response.use(
+                    response => response,
+                    error => {
+                        if (error.response?.status === 401 || error.response?.status === 403) {
+                            this.logout();
+                            window.location.reload(); // Force re-authentication
+                        }
+                        return Promise.reject(error);
+                    }
+                );
+            }
+        }
+
+        // Enhanced Calendar Service with Authentication
+        class EnhancedCalendarService {
+            constructor(authManager) {
+                this.auth = authManager;
+                this.googleApiLoaded = false;
+                this.initializeGoogleAPI();
+            }
+
+            async initializeGoogleAPI() {
+                try {
+                    if (typeof google !== 'undefined') {
+                        console.log('🔄 Google Identity Services initialized');
+                        this.googleApiLoaded = true;
+                    } else {
+                        console.warn('⚠️ Google APIs not available');
+                    }
+                } catch (error) {
+                    console.error('❌ Google API init error:', error);
+                }
+            }
+
+            async getClients() {
+                try {
+                    console.log('📥 Fetching clients from EmailPilot backend...');
+                    const response = await axios.get(`${API_BASE_URL}/api/clients/`);
+                    console.log(`✅ Found ${response.data.length} EmailPilot clients:`, response.data);
+                    return response.data;
+                } catch (error) {
+                    console.error('❌ Error fetching clients:', error);
+                    return [];
+                }
+            }
+
+            async getClientData(clientId) {
+                try {
+                    console.log(`📥 Fetching campaign data for client: ${clientId}`);
+                    const response = await axios.get(`${API_BASE_URL}/api/firebase-calendar/events?client_id=${clientId}`);
+                    console.log(`✅ Loaded ${response.data.length} campaigns for client:`, clientId);
+                    
+                    // Transform Firebase events to calendar format
+                    const campaigns = {};
+                    response.data.forEach(event => {
+                        campaigns[event.id] = {
+                            date: event.event_date,
+                            title: event.title,
+                            content: event.content || '',
+                            color: event.color || CAMPAIGN_COLORS.default
+                        };
+                    });
+                    
+                    return { campaigns };
+                } catch (error) {
+                    console.error('❌ Error fetching client campaign data:', error.response?.data || error.message);
+                    return { campaigns: {} };
+                }
+            }
+
+            async createEvent(clientId, eventData) {
+                try {
+                    const payload = {
+                        client_id: clientId,
+                        title: eventData.title,
+                        content: eventData.content || '',
+                        event_date: eventData.date,
+                        color: eventData.color || CAMPAIGN_COLORS.default,
+                        event_type: this.detectCampaignType(eventData.title)
+                    };
+
+                    const response = await axios.post(`${API_BASE_URL}/api/firebase-calendar/events`, payload);
+                    console.log('✅ Event created successfully:', response.data);
+                    return response.data;
+                } catch (error) {
+                    console.error('❌ Error creating event:', error.response?.data || error.message);
+                    throw error;
+                }
+            }
+
+            async updateEvent(eventId, eventData) {
+                try {
+                    const response = await axios.put(`${API_BASE_URL}/api/firebase-calendar/events/${eventId}`, eventData);
+                    console.log('✅ Event updated successfully:', eventId);
+                    return response.data;
+                } catch (error) {
+                    console.error('❌ Error updating event:', error.response?.data || error.message);
+                    throw error;
+                }
+            }
+
+            async deleteEvent(eventId) {
+                try {
+                    const response = await axios.delete(`${API_BASE_URL}/api/firebase-calendar/events/${eventId}`);
+                    console.log('✅ Event deleted successfully:', eventId);
+                    return true;
+                } catch (error) {
+                    console.error('❌ Error deleting event:', error.response?.data || error.message);
+                    return false;
+                }
+            }
+
+            async getClientGoals(clientId) {
+                try {
+                    console.log(`📥 Fetching goals for client: ${clientId}`);
+                    const response = await axios.get(`${API_BASE_URL}/api/goals-calendar/goals/${clientId}`);
+                    return response.data;
+                } catch (error) {
+                    console.log('ℹ️ Goals not available (this is normal):', error.response?.data?.detail || error.message);
+                    return [];
+                }
+            }
+
+            async getGoalsDashboard(clientId) {
+                try {
+                    console.log(`📥 Fetching goals dashboard for client: ${clientId}`);
+                    const response = await axios.get(`${API_BASE_URL}/api/goals-calendar/dashboard/${clientId}`);
+                    return response.data;
+                } catch (error) {
+                    console.log('ℹ️ Goals dashboard not available:', error.response?.data?.detail || error.message);
+                    return null;
+                }
+            }
+
+            async chatWithAI(clientId, message, chatHistory = []) {
+                try {
+                    console.log(`🤖 AI Chat for client ${clientId}:`, message);
+                    
+                    const response = await axios.post(`${API_BASE_URL}/api/goals-calendar/chat/goal-aware`, {
+                        client_id: clientId,
+                        message: message,
+                        chat_history: chatHistory
+                    });
+                    
+                    console.log('✅ AI Response received:', response.data);
+                    return response.data;
+                } catch (error) {
+                    console.error('❌ Error in AI chat:', error.response?.data || error.message);
+                    return {
+                        response: "I'm sorry, I'm having trouble connecting to my AI services right now. Please try again later.",
+                        is_action: false
+                    };
+                }
+            }
+
+            async importFromGoogleDoc(clientId, docId, accessToken) {
+                try {
+                    console.log(`📄 Starting Google Doc import for client ${clientId}, doc: ${docId}`);
+                    
+                    const response = await axios.post(`${API_BASE_URL}/api/firebase-calendar/import/google-doc`, {
+                        client_id: clientId,
+                        doc_id: docId,
+                        access_token: accessToken
+                    });
+                    
+                    console.log('✅ Import started successfully:', response.data);
+                    return response.data;
+                } catch (error) {
+                    console.error('❌ Error starting Google Doc import:', error.response?.data || error.message);
+                    throw error;
+                }
+            }
+
+            detectCampaignType(title, content = '') {
+                const text = `${title} ${content}`.toLowerCase();
+                if (text.includes('rrb') || text.includes('promotion')) return 'RRB Promotion';
+                if (text.includes('cheese club')) return 'Cheese Club';
+                if (text.includes('nurturing') || text.includes('education')) return 'Nurturing/Education';
+                if (text.includes('community') || text.includes('lifestyle')) return 'Community/Lifestyle';
+                if (text.includes('re-engagement')) return 'Re-engagement';
+                if (text.includes('sms')) return 'SMS Alert';
+                return 'default';
+            }
+
+            // Google Picker Integration
+            initializeGooglePicker(onDocumentSelected) {
+                if (!this.googleApiLoaded) {
+                    console.warn('⚠️ Google APIs not loaded');
+                    return;
+                }
+
+                try {
+                    // Initialize Google Picker API
+                    gapi.load('picker', () => {
+                        const picker = new google.picker.PickerBuilder()
+                            .addView(google.picker.ViewId.DOCS)
+                            .setCallback(onDocumentSelected)
+                            .build();
+                        picker.setVisible(true);
+                    });
+                } catch (error) {
+                    console.error('❌ Error initializing Google Picker:', error);
+                }
+            }
+        }
+
+        // Login Component
+        function LoginModal({ authManager, onLoginSuccess }) {
+            const [email, setEmail] = useState('admin@emailpilot.ai');
+            const [password, setPassword] = useState('demo');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+
+                const result = await authManager.login(email, password);
+                
+                if (result.success) {
+                    onLoginSuccess(result.user);
+                } else {
+                    setError(result.error);
+                }
+                
+                setLoading(false);
+            };
+
+            return React.createElement('div', {
+                className: "auth-overlay"
+            }, React.createElement('div', {
+                className: "auth-modal"
+            }, [
+                React.createElement('div', {
+                    key: 'header',
+                    className: "text-center mb-6"
+                }, [
+                    React.createElement('h2', {
+                        key: 'title',
+                        className: "text-2xl font-bold text-gray-800 mb-2"
+                    }, '🔐 EmailPilot Login'),
+                    React.createElement('p', {
+                        key: 'subtitle',
+                        className: "text-gray-600 text-sm"
+                    }, 'Sign in to access your calendar')
+                ]),
+                
+                React.createElement('form', {
+                    key: 'form',
+                    onSubmit: handleLogin,
+                    className: "space-y-4"
+                }, [
+                    React.createElement('div', {
+                        key: 'email-group'
+                    }, [
+                        React.createElement('label', {
+                            key: 'label',
+                            className: "block text-sm font-medium text-gray-700 mb-1"
+                        }, 'Email'),
+                        React.createElement('input', {
+                            key: 'input',
+                            type: 'email',
+                            value: email,
+                            onChange: (e) => setEmail(e.target.value),
+                            className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500",
+                            required: true
+                        })
+                    ]),
+                    
+                    React.createElement('div', {
+                        key: 'password-group'
+                    }, [
+                        React.createElement('label', {
+                            key: 'label',
+                            className: "block text-sm font-medium text-gray-700 mb-1"
+                        }, 'Password'),
+                        React.createElement('input', {
+                            key: 'input',
+                            type: 'password',
+                            value: password,
+                            onChange: (e) => setPassword(e.target.value),
+                            className: "w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500",
+                            required: true
+                        })
+                    ]),
+                    
+                    error && React.createElement('div', {
+                        key: 'error',
+                        className: "text-red-600 text-sm text-center bg-red-50 p-2 rounded"
+                    }, error),
+                    
+                    React.createElement('button', {
+                        key: 'submit',
+                        type: 'submit',
+                        disabled: loading,
+                        className: "w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    }, loading ? 
+                        React.createElement('div', { className: "flex items-center justify-center" }, [
+                            React.createElement('div', { key: 'spinner', className: "loading-spinner mr-2" }),
+                            React.createElement('span', { key: 'text' }, 'Signing in...')
+                        ]) : 
+                        'Sign In'
+                    )
+                ]),
+                
+                React.createElement('div', {
+                    key: 'demo-info',
+                    className: "mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700"
+                }, [
+                    React.createElement('p', { key: 'title', className: "font-semibold mb-1" }, 'Demo Accounts:'),
+                    React.createElement('p', { key: 'admin' }, '• admin@emailpilot.ai (password: demo)'),
+                    React.createElement('p', { key: 'user' }, '• user@emailpilot.ai (password: demo)')
+                ])
+            ]));
+        }
+
+        // Main Calendar App
+        function CalendarApp() {
+            const [authManager] = useState(() => {
+                const auth = new AuthManager();
+                auth.setupAxiosInterceptor();
+                return auth;
+            });
+            const [calendarService] = useState(() => new EnhancedCalendarService(authManager));
+            const [isAuthenticated, setIsAuthenticated] = useState(authManager.isAuthenticated());
+            const [user, setUser] = useState(authManager.user);
+            const [clients, setClients] = useState([]);
+            const [selectedClient, setSelectedClient] = useState(null);
+            const [goals, setGoals] = useState([]);
+            const [goalsDashboard, setGoalsDashboard] = useState(null);
+            const [campaigns, setCampaigns] = useState({});
+            const [currentDate, setCurrentDate] = useState(new Date(2025, 8, 1)); // September 2025
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [chatHistory, setChatHistory] = useState([]);
+            const [chatMessage, setChatMessage] = useState('');
+            const [isChatting, setIsChatting] = useState(false);
+            const [showChat, setShowChat] = useState(false);
+
+            const handleLoginSuccess = (userData) => {
+                setUser(userData);
+                setIsAuthenticated(true);
+                loadClients();
+            };
+
+            const handleLogout = () => {
+                authManager.logout();
+                setUser(null);
+                setIsAuthenticated(false);
+                setClients([]);
+                setSelectedClient(null);
+                setCampaigns({});
+                setGoals([]);
+                setGoalsDashboard(null);
+            };
+
+            useEffect(() => {
+                if (isAuthenticated) {
+                    loadClients();
+                }
+            }, [isAuthenticated]);
+
+            const loadClients = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+                    
+                    const clientsData = await calendarService.getClients();
+                    setClients(clientsData);
+                    
+                    if (clientsData.length > 0) {
+                        const firstClient = clientsData[0];
+                        setSelectedClient(firstClient);
+                        await loadClientData(firstClient.id);
+                    }
+                    
+                } catch (err) {
+                    console.error('❌ Error loading clients:', err);
+                    setError(`Failed to load clients: ${err.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadClientData = async (clientId) => {
+                try {
+                    // Load campaigns
+                    const clientData = await calendarService.getClientData(clientId);
+                    setCampaigns(clientData.campaigns || {});
+
+                    // Load goals
+                    const goalsData = await calendarService.getClientGoals(clientId);
+                    setGoals(goalsData);
+
+                    // Load goals dashboard
+                    const dashboardData = await calendarService.getGoalsDashboard(clientId);
+                    setGoalsDashboard(dashboardData);
+
+                    console.log(`📊 Client data loaded - Campaigns: ${Object.keys(clientData.campaigns || {}).length}, Goals: ${goalsData.length}`);
+                } catch (error) {
+                    console.error('❌ Error loading client data:', error);
+                    setCampaigns({});
+                    setGoals([]);
+                    setGoalsDashboard(null);
+                }
+            };
+
+            const handleClientChange = async (clientId) => {
+                const client = clients.find(c => c.id === parseInt(clientId));
+                setSelectedClient(client);
+                setChatHistory([]); // Reset chat history when switching clients
+                
+                if (client) {
+                    await loadClientData(client.id);
+                }
+            };
+
+            const handleDayClick = async (dateString) => {
+                if (!selectedClient) return;
+                
+                const title = prompt('Enter campaign title:');
+                if (title && title.trim()) {
+                    try {
+                        const campaignType = calendarService.detectCampaignType(title);
+                        
+                        const eventData = {
+                            date: dateString,
+                            title: title.trim(),
+                            content: '',
+                            color: CAMPAIGN_COLORS[campaignType] || CAMPAIGN_COLORS.default
+                        };
+
+                        // Create event in backend
+                        const createdEvent = await calendarService.createEvent(selectedClient.id, eventData);
+                        
+                        // Reload client data to get the new event
+                        await loadClientData(selectedClient.id);
+                        
+                        console.log('✅ Campaign created:', createdEvent);
+                    } catch (error) {
+                        console.error('❌ Error creating campaign:', error);
+                        alert('Failed to create campaign. Please try again.');
+                    }
+                }
+            };
+
+            const handleEventClick = async (eventId, eventData) => {
+                const newTitle = prompt('Edit campaign title:', eventData.title);
+                if (newTitle !== null && newTitle.trim() && selectedClient) {
+                    try {
+                        const updatedData = {
+                            title: newTitle.trim(),
+                            content: eventData.content,
+                            color: eventData.color
+                        };
+                        
+                        await calendarService.updateEvent(eventId, updatedData);
+                        
+                        // Reload client data
+                        await loadClientData(selectedClient.id);
+                        
+                        console.log('✅ Campaign updated:', eventId);
+                    } catch (error) {
+                        console.error('❌ Error updating campaign:', error);
+                        alert('Failed to update campaign. Please try again.');
+                    }
+                }
+            };
+
+            const handleChatSubmit = async (e) => {
+                e.preventDefault();
+                if (!chatMessage.trim() || !selectedClient || isChatting) return;
+
+                const userMessage = chatMessage.trim();
+                setChatMessage('');
+                setIsChatting(true);
+
+                // Add user message to chat
+                const newChatHistory = [...chatHistory, { role: 'user', message: userMessage }];
+                setChatHistory(newChatHistory);
+
+                try {
+                    const response = await calendarService.chatWithAI(selectedClient.id, userMessage, newChatHistory);
+                    
+                    // Add AI response to chat
+                    setChatHistory(prev => [...prev, { 
+                        role: 'assistant', 
+                        message: response.response,
+                        isAction: response.is_action,
+                        actionType: response.action_type
+                    }]);
+
+                    // If the AI performed an action, reload data
+                    if (response.is_action) {
+                        await loadClientData(selectedClient.id);
+                    }
+
+                } catch (error) {
+                    console.error('❌ Chat error:', error);
+                    setChatHistory(prev => [...prev, { 
+                        role: 'assistant', 
+                        message: 'Sorry, I encountered an error. Please try again.' 
+                    }]);
+                } finally {
+                    setIsChatting(false);
+                }
+            };
+
+            const handleImport = () => {
+                if (!selectedClient) return;
+                
+                if (calendarService.googleApiLoaded) {
+                    calendarService.initializeGooglePicker(async (data) => {
+                        if (data.action === google.picker.Action.PICKED) {
+                            const doc = data.docs[0];
+                            console.log('📄 Document selected:', doc);
+                            
+                            try {
+                                // This would require OAuth token - for now show info
+                                alert(`Import started for document: ${doc.name}\n\nDocument import functionality is available with proper Google OAuth setup.`);
+                            } catch (error) {
+                                console.error('❌ Import error:', error);
+                                alert('Import failed. Please try again.');
+                            }
+                        }
+                    });
+                } else {
+                    alert('Google APIs not available. Please refresh the page and try again.');
+                }
+            };
+
+            const generateCalendarDays = () => {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                
+                const firstDay = new Date(year, month, 1);
+                const startDate = new Date(firstDay);
+                startDate.setDate(startDate.getDate() - firstDay.getDay());
+                
+                const days = [];
+                const currentDay = new Date(startDate);
+                
+                for (let i = 0; i < 42; i++) {
+                    const dateString = currentDay.toISOString().split('T')[0];
+                    const isCurrentMonth = currentDay.getMonth() === month;
+                    const dayEvents = Object.entries(campaigns).filter(([id, campaign]) => campaign.date === dateString);
+                    
+                    days.push({
+                        date: new Date(currentDay),
+                        dateString,
+                        dayNumber: currentDay.getDate(),
+                        isCurrentMonth,
+                        events: dayEvents
+                    });
+                    
+                    currentDay.setDate(currentDay.getDate() + 1);
+                }
+                
+                return days;
+            };
+
+            // Show login if not authenticated
+            if (!isAuthenticated) {
+                return React.createElement(LoginModal, {
+                    authManager: authManager,
+                    onLoginSuccess: handleLoginSuccess
+                });
+            }
+
+            const calendarDays = generateCalendarDays();
+
+            // Goals Dashboard Component
+            const GoalsDashboard = () => {
+                if (!goalsDashboard) {
+                    return React.createElement('div', {
+                        className: "dashboard-card p-6 mb-6"
+                    }, [
+                        React.createElement('div', {
+                            key: 'header',
+                            className: "flex items-center justify-between mb-4"
+                        }, [
+                            React.createElement('h2', {
+                                key: 'title',
+                                className: "text-xl font-bold text-gray-800"
+                            }, '🎯 Revenue Goals & Progress'),
+                            React.createElement('span', {
+                                key: 'indicator',
+                                className: "status-indicator status-warning"
+                            })
+                        ]),
+                        React.createElement('div', {
+                            key: 'placeholder',
+                            className: "text-center py-8 text-gray-500"
+                        }, [
+                            React.createElement('p', {
+                                key: 'message'
+                            }, 'No goals configured for this client'),
+                            React.createElement('p', {
+                                key: 'subtitle',
+                                className: "text-sm mt-2"
+                            }, 'Set up revenue goals to track your campaign performance')
+                        ])
+                    ]);
+                }
+
+                return React.createElement('div', {
+                    className: "dashboard-card p-6 mb-6"
+                }, [
+                    React.createElement('div', {
+                        key: 'header',
+                        className: "flex items-center justify-between mb-4"
+                    }, [
+                        React.createElement('h2', {
+                            key: 'title',
+                            className: "text-xl font-bold text-gray-800"
+                        }, '🎯 Revenue Goals & Progress'),
+                        React.createElement('span', {
+                            key: 'indicator',
+                            className: "status-indicator status-connected"
+                        })
+                    ]),
+                    
+                    React.createElement('div', {
+                        key: 'dashboard-content',
+                        className: "space-y-4"
+                    }, [
+                        React.createElement('div', {
+                            key: 'current-month',
+                            className: "bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4"
+                        }, [
+                            React.createElement('div', {
+                                key: 'month-header',
+                                className: "flex justify-between items-start mb-3"
+                            }, [
+                                React.createElement('div', { key: 'left' }, [
+                                    React.createElement('h3', {
+                                        key: 'month-name',
+                                        className: "font-semibold text-gray-900 text-lg"
+                                    }, currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })),
+                                    React.createElement('p', {
+                                        key: 'summary',
+                                        className: "text-sm text-gray-600 mt-1"
+                                    }, `Target: $${(goalsDashboard.monthly_goal || 0).toLocaleString()} • Estimated: $${(goalsDashboard.estimated_revenue || 0).toLocaleString()}`)
+                                ]),
+                                React.createElement('div', {
+                                    key: 'percentage',
+                                    className: "text-right"
+                                }, [
+                                    React.createElement('span', {
+                                        key: 'percent-value',
+                                        className: `text-3xl font-bold ${goalsDashboard.progress_percentage >= 75 ? 'text-green-600' : goalsDashboard.progress_percentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`
+                                    }, `${Math.round(goalsDashboard.progress_percentage || 0)}%`),
+                                    React.createElement('p', {
+                                        key: 'status',
+                                        className: "text-xs text-gray-500 mt-1"
+                                    }, goalsDashboard.progress_percentage >= 90 ? '🔥 On Track!' : goalsDashboard.progress_percentage >= 75 ? '⚠️ Monitor' : '🚨 At Risk')
+                                ])
+                            ]),
+                            React.createElement('div', {
+                                key: 'progress-bar',
+                                className: "goal-progress-bar mb-3"
+                            }, React.createElement('div', {
+                                className: "goal-progress-fill",
+                                style: { width: `${Math.min(goalsDashboard.progress_percentage || 0, 100)}%` }
+                            })),
+                            React.createElement('div', {
+                                key: 'campaign-info',
+                                className: "flex justify-between text-sm text-gray-600"
+                            }, [
+                                React.createElement('span', {
+                                    key: 'campaigns',
+                                }, `📧 ${goalsDashboard.scheduled_campaigns || 0} campaigns scheduled`),
+                                React.createElement('span', {
+                                    key: 'revenue-gap',
+                                }, `💰 $${Math.max(0, (goalsDashboard.monthly_goal || 0) - (goalsDashboard.estimated_revenue || 0)).toLocaleString()} gap`)
+                            ])
+                        ])
+                    ])
+                ]);
+            };
+
+            // Chat Component
+            const ChatInterface = () => {
+                if (!showChat || !selectedClient) return null;
+
+                return React.createElement('div', {
+                    className: "dashboard-card p-6 mb-6"
+                }, [
+                    React.createElement('div', {
+                        key: 'chat-header',
+                        className: "flex items-center justify-between mb-4"
+                    }, [
+                        React.createElement('h3', {
+                            key: 'title',
+                            className: "text-lg font-semibold text-gray-800"
+                        }, '🤖 AI Assistant'),
+                        React.createElement('button', {
+                            key: 'close',
+                            onClick: () => setShowChat(false),
+                            className: "text-gray-400 hover:text-gray-600 text-xl"
+                        }, '×')
+                    ]),
+                    
+                    React.createElement('div', {
+                        key: 'chat-messages',
+                        className: "chat-container mb-4"
+                    }, chatHistory.length === 0 ? 
+                        React.createElement('p', {
+                            className: "text-gray-500 text-center py-4"
+                        }, 'Ask me about your campaigns, goals, or request actions like creating or modifying campaigns!') :
+                        chatHistory.map((msg, index) => 
+                            React.createElement('div', {
+                                key: index,
+                                className: `mb-3 ${msg.role === 'user' ? 'text-right' : 'text-left'}`
+                            }, [
+                                React.createElement('div', {
+                                    key: 'message',
+                                    className: `inline-block max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                                        msg.role === 'user' 
+                                            ? 'bg-blue-500 text-white rounded-br-none' 
+                                            : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                                    } ${msg.isAction ? 'border-l-4 border-green-500' : ''}`
+                                }, [
+                                    React.createElement('p', {
+                                        key: 'text',
+                                        className: "text-sm"
+                                    }, msg.message),
+                                    msg.isAction && React.createElement('p', {
+                                        key: 'action-label',
+                                        className: "text-xs mt-1 opacity-75"
+                                    }, `✅ Action: ${msg.actionType}`)
+                                ])
+                            ])
+                        )
+                    ),
+                    
+                    React.createElement('form', {
+                        key: 'chat-form',
+                        onSubmit: handleChatSubmit,
+                        className: "flex space-x-2"
+                    }, [
+                        React.createElement('input', {
+                            key: 'input',
+                            type: 'text',
+                            value: chatMessage,
+                            onChange: (e) => setChatMessage(e.target.value),
+                            placeholder: "Ask about campaigns, goals, or request actions...",
+                            className: "flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm",
+                            disabled: isChatting
+                        }),
+                        React.createElement('button', {
+                            key: 'send',
+                            type: 'submit',
+                            disabled: isChatting || !chatMessage.trim(),
+                            className: "btn-primary px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        }, isChatting ? 
+                            React.createElement('div', { className: "loading-spinner" }) : 
+                            'Send'
+                        )
+                    ])
+                ]);
+            };
+
+            if (loading) {
+                return React.createElement('div', {
+                    className: "flex items-center justify-center h-screen"
+                }, React.createElement('div', {
+                    className: "text-center"
+                }, [
+                    React.createElement('div', {
+                        key: 'spinner',
+                        className: "loading-spinner mx-auto mb-4"
+                    }),
+                    React.createElement('p', {
+                        key: 'text',
+                        className: "text-white font-medium"
+                    }, 'Loading EmailPilot Calendar...')
+                ]));
+            }
+
+            if (error) {
+                return React.createElement('div', {
+                    className: "flex items-center justify-center h-screen"
+                }, React.createElement('div', {
+                    className: "text-center max-w-md p-6 bg-white rounded-lg shadow-lg"
+                }, [
+                    React.createElement('div', {
+                        key: 'error-icon',
+                        className: "text-red-500 text-4xl mb-4"
+                    }, '❌'),
+                    React.createElement('h3', {
+                        key: 'title',
+                        className: "text-lg font-semibold text-gray-800 mb-2"
+                    }, 'Connection Error'),
+                    React.createElement('p', {
+                        key: 'message',
+                        className: "text-sm text-gray-600 mb-4"
+                    }, error),
+                    React.createElement('button', {
+                        key: 'retry',
+                        onClick: () => {
+                            setError(null);
+                            loadClients();
+                        },
+                        className: "btn-primary"
+                    }, 'Try Again')
+                ]));
+            }
+
+            return React.createElement('div', {
+                className: "max-w-7xl mx-auto space-y-6"
+            }, [
+                // Header
+                React.createElement('div', {
+                    key: 'header',
+                    className: "calendar-container p-6"
+                }, [
+                    React.createElement('div', {
+                        key: 'header-content',
+                        className: "flex justify-between items-center"
+                    }, [
+                        React.createElement('div', {
+                            key: 'title-section'
+                        }, [
+                            React.createElement('h1', {
+                                key: 'title',
+                                className: "text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
+                            }, 'EmailPilot Calendar'),
+                            React.createElement('p', {
+                                key: 'subtitle',
+                                className: "text-gray-600 mt-2"
+                            }, `Welcome, ${user?.name || 'User'}! Strategic Campaign Planning & Goal Tracking`)
+                        ]),
+                        
+                        React.createElement('div', {
+                            key: 'controls',
+                            className: "flex items-center space-x-4"
+                        }, [
+                            clients.length > 0 && React.createElement('select', {
+                                key: 'client-select',
+                                value: selectedClient?.id || '',
+                                onChange: (e) => handleClientChange(e.target.value),
+                                className: "border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                            }, clients.map(client => 
+                                React.createElement('option', {
+                                    key: client.id,
+                                    value: client.id
+                                }, client.name)
+                            )),
+                            
+                            React.createElement('button', {
+                                key: 'import',
+                                onClick: handleImport,
+                                className: "btn-primary flex items-center space-x-2",
+                                disabled: !selectedClient
+                            }, [
+                                React.createElement('span', {
+                                    key: 'icon'
+                                }, '📄'),
+                                React.createElement('span', {
+                                    key: 'text'
+                                }, 'Import')
+                            ]),
+                            
+                            React.createElement('button', {
+                                key: 'chat',
+                                onClick: () => setShowChat(!showChat),
+                                className: `btn-primary flex items-center space-x-2 ${showChat ? 'bg-gray-500' : ''}`,
+                                disabled: !selectedClient
+                            }, [
+                                React.createElement('span', {
+                                    key: 'icon'
+                                }, '🤖'),
+                                React.createElement('span', {
+                                    key: 'text'
+                                }, showChat ? 'Hide Chat' : 'AI Chat')
+                            ]),
+                            
+                            React.createElement('button', {
+                                key: 'logout',
+                                onClick: handleLogout,
+                                className: "text-gray-600 hover:text-gray-800 text-sm"
+                            }, '🚪 Logout')
+                        ])
+                    ]),
+                    
+                    // Status indicator
+                    React.createElement('div', {
+                        key: 'status',
+                        className: "mt-4 flex items-center text-sm text-gray-600"
+                    }, [
+                        React.createElement('span', {
+                            key: 'indicator',
+                            className: "status-indicator status-connected"
+                        }),
+                        React.createElement('span', {
+                            key: 'text'
+                        }, `🔐 Authenticated • ${clients.length} clients • ${Object.keys(campaigns).length} campaigns`)
+                    ])
+                ]),
+
+                // Goals Dashboard
+                selectedClient && React.createElement(GoalsDashboard, { key: 'goals-dashboard' }),
+
+                // Chat Interface
+                React.createElement(ChatInterface, { key: 'chat' }),
+
+                // Calendar
+                selectedClient && React.createElement('div', {
+                    key: 'calendar',
+                    className: "calendar-container"
+                }, [
+                    // Calendar header
+                    React.createElement('div', {
+                        key: 'cal-header',
+                        className: "p-6 border-b border-gray-200"
+                    }, [
+                        React.createElement('div', {
+                            key: 'header-row',
+                            className: "flex justify-between items-center mb-4"
+                        }, [
+                            React.createElement('h2', {
+                                key: 'month-title',
+                                className: "text-2xl font-bold text-gray-800"
+                            }, currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })),
+                            
+                            React.createElement('div', {
+                                key: 'nav-buttons',
+                                className: "flex items-center space-x-2"
+                            }, [
+                                React.createElement('button', {
+                                    key: 'prev',
+                                    onClick: () => {
+                                        const newDate = new Date(currentDate);
+                                        newDate.setMonth(newDate.getMonth() - 1);
+                                        setCurrentDate(newDate);
+                                    },
+                                    className: "p-3 rounded-full text-gray-500 hover:bg-gray-100 transition-colors text-xl font-bold"
+                                }, '←'),
+                                React.createElement('button', {
+                                    key: 'next',
+                                    onClick: () => {
+                                        const newDate = new Date(currentDate);
+                                        newDate.setMonth(newDate.getMonth() + 1);
+                                        setCurrentDate(newDate);
+                                    },
+                                    className: "p-3 rounded-full text-gray-500 hover:bg-gray-100 transition-colors text-xl font-bold"
+                                }, '→')
+                            ])
+                        ]),
+                        
+                        // Legend
+                        React.createElement('div', {
+                            key: 'legend',
+                            className: "flex flex-wrap items-center justify-center gap-x-6 gap-y-2"
+                        }, Object.entries(CAMPAIGN_COLORS).filter(([key]) => key !== 'default').map(([type, colorClass]) =>
+                            React.createElement('div', {
+                                key: type,
+                                className: "flex items-center space-x-2"
+                            }, [
+                                React.createElement('div', {
+                                    key: 'color-dot',
+                                    className: `w-3 h-3 rounded-full ${colorClass.split(' ')[0]}`
+                                }),
+                                React.createElement('span', {
+                                    key: 'label',
+                                    className: "text-xs text-gray-600 font-medium"
+                                }, type)
+                            ])
+                        ))
+                    ]),
+
+                    // Calendar grid
+                    React.createElement('div', {
+                        key: 'calendar-content',
+                        className: "p-6"
+                    }, [
+                        // Day headers
+                        React.createElement('div', {
+                            key: 'day-headers',
+                            className: "grid grid-cols-7 mb-2"
+                        }, ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day =>
+                            React.createElement('div', {
+                                key: day,
+                                className: "text-center text-sm font-bold text-gray-600 py-3"
+                            }, day)
+                        )),
+
+                        // Calendar days
+                        React.createElement('div', {
+                            key: 'calendar-grid',
+                            className: "calendar-grid"
+                        }, calendarDays.map((day, index) =>
+                            React.createElement('div', {
+                                key: index,
+                                className: `calendar-day ${!day.isCurrentMonth ? 'other-month' : ''}`,
+                                onClick: () => day.isCurrentMonth && handleDayClick(day.dateString)
+                            }, [
+                                React.createElement('div', {
+                                    key: 'day-number',
+                                    className: "text-sm font-bold mb-2"
+                                }, day.dayNumber),
+                                
+                                React.createElement('div', {
+                                    key: 'events-container',
+                                    className: "space-y-1"
+                                }, day.events.map(([eventId, event]) =>
+                                    React.createElement('div', {
+                                        key: eventId,
+                                        className: `event-item ${event.color || 'bg-gray-200 text-gray-800'}`,
+                                        onClick: (e) => {
+                                            e.stopPropagation();
+                                            handleEventClick(eventId, event);
+                                        },
+                                        title: event.title
+                                    }, event.title)
+                                ))
+                            ])
+                        ))
+                    ])
+                ]),
+
+                // Instructions for new users
+                !selectedClient && clients.length === 0 && React.createElement('div', {
+                    key: 'no-clients',
+                    className: "calendar-container p-12 text-center"
+                }, [
+                    React.createElement('div', {
+                        key: 'welcome',
+                        className: "max-w-md mx-auto"
+                    }, [
+                        React.createElement('h2', {
+                            key: 'title',
+                            className: "text-2xl font-bold text-gray-800 mb-4"
+                        }, '👋 Welcome to EmailPilot Calendar'),
+                        React.createElement('p', {
+                            key: 'description',
+                            className: "text-gray-600 mb-6"
+                        }, 'Get started by creating your first client in the EmailPilot system, then return here to plan your campaigns.'),
+                        React.createElement('div', {
+                            key: 'features',
+                            className: "text-left space-y-2 text-sm text-gray-600"
+                        }, [
+                            React.createElement('p', { key: 'f1' }, '📅 Drag-and-drop campaign scheduling'),
+                            React.createElement('p', { key: 'f2' }, '🎯 Revenue goal tracking and progress'),
+                            React.createElement('p', { key: 'f3' }, '🤖 AI-powered campaign assistance'),
+                            React.createElement('p', { key: 'f4' }, '📄 Google Doc import functionality'),
+                            React.createElement('p', { key: 'f5' }, '📊 Performance analytics and insights')
+                        ])
+                    ])
+                ])
+            ]);
+        }
+
+        // Initialize app when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('calendar-root');
+            if (container) {
+                const root = createRoot(container);
+                root.render(React.createElement(CalendarApp));
+            }
+        });
+    </script>
+</body>
+</html>

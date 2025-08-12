@@ -1,0 +1,22 @@
+echo "=== MCP Deployment Verification ==="
+echo ""
+echo "Testing if MCP is now working..."
+echo ""
+echo "1. Testing /api/mcp/models endpoint:"
+curl https://emailpilot-api-935786836546.us-central1.run.app/api/mcp/models
+echo ""
+echo ""
+echo "2. Testing /api/mcp/clients endpoint:"
+curl https://emailpilot-api-935786836546.us-central1.run.app/api/mcp/clients
+echo ""
+echo ""
+echo "3. Testing /api/mcp/health endpoint:"
+curl https://emailpilot-api-935786836546.us-central1.run.app/api/mcp/health
+echo ""
+echo ""
+echo "=== RESULTS ==="
+echo "If you see JSON data above = ✅ SUCCESS! MCP is working!"
+echo "If you see 404 errors = ❌ Deployment may still be in progress"
+echo ""
+echo "To check deployment status:"
+gcloud run services describe emailpilot-api --region=us-central1 --format="get(status.conditions[0].message)"
