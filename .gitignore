@@ -5,3 +5,64 @@ out/
 .env*
 *.log
 .DS_Store
+
+# Old Calendar Implementations (archived)
+calendar-project/
+calendar-implementation-complete/
+calendar-implementation-complete 2/
+emailpilot_calendar_tab_20*/
+emailpilot_firebase_deploy_20*/
+calendar-goals-package/
+calendar-api-fix/
+calendar-react-feature/
+emailpilot-calendar-spa-*/
+archived_old_calendars_*/
+
+# Old calendar files
+calendar_fixed.html
+calendar_integrated.html
+calendar_production.html
+
+# Calendar ZIP archives
+*calendar*.zip
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Deployment
+deployment_summary_*.md
+deploy_*.log

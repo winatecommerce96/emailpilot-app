@@ -4,6 +4,28 @@ class FirebaseCalendarService {
         this.apiBase = window.API_BASE_URL || '';
         this.events = {};
         this.clients = [];
+        this.initialized = false;
+    }
+
+    // Initialize the service
+    async initialize() {
+        if (this.initialized) {
+            return true;
+        }
+        
+        try {
+            // Check if the API is available
+            const response = await fetch(`${this.apiBase}/api/calendar/health`);
+            if (response.ok) {
+                this.initialized = true;
+                console.log('FirebaseCalendarService initialized successfully');
+                return true;
+            }
+            throw new Error('Calendar API not available');
+        } catch (error) {
+            console.error('Failed to initialize FirebaseCalendarService:', error);
+            throw error;
+        }
     }
 
     // Get all events
@@ -87,6 +109,11 @@ class FirebaseCalendarService {
             console.warn('Failed to fetch goals:', error);
             return [];
         }
+    }
+
+    // Get client goals (alias for getGoals)
+    async getClientGoals(clientId) {
+        return this.getGoals(clientId);
     }
 
     // Import from Google Docs (mock implementation)

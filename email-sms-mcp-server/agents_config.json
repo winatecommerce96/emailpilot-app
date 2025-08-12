@@ -1,0 +1,300 @@
+{
+  "multi_agent_system": {
+    "name": "Email/SMS Creation Multi-Agent System",
+    "version": "1.0.0",
+    "description": "Collaborative AI agents for comprehensive email and SMS campaign creation",
+    "orchestration_pattern": "sequential_with_context_sharing"
+  },
+  "agents": {
+    "content_strategist": {
+      "role": "Campaign Strategy and Messaging Framework",
+      "expertise": [
+        "campaign_strategy",
+        "messaging_framework", 
+        "brand_positioning",
+        "customer_journey_mapping",
+        "market_analysis"
+      ],
+      "responsibilities": [
+        "Develop overall campaign strategy",
+        "Create messaging frameworks",
+        "Define campaign objectives",
+        "Map customer journey touchpoints",
+        "Establish brand voice guidelines"
+      ],
+      "output_format": {
+        "campaign_framework": "object",
+        "strategic_recommendations": "object", 
+        "messaging_pillars": "array",
+        "next_steps": "array"
+      },
+      "collaboration_with": ["copywriter", "segmentation_expert"]
+    },
+    "copywriter": {
+      "role": "Copy Creation and Optimization",
+      "expertise": [
+        "subject_line_optimization",
+        "email_copywriting",
+        "sms_copywriting", 
+        "cta_optimization",
+        "personalization_techniques",
+        "a_b_testing_copy"
+      ],
+      "responsibilities": [
+        "Write compelling subject lines",
+        "Create email body copy",
+        "Develop SMS message variants",
+        "Optimize call-to-action buttons",
+        "Implement personalization tokens",
+        "Create A/B test variations"
+      ],
+      "output_format": {
+        "subject_lines": "array",
+        "body_copy": "string",
+        "ctas": "array",
+        "personalization_tokens": "array",
+        "character_counts": "object"
+      },
+      "collaboration_with": ["designer", "ab_test_coordinator", "content_strategist"]
+    },
+    "designer": {
+      "role": "Visual Design and Template Creation",
+      "expertise": [
+        "email_template_design",
+        "responsive_design",
+        "brand_visual_identity",
+        "accessibility_standards",
+        "color_psychology",
+        "typography_optimization"
+      ],
+      "responsibilities": [
+        "Design email templates",
+        "Ensure mobile responsiveness",
+        "Maintain brand consistency",
+        "Optimize visual hierarchy",
+        "Create CTA button designs",
+        "Implement accessibility standards"
+      ],
+      "output_format": {
+        "template_structure": "object",
+        "visual_hierarchy": "object",
+        "color_palette": "object", 
+        "typography": "object",
+        "cta_design": "array"
+      },
+      "collaboration_with": ["copywriter", "compliance_officer"]
+    },
+    "segmentation_expert": {
+      "role": "Audience Targeting and Personalization",
+      "expertise": [
+        "audience_segmentation",
+        "behavioral_targeting",
+        "personalization_strategies",
+        "lifecycle_marketing",
+        "send_time_optimization",
+        "frequency_management"
+      ],
+      "responsibilities": [
+        "Identify target segments",
+        "Create personalization rules",
+        "Optimize send timing",
+        "Set frequency caps",
+        "Analyze audience behavior",
+        "Recommend targeting strategies"
+      ],
+      "output_format": {
+        "primary_segments": "array",
+        "personalization_rules": "array",
+        "send_time_optimization": "object",
+        "frequency_capping": "object",
+        "audience_insights": "object"
+      },
+      "collaboration_with": ["content_strategist", "performance_analyst"]
+    },
+    "ab_test_coordinator": {
+      "role": "A/B Testing and Optimization", 
+      "expertise": [
+        "test_design",
+        "statistical_analysis",
+        "hypothesis_formation",
+        "conversion_optimization",
+        "multivariate_testing"
+      ],
+      "responsibilities": [
+        "Design A/B testing framework",
+        "Create test hypotheses",
+        "Define success metrics",
+        "Analyze test results",
+        "Recommend optimizations"
+      ],
+      "output_format": {
+        "test_design": "object",
+        "hypotheses": "array",
+        "success_metrics": "array",
+        "test_variants": "object"
+      },
+      "collaboration_with": ["copywriter", "designer", "performance_analyst"]
+    },
+    "compliance_officer": {
+      "role": "Legal and Deliverability Compliance",
+      "expertise": [
+        "can_spam_compliance",
+        "gdpr_compliance", 
+        "brand_guidelines",
+        "deliverability_optimization",
+        "legal_requirements",
+        "industry_regulations"
+      ],
+      "responsibilities": [
+        "Ensure legal compliance",
+        "Review brand adherence",
+        "Check deliverability factors",
+        "Validate consent management",
+        "Review unsubscribe mechanisms"
+      ],
+      "output_format": {
+        "compliance_checklist": "array",
+        "legal_requirements": "object",
+        "deliverability_score": "number",
+        "brand_compliance": "object"
+      },
+      "collaboration_with": ["designer", "copywriter"]
+    },
+    "performance_analyst": {
+      "role": "Metrics and Performance Analysis", 
+      "expertise": [
+        "email_analytics",
+        "sms_metrics",
+        "roi_analysis", 
+        "engagement_optimization",
+        "predictive_analytics",
+        "reporting"
+      ],
+      "responsibilities": [
+        "Define KPIs and metrics",
+        "Predict campaign performance",
+        "Analyze engagement patterns",
+        "Calculate ROI projections",
+        "Create performance dashboards"
+      ],
+      "output_format": {
+        "predicted_metrics": "object",
+        "kpi_definitions": "array", 
+        "performance_benchmarks": "object",
+        "optimization_recommendations": "array"
+      },
+      "collaboration_with": ["segmentation_expert", "ab_test_coordinator"]
+    }
+  },
+  "workflows": {
+    "email_campaign_creation": {
+      "description": "Complete email campaign creation workflow",
+      "steps": [
+        {
+          "step": 1,
+          "agent": "content_strategist",
+          "action": "develop_campaign_strategy",
+          "output": "campaign_framework"
+        },
+        {
+          "step": 2, 
+          "agent": "copywriter",
+          "action": "create_copy_elements",
+          "input": ["campaign_framework"],
+          "output": "copy_elements"
+        },
+        {
+          "step": 3,
+          "agent": "designer", 
+          "action": "design_template",
+          "input": ["campaign_framework", "copy_elements"],
+          "output": "design_specifications"
+        },
+        {
+          "step": 4,
+          "agent": "segmentation_expert",
+          "action": "optimize_targeting",
+          "input": ["campaign_framework"],
+          "output": "segmentation_strategy"
+        },
+        {
+          "step": 5,
+          "agent": "compliance_officer",
+          "action": "compliance_review", 
+          "input": ["copy_elements", "design_specifications"],
+          "output": "compliance_report"
+        },
+        {
+          "step": 6,
+          "agent": "ab_test_coordinator",
+          "action": "design_tests",
+          "input": ["copy_elements", "design_specifications"],
+          "output": "test_framework"
+        },
+        {
+          "step": 7,
+          "agent": "performance_analyst",
+          "action": "predict_performance", 
+          "input": ["all_previous_outputs"],
+          "output": "performance_predictions"
+        }
+      ]
+    },
+    "sms_campaign_creation": {
+      "description": "SMS campaign creation workflow",
+      "steps": [
+        {
+          "step": 1,
+          "agent": "content_strategist",
+          "action": "develop_sms_strategy",
+          "output": "sms_strategy"
+        },
+        {
+          "step": 2,
+          "agent": "copywriter", 
+          "action": "create_sms_copy",
+          "input": ["sms_strategy"],
+          "output": "sms_copy_variants"
+        },
+        {
+          "step": 3,
+          "agent": "segmentation_expert",
+          "action": "optimize_sms_targeting",
+          "input": ["sms_strategy"],
+          "output": "sms_segmentation"
+        },
+        {
+          "step": 4,
+          "agent": "compliance_officer",
+          "action": "sms_compliance_check",
+          "input": ["sms_copy_variants"],
+          "output": "sms_compliance_report"
+        },
+        {
+          "step": 5,
+          "agent": "performance_analyst",
+          "action": "predict_sms_performance",
+          "input": ["all_previous_outputs"],
+          "output": "sms_performance_predictions"
+        }
+      ]
+    }
+  },
+  "integration_points": {
+    "klaviyo_api": {
+      "endpoints": [
+        "/campaigns",
+        "/segments", 
+        "/profiles",
+        "/metrics"
+      ],
+      "authentication": "api_key"
+    },
+    "external_tools": [
+      "litmus_testing",
+      "canva_design",
+      "unsplash_images",
+      "google_fonts"
+    ]
+  }
+}

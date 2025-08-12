@@ -52,7 +52,7 @@ class DocumentImportRequest(BaseModel):
 # Calendar Event Endpoints
 @router.get("/events")
 async def get_calendar_events(
-    client_id: str,
+    client_id: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
@@ -60,7 +60,12 @@ async def get_calendar_events(
     try:
         # Query Firebase for events
         events_ref = db.collection('calendar_events')
-        query = events_ref.where('client_id', '==', client_id)
+        
+        # If client_id is provided, filter by it
+        if client_id:
+            query = events_ref.where('client_id', '==', client_id)
+        else:
+            query = events_ref
         
         if start_date:
             query = query.where('date', '>=', start_date)

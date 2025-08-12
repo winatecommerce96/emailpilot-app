@@ -54,6 +54,22 @@ class MCPServiceManager:
             },
             "openai": {
                 "models": {
+                    "gpt-4o": {
+                        "name": "gpt-4o",
+                        "display_name": "GPT-4o (Latest)",
+                        "max_tokens": 16384,
+                        "context_window": 128000,
+                        "input_cost_per_1k": 0.0025,
+                        "output_cost_per_1k": 0.01
+                    },
+                    "gpt-4o-mini": {
+                        "name": "gpt-4o-mini",
+                        "display_name": "GPT-4o Mini",
+                        "max_tokens": 16384,
+                        "context_window": 128000,
+                        "input_cost_per_1k": 0.00015,
+                        "output_cost_per_1k": 0.0006
+                    },
                     "gpt-4-turbo": {
                         "name": "gpt-4-turbo-preview",
                         "display_name": "GPT-4 Turbo",
@@ -82,6 +98,30 @@ class MCPServiceManager:
             },
             "gemini": {
                 "models": {
+                    "gemini-2.0-flash-exp": {
+                        "name": "gemini-2.0-flash-exp",
+                        "display_name": "Gemini 2.0 Flash (Experimental)",
+                        "max_tokens": 8192,
+                        "context_window": 1048576,
+                        "input_cost_per_1k": 0.0,
+                        "output_cost_per_1k": 0.0
+                    },
+                    "gemini-1.5-pro": {
+                        "name": "gemini-1.5-pro-002",
+                        "display_name": "Gemini 1.5 Pro (Latest)",
+                        "max_tokens": 8192,
+                        "context_window": 2097152,
+                        "input_cost_per_1k": 0.00125,
+                        "output_cost_per_1k": 0.005
+                    },
+                    "gemini-1.5-flash": {
+                        "name": "gemini-1.5-flash-002",
+                        "display_name": "Gemini 1.5 Flash",
+                        "max_tokens": 8192,
+                        "context_window": 1048576,
+                        "input_cost_per_1k": 0.000075,
+                        "output_cost_per_1k": 0.0003
+                    },
                     "gemini-pro": {
                         "name": "gemini-pro",
                         "display_name": "Gemini Pro",

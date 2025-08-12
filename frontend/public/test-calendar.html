@@ -7,7 +7,6 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 </head>
 <body class="bg-gray-50 p-8">
@@ -30,14 +29,11 @@
         log('Starting component load test...');
     </script>
     
-    <!-- Load components individually -->
-    <script type="text/babel">
-        console.log('Loading CalendarView component...');
-    </script>
+    <!-- Load pre-compiled components -->
+    <script src="/static/dist/component-loader.js"></script>
+    <script src="/static/dist/CalendarView.js" onload="log('CalendarView.js loaded')" onerror="log('Failed to load CalendarView.js', true)"></script>
     
-    <script type="text/babel" src="components/CalendarView.js" onload="log('CalendarView.js loaded')" onerror="log('Failed to load CalendarView.js', true)"></script>
-    
-    <script type="text/babel">
+    <script>
         // Check if component loaded after a delay
         setTimeout(() => {
             if (window.CalendarView) {
@@ -45,7 +41,7 @@
                 
                 // Try to render it
                 const root = document.getElementById('root');
-                ReactDOM.render(<window.CalendarView />, root);
+                ReactDOM.render(React.createElement(window.CalendarView), root);
             } else {
                 log('❌ CalendarView component not found', true);
                 log('Checking window object...');

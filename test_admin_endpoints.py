@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def test_admin_endpoints():
     """Test the admin endpoints"""
-    base_url = "http://localhost:8080"
+    base_url = "http://127.0.0.1:8000"
     
     print(f"🧪 Testing Admin Endpoints at {base_url}")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -191,12 +191,12 @@ if __name__ == "__main__":
     # Check if server should be started
     import subprocess
     try:
-        response = requests.get("http://localhost:8080/health", timeout=2)
+        response = requests.get("http://127.0.0.1:8000/health", timeout=2)
         print("✅ Server is already running")
     except:
         print("❌ Server is not running")
         print("ℹ️  To start the server, run: python main.py")
-        print("ℹ️  Or: uvicorn main:app --reload --host 0.0.0.0 --port 8080")
+        print("ℹ️  Or: uvicorn main:app --reload")
         sys.exit(1)
     
     success = test_admin_endpoints()

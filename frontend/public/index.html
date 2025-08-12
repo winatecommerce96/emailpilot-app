@@ -40,31 +40,51 @@
     </style>
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Babel removed - using pre-compiled JavaScript -->
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-50">
     <div id="root"></div>
-    <!-- Load Firebase Calendar Service first -->
-    <script src="components/FirebaseCalendarService.js"></script>
-    <!-- Load simple calendar (no babel needed) -->
-    <script src="components/CalendarViewSimple.js"></script>
-    <!-- Calendar Components -->
-    <script type="text/babel" src="components/Calendar.js"></script>
-    <script type="text/babel" src="components/EventModal.js"></script>
-    <script type="text/babel" src="components/CalendarChat.js"></script>
-    <script type="text/babel" src="components/CalendarView.js"></script>
-    <!-- Goals Components -->
-    <script type="text/babel" src="components/GoalsAwareCalendarDashboard.js"></script>
-    <script type="text/babel" src="components/GoalsEnhancedDashboard.js"></script>
-    <script type="text/babel" src="components/GoalsCompanyDashboard.js"></script>
-    <script type="text/babel" src="components/GoalsDataStatus.js"></script>
-    <script type="text/babel" src="components/GoalGeneratorPanel.js"></script>
-    <!-- MCP Management Component -->
-    <script type="text/babel" src="components/MCPManagement.js"></script>
-    <!-- Main App -->
-    <script type="text/babel" src="app.js"></script>
+    
+    <!-- Global Configuration -->
+    <script>
+        // Set consistent API base URL for all components
+        window.API_BASE_URL = window.location.origin;
+        console.log('API Base URL set to:', window.API_BASE_URL);
+    </script>
+    
+    <!-- Component Loader - Manages service initialization -->
+    <script src="dist/component-loader.js"></script>
+    
+    <!-- Core Services (loaded first) -->
+    <script src="dist/FirebaseCalendarService.js"></script>
+    <script src="dist/GeminiChatService.js"></script>
+    
+    <!-- Dashboard Components -->
+    <script src="dist/GoalsDashboard.js"></script>
+    <script src="dist/CalendarViewSimple.js"></script>
+    <script src="dist/CalendarViewLocal.js"></script>
+    
+    <!-- Calendar Components (pre-compiled from JSX) -->
+    <script src="dist/Calendar.js"></script>
+    <script src="dist/EventModal.js"></script>
+    <script src="dist/CalendarChat.js"></script>
+    <script src="dist/CalendarView.js"></script>
+    
+    <!-- Goals Components (pre-compiled from JSX) -->
+    <script src="dist/GoalsAwareCalendarDashboard.js"></script>
+    <script src="dist/GoalsEnhancedDashboard.js"></script>
+    <script src="dist/GoalsCompanyDashboard.js"></script>
+    <script src="dist/GoalsDataStatus.js"></script>
+    <script src="dist/GoalGeneratorPanel.js"></script>
+    
+    <!-- Admin Components -->
+    <script src="dist/AdminClientManagement.js"></script>
+    <script src="dist/DevLogin.js"></script>
+    
+    <!-- Main App (pre-compiled from JSX) -->
+    <script src="dist/app.js"></script>
     <!-- Debug script to check loading -->
     <script>
         setTimeout(() => {

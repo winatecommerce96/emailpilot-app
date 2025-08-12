@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot Calendar - Local Development</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="container mx-auto p-4 max-w-7xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">📅 EmailPilot Calendar</h1>
+            <p class="text-gray-600">Local Development - API: <span class="font-mono bg-gray-100 px-2 py-1 rounded">http://127.0.0.1:8000</span></p>
+            
+            <!-- Client Selector -->
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select Client</label>
+                <div class="flex gap-2">
+                    <select id="clientSelect" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Loading clients...</option>
+                    </select>
+                    <button onclick="createClient()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        + New Client
+                    </button>
+                    <button onclick="refreshCalendar()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Goals Dashboard -->
+        <div id="goalsDashboard" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">📊 Revenue Goals</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600">Monthly Goal</p>
+                    <p id="monthlyGoal" class="text-2xl font-bold text-blue-600">$0</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600">Current Revenue</p>
+                    <p id="currentRevenue" class="text-2xl font-bold text-green-600">$0</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-600">Achievement</p>
+                    <p id="achievement" class="text-2xl font-bold text-purple-600">0%</p>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div id="progressBar" class="h-4 rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+            <div id="recommendations" class="mt-4 p-4 bg-yellow-50 rounded-lg hidden">
+                <p class="text-sm font-semibold text-yellow-800">💡 Recommendations</p>
+                <ul id="recommendationsList" class="text-sm text-yellow-700 mt-2 list-disc list-inside"></ul>
+            </div>
+        </div>
+
+        <!-- Calendar Grid -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="currentMonth" class="text-xl font-semibold">Calendar</h2>
+                <div class="flex gap-2">
+                    <button onclick="previousMonth()" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">←</button>
+                    <button onclick="currentMonth()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Today</button>
+                    <button onclick="nextMonth()" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">→</button>
+                </div>
+            </div>
+            
+            <!-- Calendar Grid -->
+            <div class="grid grid-cols-7 gap-1">
+                <!-- Day Headers -->
+                <div class="text-center font-semibold p-2 text-gray-600">Sun</div>
+                <div class="text-center font-semibold p-2 text-gray-600">Mon</div>
+                <div class="text-center font-semibold p-2 text-gray-600">Tue</div>
+                <div class="text-center font-semibold p-2 text-gray-600">Wed</div>
+                <div class="text-center font-semibold p-2 text-gray-600">Thu</div>
+                <div class="text-center font-semibold p-2 text-gray-600">Fri</div>
+                <div class="text-center font-semibold p-2 text-gray-600">Sat</div>
+            </div>
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1">
+                <!-- Calendar days will be inserted here -->
+            </div>
+        </div>
+
+        <!-- AI Chat -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">🤖 AI Planning Assistant</h2>
+            <div id="chatMessages" class="h-64 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+                <div class="text-gray-500 text-sm">Ask me about campaign planning, revenue goals, or calendar optimization...</div>
+            </div>
+            <div class="flex gap-2">
+                <input id="chatInput" type="text" placeholder="Type your message..." 
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onkeypress="if(event.key==='Enter') sendChat()">
+                <button onclick="sendChat()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Modal -->
+    <div id="eventModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-xl font-semibold mb-4">Campaign Event</h3>
+            <input id="eventId" type="hidden">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                <input id="eventTitle" type="text" placeholder="Campaign name..." 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                <input id="eventDate" type="date" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                <select id="eventType" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="general">General Campaign</option>
+                    <option value="cheese-club">Cheese Club (2x)</option>
+                    <option value="rrb">RRB Promotion (1.5x)</option>
+                    <option value="sms">SMS Alert (1.3x)</option>
+                    <option value="re-engagement">Re-engagement (1.2x)</option>
+                    <option value="nurturing">Nurturing (0.8x)</option>
+                    <option value="community">Community (0.7x)</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                <textarea id="eventContent" rows="3" placeholder="Campaign details..." 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="flex justify-between">
+                <button id="deleteBtn" onclick="deleteEvent()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 hidden">Delete</button>
+                <div class="flex gap-2">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">Cancel</button>
+                    <button onclick="saveEvent()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://127.0.0.1:8000';  // Local development
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyByeHeCuEIS0wKhGq4vclyON9XpMxuHMw8",
+            authDomain: "winatecom.firebaseapp.com",
+            projectId: "winatecom",
+            storageBucket: "winatecom.appspot.com",
+            messagingSenderId: "386331689185",
+            appId: "1:386331689185:web:3e1e4f5b2f5b2f5b2f5b2f"
+        };
+
+        // State
+        let currentDate = new Date();
+        let selectedClient = null;
+        let events = [];
+        let clients = [];
+        let useFirebaseDirect = false;  // Toggle for Firebase vs API
+
+        // Initialize
+        async function init() {
+            console.log('Initializing calendar app...');
+            console.log('API Base:', API_BASE);
+            
+            // Try to initialize Firebase as backup
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(FIREBASE_CONFIG);
+                    await firebase.auth().signInAnonymously();
+                    console.log('Firebase initialized as backup');
+                }
+            } catch (error) {
+                console.warn('Firebase initialization failed:', error);
+            }
+            
+            // Load clients
+            await loadClients();
+            
+            // Initialize calendar
+            renderCalendar();
+        }
+
+        // API Functions
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API call failed:', error);
+                
+                // Try Firebase as fallback
+                if (firebase.apps.length && !useFirebaseDirect) {
+                    console.log('Falling back to Firebase direct access');
+                    useFirebaseDirect = true;
+                }
+                
+                throw error;
+            }
+        }
+
+        // Load clients
+        async function loadClients() {
+            try {
+                clients = await apiCall('/api/calendar/clients');
+                console.log('Loaded clients:', clients);
+                
+                const select = document.getElementById('clientSelect');
+                select.innerHTML = '<option value="">Select a client...</option>';
+                
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = client.name || client.id;
+                    select.appendChild(option);
+                });
+                
+                // Auto-select first client
+                if (clients.length > 0 && !selectedClient) {
+                    select.value = clients[0].id;
+                    await selectClient(clients[0].id);
+                }
+            } catch (error) {
+                console.error('Failed to load clients:', error);
+                // Add demo clients
+                clients = [
+                    { id: 'demo1', name: 'Demo Client 1' },
+                    { id: 'demo2', name: 'Demo Client 2' }
+                ];
+                
+                const select = document.getElementById('clientSelect');
+                select.innerHTML = '<option value="">Select a client...</option>';
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = client.name;
+                    select.appendChild(option);
+                });
+            }
+        }
+
+        // Select client
+        async function selectClient(clientId) {
+            if (!clientId) return;
+            
+            selectedClient = clients.find(c => c.id === clientId);
+            console.log('Selected client:', selectedClient);
+            
+            // Load events
+            await loadEvents();
+            
+            // Load dashboard
+            await loadDashboard();
+            
+            // Re-render calendar
+            renderCalendar();
+        }
+
+        // Load events
+        async function loadEvents() {
+            if (!selectedClient) return;
+            
+            try {
+                events = await apiCall(`/api/calendar/events?client_id=${selectedClient.id}`);
+                console.log('Loaded events:', events);
+            } catch (error) {
+                console.error('Failed to load events:', error);
+                events = [];
+            }
+        }
+
+        // Load dashboard
+        async function loadDashboard() {
+            if (!selectedClient) return;
+            
+            try {
+                const dashboard = await apiCall(`/api/calendar/dashboard/${selectedClient.id}`);
+                console.log('Dashboard data:', dashboard);
+                
+                // Update dashboard UI
+                document.getElementById('monthlyGoal').textContent = `$${(dashboard.goal || 0).toLocaleString()}`;
+                document.getElementById('currentRevenue').textContent = `$${(dashboard.current_revenue || 0).toLocaleString()}`;
+                document.getElementById('achievement').textContent = `${Math.round(dashboard.achievement_percentage || 0)}%`;
+                
+                // Update progress bar
+                const progress = Math.min(dashboard.achievement_percentage || 0, 100);
+                document.getElementById('progressBar').style.width = `${progress}%`;
+                
+                // Update recommendations
+                if (dashboard.recommendations && dashboard.recommendations.length > 0) {
+                    const recList = document.getElementById('recommendationsList');
+                    recList.innerHTML = dashboard.recommendations.map(r => `<li>${r}</li>`).join('');
+                    document.getElementById('recommendations').classList.remove('hidden');
+                }
+                
+                // Show dashboard
+                document.getElementById('goalsDashboard').classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+            }
+        }
+
+        // Render calendar
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            // Update month display
+            document.getElementById('currentMonth').textContent = 
+                new Date(year, month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            
+            // Get first day and days in month
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // Build calendar grid
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+            
+            // Add empty cells for days before month starts
+            for (let i = 0; i < firstDay; i++) {
+                grid.innerHTML += '<div class="min-h-24 p-2"></div>';
+            }
+            
+            // Add days of month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayEvents = events.filter(e => e.date === dateStr);
+                
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'min-h-24 p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer relative';
+                dayDiv.onclick = () => openEventModal(dateStr);
+                
+                // Day number
+                dayDiv.innerHTML = `<div class="font-semibold text-gray-700">${day}</div>`;
+                
+                // Add events
+                dayEvents.forEach(event => {
+                    const eventDiv = document.createElement('div');
+                    eventDiv.className = 'text-xs p-1 mt-1 rounded truncate cursor-pointer ' + getEventColor(event.event_type);
+                    eventDiv.textContent = event.title;
+                    eventDiv.onclick = (e) => {
+                        e.stopPropagation();
+                        openEventModal(dateStr, event);
+                    };
+                    dayDiv.appendChild(eventDiv);
+                });
+                
+                grid.appendChild(dayDiv);
+            }
+        }
+
+        // Get event color based on type
+        function getEventColor(type) {
+            const colors = {
+                'cheese-club': 'bg-green-200 text-green-800',
+                'rrb': 'bg-red-200 text-red-800',
+                'sms': 'bg-orange-200 text-orange-800',
+                're-engagement': 'bg-yellow-200 text-yellow-800',
+                'nurturing': 'bg-blue-200 text-blue-800',
+                'community': 'bg-purple-200 text-purple-800',
+                'general': 'bg-gray-200 text-gray-800'
+            };
+            return colors[type] || colors.general;
+        }
+
+        // Event modal
+        function openEventModal(date, event = null) {
+            if (!selectedClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            document.getElementById('eventModal').classList.remove('hidden');
+            document.getElementById('eventDate').value = date;
+            
+            if (event) {
+                document.getElementById('eventId').value = event.id;
+                document.getElementById('eventTitle').value = event.title;
+                document.getElementById('eventType').value = event.event_type || 'general';
+                document.getElementById('eventContent').value = event.content || '';
+                document.getElementById('deleteBtn').classList.remove('hidden');
+            } else {
+                document.getElementById('eventId').value = '';
+                document.getElementById('eventTitle').value = '';
+                document.getElementById('eventType').value = 'general';
+                document.getElementById('eventContent').value = '';
+                document.getElementById('deleteBtn').classList.add('hidden');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('eventModal').classList.add('hidden');
+        }
+
+        // Save event
+        async function saveEvent() {
+            const eventId = document.getElementById('eventId').value;
+            const eventData = {
+                title: document.getElementById('eventTitle').value,
+                date: document.getElementById('eventDate').value,
+                event_type: document.getElementById('eventType').value,
+                content: document.getElementById('eventContent').value,
+                client_id: selectedClient.id
+            };
+            
+            try {
+                if (eventId) {
+                    // Update
+                    await apiCall(`/api/calendar/events/${eventId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(eventData)
+                    });
+                } else {
+                    // Create
+                    await apiCall('/api/calendar/events', {
+                        method: 'POST',
+                        body: JSON.stringify(eventData)
+                    });
+                }
+                
+                closeModal();
+                await refreshCalendar();
+            } catch (error) {
+                alert('Failed to save event: ' + error.message);
+            }
+        }
+
+        // Delete event
+        async function deleteEvent() {
+            const eventId = document.getElementById('eventId').value;
+            if (!eventId) return;
+            
+            if (confirm('Delete this event?')) {
+                try {
+                    await apiCall(`/api/calendar/events/${eventId}`, {
+                        method: 'DELETE'
+                    });
+                    closeModal();
+                    await refreshCalendar();
+                } catch (error) {
+                    alert('Failed to delete event: ' + error.message);
+                }
+            }
+        }
+
+        // Create client
+        async function createClient() {
+            const name = prompt('Enter client name:');
+            if (!name) return;
+            
+            try {
+                const client = await apiCall('/api/calendar/clients', {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
+                
+                await loadClients();
+                document.getElementById('clientSelect').value = client.id;
+                await selectClient(client.id);
+            } catch (error) {
+                alert('Failed to create client: ' + error.message);
+            }
+        }
+
+        // Chat
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            // Add user message to chat
+            const chatDiv = document.getElementById('chatMessages');
+            chatDiv.innerHTML += `
+                <div class="mb-2">
+                    <span class="font-semibold text-blue-600">You:</span> ${message}
+                </div>
+            `;
+            
+            input.value = '';
+            
+            try {
+                const response = await apiCall('/api/calendar/ai/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message,
+                        client_id: selectedClient?.id
+                    })
+                });
+                
+                // Add AI response
+                chatDiv.innerHTML += `
+                    <div class="mb-2">
+                        <span class="font-semibold text-green-600">AI:</span> ${response.response}
+                    </div>
+                `;
+                
+                // Show suggestions if any
+                if (response.suggestions && response.suggestions.length > 0) {
+                    chatDiv.innerHTML += `
+                        <div class="mb-2 p-2 bg-blue-50 rounded">
+                            <div class="text-sm font-semibold text-blue-800">Suggestions:</div>
+                            <ul class="text-sm text-blue-700 list-disc list-inside">
+                                ${response.suggestions.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+            } catch (error) {
+                chatDiv.innerHTML += `
+                    <div class="mb-2 text-red-600">
+                        <span class="font-semibold">Error:</span> Failed to get response
+                    </div>
+                `;
+            }
+        }
+
+        // Navigation
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        }
+
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        }
+
+        function currentMonth() {
+            currentDate = new Date();
+            renderCalendar();
+        }
+
+        async function refreshCalendar() {
+            await loadEvents();
+            await loadDashboard();
+            renderCalendar();
+        }
+
+        // Event listeners
+        document.getElementById('clientSelect').addEventListener('change', (e) => {
+            selectClient(e.target.value);
+        });
+
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

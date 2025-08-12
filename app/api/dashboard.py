@@ -82,7 +82,7 @@ async def get_dashboard_overview(db: Session = Depends(get_db)):
                     {
                         "id": r.id,
                         "client_id": r.client_id,
-                        "type": r.report_type,
+                        "type": r.type,
                         "created_at": r.created_at.isoformat()
                     } for r in recent_reports
                 ],

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email/SMS Agent Configuration - EmailPilot Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <!-- Load pre-compiled component -->
+    <script src="/static/dist/AdminAgentsPanel.js"></script>
+    <script>
+        // Initialize the component
+        if (window.AdminAgentsPanel) {
+            ReactDOM.render(React.createElement(window.AdminAgentsPanel), document.getElementById('root'));
+        } else {
+            console.error('AdminAgentsPanel component not found');
+        }
+    </script>
+</body>
+</html>

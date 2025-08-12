@@ -7,7 +7,6 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 </head>
 <body class="bg-gray-50 p-8">
@@ -18,13 +17,14 @@
     <h2 class="text-xl font-semibold mb-2">Component Status:</h2>
     <div id="component-status" class="space-y-1"></div>
     
-    <!-- Load Calendar Components -->
-    <script type="text/babel" src="components/Calendar.js"></script>
-    <script type="text/babel" src="components/EventModal.js"></script>
-    <script type="text/babel" src="components/CalendarChat.js"></script>
-    <script type="text/babel" src="components/CalendarView.js"></script>
+    <!-- Load Pre-compiled Components -->
+    <script src="/static/dist/component-loader.js"></script>
+    <script src="/static/dist/Calendar.js"></script>
+    <script src="/static/dist/EventModal.js"></script>
+    <script src="/static/dist/CalendarChat.js"></script>
+    <script src="/static/dist/CalendarView.js"></script>
     
-    <script type="text/babel">
+    <script>
         // Debug script to check component loading
         window.API_BASE_URL = 'https://emailpilot.ai';
         

@@ -1,0 +1,33 @@
+{
+  "name": "emailpilot-frontend",
+  "version": "1.0.0",
+  "description": "EmailPilot Dashboard Frontend Build System",
+  "private": true,
+  "scripts": {
+    "build": "./scripts/build_frontend.sh",
+    "dev": "python main_firestore.py",
+    "watch": "chokidar \"frontend/public/**/*.js\" -c \"npm run build\"",
+    "clean": "rm -rf frontend/public/dist && mkdir -p frontend/public/dist",
+    "serve": "cd frontend/public && python -m http.server 8080"
+  },
+  "devDependencies": {
+    "esbuild": "^0.19.0",
+    "chokidar-cli": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "local"
+  },
+  "keywords": [
+    "emailpilot",
+    "klaviyo",
+    "dashboard",
+    "react",
+    "frontend"
+  ],
+  "author": "EmailPilot Team",
+  "license": "MIT"
+}

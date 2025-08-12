@@ -31,7 +31,7 @@ async def get_reports(
             query = query.filter(Report.client_id == client_id)
         
         if report_type:
-            query = query.filter(Report.report_type == report_type)  # Fixed: use report_type instead of type
+            query = query.filter(Report.type == report_type)  # Fixed: use report_type instead of type
         
         reports = query.order_by(Report.created_at.desc()).limit(limit).all()
         
@@ -40,7 +40,7 @@ async def get_reports(
             {
                 "id": r.id,
                 "client_id": r.client_id,
-                "report_type": r.report_type if hasattr(r, 'report_type') else r.type if hasattr(r, 'type') else 'unknown',
+                "report_type": r.type,
                 "status": r.status,
                 "title": r.title,
                 "created_at": r.created_at.isoformat() if r.created_at else None,

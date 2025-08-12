@@ -20,7 +20,7 @@ const GoalGeneratorPanel = () => {
     // API configuration
     const API_CONFIG = {
         baseURL: window.location.hostname === 'localhost' 
-            ? 'http://localhost:8080' 
+            ? 'http://127.0.0.1:8000' 
             : 'https://emailpilot-app-p3cxgvcsla-uc.a.run.app',
         headers: {
             'Content-Type': 'application/json'

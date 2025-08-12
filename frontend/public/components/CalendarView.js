@@ -201,12 +201,14 @@ function CalendarView() {
             {selectedClient && (
                 <>
                     {/* Goals Dashboard */}
-                    <GoalsDashboard 
-                        clientId={selectedClient.id}
-                        goals={goals}
-                        campaigns={{}} // Will be loaded by the component
-                        currentDate={new Date()}
-                    />
+                    {window.GoalsDashboard ? (
+                        <GoalsDashboard 
+                            clientId={selectedClient.id}
+                            goals={goals}
+                            campaigns={{}} // Will be loaded by the component
+                            currentDate={new Date()}
+                        />
+                    ) : null}
 
                     {/* Calendar Component */}
                     <Calendar

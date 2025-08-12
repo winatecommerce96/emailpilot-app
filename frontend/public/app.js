@@ -4,7 +4,7 @@ const { useState, useEffect } = React;
 // API Configuration
 // In production, the API is served from the same domain
 const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8080' 
+    ? 'http://127.0.0.1:8000' 
     : window.location.origin; // Use the same origin as the frontend
 
 // Make API_BASE_URL available globally for components
@@ -161,7 +161,6 @@ function App() {
                     {currentView === 'dashboard' && <Dashboard onViewChange={setCurrentView} />}
                     {currentView === 'reports' && <ReportsView />}
                     {currentView === 'goals' && <GoalsView />}
-                    {currentView === 'clients' && <ClientsView />}
                     {currentView === 'calendar' && <CalendarWrapper />}
                     {currentView === 'copywriting' && (
                         <div className="bg-white rounded-lg shadow p-6">
@@ -252,7 +251,6 @@ function Sidebar({ currentView, onViewChange, user }) {
         { id: 'dashboard', label: 'Dashboard', icon: '📊' },
         { id: 'reports', label: 'Reports', icon: '📈' },
         { id: 'goals', label: 'Goals', icon: '🎯' },
-        { id: 'clients', label: 'Clients', icon: '👥' },
         { id: 'calendar', label: 'Calendar', icon: '📅' },
         { id: 'copywriting', label: 'Copywriting', icon: '✍️' },
         { id: 'design', label: 'Design', icon: '🎨' },
@@ -2695,6 +2693,7 @@ function AdminView({ user }) {
                 <nav className="-mb-px flex space-x-8">
                     {[
                         { id: 'overview', label: 'Overview', icon: '🏠' },
+                        { id: 'clients', label: 'Client Management', icon: '👥' },
                         { id: 'mcp', label: 'MCP Management', icon: '🤖' },
                         { id: 'slack', label: 'Slack Integration', icon: '💬' },
                         { id: 'environment', label: 'Environment Variables', icon: '⚙️' },
@@ -2887,6 +2886,11 @@ function AdminView({ user }) {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Client Management Tab */}
+            {activeTab === 'clients' && window.AdminClientManagement && (
+                <window.AdminClientManagement />
             )}
 
             {/* Environment Variables Tab */}
@@ -3253,4 +3257,10 @@ function AdminView({ user }) {
     );
 }
 
-ReactDOM.render(<App />, document.getElementById('root'));
+ReactDOM.render(
+    <>
+        <App />
+        {window.DevLogin && <DevLogin />}
+    </>, 
+    document.getElementById('root')
+);

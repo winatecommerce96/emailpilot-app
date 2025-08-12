@@ -51,7 +51,7 @@ class SecretListResponse(BaseModel):
 
 # Sensitive environment variables that should be masked
 SENSITIVE_VARS = {
-    "SECRET_KEY", "KLAVIYO_API_KEY", "GEMINI_API_KEY", 
+    "SECRET_KEY", "KLAVIYO_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
     "DATABASE_URL", "GOOGLE_APPLICATION_CREDENTIALS", "SLACK_WEBHOOK_URL"
 }
 
@@ -62,6 +62,7 @@ SECRET_MAPPINGS = {
     "KLAVIYO_API_KEY": "emailpilot-klaviyo-api-key",
     "SLACK_WEBHOOK_URL": "emailpilot-slack-webhook-url",
     "GEMINI_API_KEY": "emailpilot-gemini-api-key",
+    "OPENAI_API_KEY": "emailpilot-openai-api-key",
     "GOOGLE_APPLICATION_CREDENTIALS": "emailpilot-google-credentials"
 }
 
@@ -76,6 +77,12 @@ ADMIN_ENV_VARS = {
     "GEMINI_API_KEY": {
         "description": "Google Gemini API key for AI features",
         "example": "AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "required": False,
+        "sensitive": True
+    },
+    "OPENAI_API_KEY": {
+        "description": "OpenAI API key for GPT models",
+        "example": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "required": False,
         "sensitive": True
     },
