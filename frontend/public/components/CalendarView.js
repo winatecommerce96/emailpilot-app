@@ -1,14 +1,29 @@
 // Enhanced Firebase-Integrated Calendar View Component for EmailPilot
 const { useState, useEffect } = React;
 
-// Initialize Firebase service
-const firebaseService = new window.FirebaseCalendarService();
-const geminiService = new window.GeminiChatService(firebaseService);
+// Firebase service initialization - defer until needed
+let firebaseService = null;
+let geminiService = null;
+
+function getFirebaseService() {
+    if (!firebaseService && window.FirebaseCalendarService) {
+        firebaseService = new window.FirebaseCalendarService();
+    }
+    return firebaseService;
+}
+
+function getGeminiService() {
+    if (!geminiService && window.GeminiChatService && getFirebaseService()) {
+        geminiService = new window.GeminiChatService(getFirebaseService());
+    }
+    return geminiService;
+}
 
 function CalendarView() {
     const [clients, setClients] = useState([]);
     const [selectedClient, setSelectedClient] = useState(null);
     const [showEventModal, setShowEventModal] = useState(false);
+    const [showPlanCampaignDialog, setShowPlanCampaignDialog] = useState(false);
     const [currentEvent, setCurrentEvent] = useState(null);
     const [initialDate, setInitialDate] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -23,8 +38,8 @@ function CalendarView() {
     const loadClients = async () => {
         try {
             setLoading(true);
-            await firebaseService.initialize();
-            const clientsData = await firebaseService.getClients();
+            await getFirebaseService().initialize();
+            const clientsData = await getFirebaseService().getClients();
             setClients(clientsData);
             
             // Auto-select first client if available
@@ -45,7 +60,7 @@ function CalendarView() {
     // Load goals for client
     const loadClientGoals = async (clientId) => {
         try {
-            const clientGoals = await firebaseService.getClientGoals(clientId);
+            const clientGoals = await getFirebaseService().getClientGoals(clientId);
             setGoals(clientGoals);
         } catch (error) {
             console.error('Failed to load client goals:', error);
@@ -129,6 +144,12 @@ function CalendarView() {
         }
     };
 
+    // Handle events generated from campaign planning
+    const handleEventsGenerated = (newEvents) => {
+        // Force calendar refresh by updating the selected client state
+        setSelectedClient({ ...selectedClient });
+    };
+
     if (error) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -176,9 +197,21 @@ function CalendarView() {
 
     return (
         <div className="space-y-6">
-            {/* Header with Client Selection */}
+            {/* Header with Client Selection and Plan Campaign Button */}
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-900">Campaign Calendar</h2>
+                <div className="flex items-center space-x-4">
+                    <h2 className="text-2xl font-bold text-gray-900">Campaign Calendar</h2>
+                    
+                    {selectedClient && (
+                        <button
+                            onClick={() => setShowPlanCampaignDialog(true)}
+                            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md hover:from-indigo-700 hover:to-purple-700 transition-colors flex items-center space-x-2 shadow-md"
+                        >
+                            <span>🤖</span>
+                            <span>Plan Campaign</span>
+                        </button>
+                    )}
+                </div>
                 
                 <div className="flex items-center space-x-4">
                     <label className="text-sm font-medium text-gray-700">
@@ -243,6 +276,17 @@ function CalendarView() {
                             onDelete={handleDeleteEvent}
                             onDuplicate={handleDuplicateEvent}
                             initialDate={initialDate}
+                        />
+                    )}
+
+                    {/* Plan Campaign Dialog */}
+                    {showPlanCampaignDialog && window.PlanCampaignDialog && (
+                        <PlanCampaignDialog
+                            isOpen={showPlanCampaignDialog}
+                            onClose={() => setShowPlanCampaignDialog(false)}
+                            clientId={selectedClient.id}
+                            clientName={selectedClient.name}
+                            onEventsGenerated={handleEventsGenerated}
                         />
                     )}
 

@@ -16,6 +16,10 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 import logging
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -59,16 +63,19 @@ from app.api.admin_firestore import router as admin_firestore_router
 # Import auth router
 from app.api.auth import router as auth_router
 
-# Import goals router
+# Import Google auth router
+from app.api.auth_google import router as google_auth_router
+
+# Import goals router - Now using Firestore
 from app.api.goals import router as goals_router
 
-# Import performance router
+# Import performance router - Now simplified  
 from app.api.performance import router as performance_router
 
-# Import reports router
+# Import reports router - Now simplified
 from app.api.reports import router as reports_router
 
-# Import dashboard router
+# Import dashboard router - Now uses Firestore
 from app.api.dashboard import router as dashboard_router
 
 # Check if agent routers are available (optional)
@@ -129,6 +136,50 @@ try:
 except Exception as e:
     logger.error(f"Error loading environment variables at startup: {e}")
 
+# Startup probe - validate secrets and Firestore connectivity
+@app.on_event("startup")
+async def startup_probe():
+    """Validate critical configuration at startup - fail fast if secrets or Firestore are unavailable"""
+    try:
+        # Touch the critical values so any failure happens immediately and loudly
+        _ = (settings.project, settings.secret_key)
+        
+        logger.info("✅ Startup probe passed: Critical secrets loaded from Secret Manager")
+        logger.info(f"  Transport: {os.getenv('SECRET_MANAGER_TRANSPORT', 'rest')}")
+        logger.info(f"  Project: {settings.project}")
+        logger.info(f"  Environment: {settings.environment}")
+        logger.info("✅ Using Firestore as the exclusive database")
+        
+        # Check secret key strength
+        if len(settings.secret_key) < 32:
+            logger.warning("⚠️  WARNING: SECRET_KEY is shorter than recommended (32+ chars)")
+        else:
+            logger.info("✅ SECRET_KEY has sufficient length")
+        
+        # Verify Firestore connectivity with a health check
+        from app.services.firestore import ping
+        from app.core.config import get_firestore_client
+        
+        try:
+            ping(get_firestore_client())
+            logger.info("✅ Firestore health check passed")
+        except Exception as e:
+            logger.warning(f"⚠️  Firestore health check had issues but continuing: {e}")
+            
+    except Exception as e:
+        logger.error(f"❌ STARTUP PROBE FAILED: {e}")
+        logger.error("Cannot start application without required configuration")
+        logger.error("Check that:")
+        logger.error("  1. GOOGLE_CLOUD_PROJECT is set or ADC is configured")
+        logger.error("  2. Secret Manager has required secrets:")
+        logger.error("     - emailpilot-secret-key")
+        logger.error("     - emailpilot-google-credentials (Service Account JSON)")
+        logger.error("  3. Service Account has necessary permissions:")
+        logger.error("     - roles/secretmanager.secretAccessor")
+        logger.error("     - roles/datastore.user")
+        # Re-raise to prevent app from starting with missing configuration
+        raise
+
 # Add session middleware for OAuth
 session_secret = getattr(settings, 'secret_key', None) or os.getenv('SECRET_KEY', 'fallback-secret-key-change-this-in-production')
 app.add_middleware(SessionMiddleware, secret_key=session_secret)
@@ -183,8 +234,6 @@ def collection_to_list(docs) -> List[Dict[str, Any]]:
     """Convert Firestore documents to list of dictionaries"""
     return [doc_to_dict(doc) for doc in docs if doc.exists]
 
-# Import test connection function
-from test_klaviyo_connection import test_klaviyo_connection as test_klaviyo_api
 
 # Health check endpoints
 @app.get("/api/")
@@ -195,6 +244,18 @@ async def root():
         "version": "2.0.0", 
         "database": "Firestore"
     }
+
+# Simple health endpoint for monitoring
+@app.get("/health")
+async def health():
+    """Lightweight health check endpoint for monitoring systems."""
+    return {"status": "ok"}
+
+# Version endpoint for deployment tracking
+@app.get("/version")
+async def version():
+    """Version information endpoint for deployment tracking."""
+    return {"version": "1.0.0"}
 
 # Legacy clients endpoint (for backwards compatibility)
 @app.get("/api/clients/")
@@ -222,21 +283,6 @@ async def get_clients_legacy():
         logger.error(f"Error fetching clients: {e}")
         return []
 
-# Test Klaviyo connection endpoint
-@app.post("/api/mcp/test-klaviyo")
-async def test_klaviyo_endpoint(request: Request):
-    """Test Klaviyo API connection"""
-    try:
-        # Get API key from environment or request
-        klaviyo_key = os.getenv("KLAVIYO_API_KEY")
-        if not klaviyo_key:
-            raise HTTPException(status_code=400, detail="Klaviyo API key not configured")
-        
-        # Test the connection
-        result = test_klaviyo_api(klaviyo_key)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # Static file routes - Legacy support for direct paths
 @app.get("/app.js")
@@ -267,7 +313,35 @@ async def get_dist_component(filename: str):
 async def get_frontend():
     return FileResponse('frontend/public/index.html')
 
-@app.get("/health")
+@app.get("/admin")
+async def get_admin_panel():
+    return FileResponse('frontend/public/admin.html')
+
+@app.get("/admin-oauth.html")
+async def get_oauth_admin():
+    return FileResponse('frontend/public/admin-oauth.html')
+
+@app.get("/admin-agents.html")
+async def get_agents_admin():
+    return FileResponse('frontend/public/admin-agents.html')
+
+@app.get("/test_oauth_frontend.html")
+async def get_oauth_test():
+    return FileResponse('frontend/public/test_oauth_frontend.html')
+
+@app.get("/test-goals-working.html")
+async def get_goals_test():
+    return FileResponse('test-goals-working.html')
+
+@app.get("/test-goals-dashboard.html")
+async def get_goals_dashboard_test():
+    return FileResponse('test-goals-dashboard.html')
+
+@app.get("/test-goals-final.html")
+async def get_goals_final_test():
+    return FileResponse('test-goals-final.html')
+
+@app.get("/health-detailed")
 async def health_check():
     try:
         # Test Firestore connection
@@ -279,7 +353,6 @@ async def health_check():
         return {
             "status": "healthy",
             "database": "Firestore connected",
-            "klaviyo": "ready",
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
@@ -307,16 +380,19 @@ app.include_router(admin_firestore_router, prefix="/api/admin/firestore", tags=[
 # Authentication router  
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 
-# Goals router
-app.include_router(goals_router, prefix="/api/goals", tags=["Goals Management"])
+# Google Authentication router - with different prefix to avoid conflicts
+app.include_router(google_auth_router, prefix="/api/auth/google", tags=["Google Authentication"])
 
-# Performance router
-app.include_router(performance_router, prefix="/api/performance", tags=["Performance Metrics"])
+# Goals router - Now using Firestore
+app.include_router(goals_router, tags=["Goals Management"])
 
-# Reports router
-app.include_router(reports_router, prefix="/api/reports", tags=["Reports"])
+# Performance router - Now simplified
+app.include_router(performance_router, tags=["Performance Metrics"])
 
-# Dashboard router
+# Reports router - Now simplified
+app.include_router(reports_router, tags=["Reports"])
+
+# Dashboard router - Now uses Firestore
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
 
 # Conditionally include agent routers

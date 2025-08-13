@@ -9,7 +9,6 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import httpx
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
@@ -18,9 +17,11 @@ from google.cloud import firestore
 from app.services.firestore_client import get_firestore_client
 from app.core.config import settings
 
-# Try your project's Secret Manager service first
+# Import Secret Manager service and KlaviyoClient
 try:
-    from app.services.secret_manager import SecretManagerService
+    from app.services.secret_manager import SecretManagerService, get_secret_manager
+    from app.services.klaviyo_client import KlaviyoClient
+    
     def get_secret(name: str) -> Optional[str]:
         try:
             service = SecretManagerService()
@@ -29,12 +30,9 @@ try:
             return None
 except Exception:
     get_secret = None
+    get_secret_manager = None
+    KlaviyoClient = None
 
-# Fallback: direct GCP Secret Manager client
-try:
-    from google.cloud import secretmanager as gcp_secretmanager
-except Exception:
-    gcp_secretmanager = None
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +65,7 @@ def get_current_user_from_session(request: Request):
 class ClientCreate(BaseModel):
     name: str
     metric_id: Optional[str] = ""
-    klaviyo_private_key: Optional[str] = ""
+    klaviyo_api_key: Optional[str] = ""
     description: Optional[str] = ""
     is_active: Optional[bool] = True
     contact_email: Optional[str] = ""
@@ -92,7 +90,7 @@ class ClientCreate(BaseModel):
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
     metric_id: Optional[str] = None
-    klaviyo_private_key: Optional[str] = None
+    klaviyo_api_key: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
     contact_email: Optional[str] = None
@@ -114,68 +112,79 @@ class ClientUpdate(BaseModel):
     key_growth_objective: Optional[str] = None
 
 
-def _get_secret_via_service(name: str) -> Optional[str]:
-    if not get_secret:
+
+
+def _resolve_client_key(db, client_id: str) -> Optional[str]:
+    """
+    Resolve a per-client Klaviyo API key via:
+      1) Client's klaviyo_secret_name in Secret Manager
+      2) Legacy fallback to direct fields (temporary)
+    """
+    if not client_id:
         return None
+    
     try:
-        val = get_secret(name)
-        return val.strip() if val else None
+        snap = db.collection("clients").document(client_id).get()
+        if not snap.exists:
+            logger.warning(f"Client document not found: {client_id}")
+            return None
+        
+        data = snap.to_dict() or {}
+        
+        # First try secret manager with client's specified secret name
+        if get_secret_manager:
+            secret_name = data.get("klaviyo_secret_name") or f"klaviyo-api-key-{client_id}"
+            try:
+                secret_manager = get_secret_manager()
+                key = secret_manager.get_secret(secret_name)
+                if key:
+                    return key.strip()
+            except Exception as e:
+                logger.debug(f"Secret Manager lookup failed for {secret_name}: {e}")
+        
+        # Temporary legacy fallback to direct fields
+        legacy_key = data.get("klaviyo_api_key") or data.get("klaviyo_private_key")
+        if legacy_key:
+            logger.warning(f"Client {client_id} using legacy plaintext key - migrate to Secret Manager")
+            return legacy_key.strip()
+            
     except Exception as e:
-        logger.debug("get_secret(%s) failed: %s", name, e)
-        return None
-
-
-def _get_secret_direct(name: str, project_id: Optional[str] = None) -> Optional[str]:
-    if gcp_secretmanager is None:
-        return None
-    try:
-        project = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or getattr(settings, 'google_cloud_project', 'emailpilot-438321')
-        client = gcp_secretmanager.SecretManagerServiceClient()
-        secret_path = client.secret_version_path(project, name, "latest")
-        res = client.access_secret_version(name=secret_path)
-        return res.payload.data.decode("utf-8").strip()
-    except Exception as e:
-        logger.debug("Direct Secret Manager access failed for %s: %s", name, e)
-        return None
-
-
-def fetch_klaviyo_key_for_client(client_id: str, doc: Optional[Dict[str, Any]] = None) -> Optional[str]:
-    """Order: client doc → client-scoped secret → global secret."""
-    # 1) client doc
-    if doc:
-        key = doc.get("klaviyo_private_key")
-        if isinstance(key, str) and key.strip():
-            return key.strip()
-
-    # 2) client-scoped secret names
-    candidates = []
-    prefix = getattr(settings, "klaviyo_secret_prefix", None)
-    if prefix:
-        candidates += [f"{prefix}-{client_id}", f"{prefix}_{client_id}"]
-    candidates += [
-        f"klaviyo-api-key-{client_id}",
-        f"klaviyo_api_key_{client_id}",
-        f"emailpilot-klaviyo-api-key-{client_id}",
-        f"emailpilot_klaviyo_api_key_{client_id}",
-    ]
-    for name in candidates:
-        v = _get_secret_via_service(name) or _get_secret_direct(name)
-        if v:
-            return v
-
-    # 3) global
-    global_names = [
-        getattr(settings, "klaviyo_secret_name", "") or "",
-        "emailpilot-klaviyo-api-key",
-        "klaviyo_private_key",
-        "klaviyo-api-key",
-    ]
-    for name in [n for n in global_names if n]:
-        v = _get_secret_via_service(name) or _get_secret_direct(name)
-        if v:
-            return v
-
+        logger.error(f"Key resolution failed for client {client_id}: {e}")
+    
     return None
+
+
+async def _store_client_klaviyo_key(db, client_id: str, api_key: str) -> None:
+    """
+    Store a client's Klaviyo API key in Secret Manager and update the client document
+    with the secret reference.
+    """
+    if not api_key or not get_secret_manager:
+        return
+    
+    try:
+        # Store in Secret Manager
+        secret_name = f"klaviyo-api-key-{client_id}"
+        secret_manager = get_secret_manager()
+        secret_manager.create_secret(secret_name, api_key, {
+            "client_id": client_id,
+            "type": "klaviyo_api_key"
+        })
+        
+        # Update client document with secret reference
+        client_ref = db.collection("clients").document(client_id)
+        client_ref.update({
+            "klaviyo_secret_name": secret_name,
+            # Remove any legacy plaintext fields
+            "klaviyo_api_key": firestore.DELETE_FIELD,
+            "klaviyo_private_key": firestore.DELETE_FIELD
+        })
+        
+        logger.info(f"Stored Klaviyo API key for client {client_id} in Secret Manager")
+        
+    except Exception as e:
+        logger.error(f"Failed to store Klaviyo key for client {client_id}: {e}")
+        raise
 
 
 # ----------------------------
@@ -236,7 +245,7 @@ async def get_all_clients(request: Request) -> Dict[str, Any]:
             if not d.exists:
                 continue
             data = d.to_dict() or {}
-            resolved_key = fetch_klaviyo_key_for_client(d.id, data)
+            resolved_key = _resolve_client_key(db, d.id)
             info: Dict[str, Any] = {
                 "id": d.id,
                 "name": data.get("name", "Unknown"),
@@ -314,7 +323,7 @@ async def get_client_details(client_id: str, request: Request) -> Dict[str, Any]
             raise HTTPException(status_code=404, detail="Client not found")
 
         data = doc.to_dict() or {}
-        resolved_key = fetch_klaviyo_key_for_client(client_id, data)
+        resolved_key = _resolve_client_key(db, client_id)
         details: Dict[str, Any] = {
             "id": client_id,
             "name": data.get("name", "Unknown"),
@@ -386,11 +395,13 @@ async def create_client(client: ClientCreate, request: Request) -> Dict[str, Any
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-        if client.klaviyo_private_key:
-            client_data["klaviyo_private_key"] = client.klaviyo_private_key
-
         doc_ref = db.collection("clients").add(client_data)
         doc_id = doc_ref[1].id
+        
+        # Store Klaviyo API key in Secret Manager if provided
+        if client.klaviyo_api_key:
+            await _store_client_klaviyo_key(db, doc_id, client.klaviyo_api_key)
+        
         return {"status": "success", "message": "Client created successfully", "client_id": doc_id, "client_name": client.name}
     except HTTPException:
         raise
@@ -420,10 +431,23 @@ async def update_client(client_id: str, update: ClientUpdate, request: Request) 
 
         if update.metric_id is not None:
             update_data["metric_id"] = update.metric_id
-        if update.klaviyo_private_key is not None:
-            update_data["klaviyo_private_key"] = (
-                firestore.DELETE_FIELD if update.klaviyo_private_key == "" else update.klaviyo_private_key
-            )
+        # Handle Klaviyo API key update
+        if update.klaviyo_api_key is not None:
+            if update.klaviyo_api_key == "":
+                # Remove the key by deleting the secret and clearing references
+                try:
+                    if get_secret_manager:
+                        secret_manager = get_secret_manager()
+                        secret_name = f"klaviyo-api-key-{client_id}"
+                        secret_manager.delete_secret(secret_name)
+                    update_data["klaviyo_secret_name"] = firestore.DELETE_FIELD
+                    update_data["klaviyo_api_key"] = firestore.DELETE_FIELD
+                    update_data["klaviyo_private_key"] = firestore.DELETE_FIELD
+                except Exception as e:
+                    logger.warning(f"Failed to delete secret for client {client_id}: {e}")
+            else:
+                # Store new key in Secret Manager
+                await _store_client_klaviyo_key(db, client_id, update.klaviyo_api_key)
         if update.description is not None:
             update_data["description"] = update.description
         if update.is_active is not None:
@@ -489,71 +513,130 @@ async def delete_client(client_id: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ----------------------------
-# Real Klaviyo ping
-# ----------------------------
-KLAVIYO_API_BASE = "https://a.klaviyo.com/api"
-KLAVIYO_REVISION = os.getenv("KLAVIYO_API_REVISION", "2023-10-15")
+@router.post("/clients/migrate-keys")
+async def migrate_legacy_keys(request: Request) -> Dict[str, Any]:
+    """Migrate all legacy plaintext Klaviyo keys to Secret Manager."""
+    get_current_user_from_session(request)
+    
+    if not get_secret_manager:
+        raise HTTPException(status_code=500, detail="Secret Manager service not available")
+    
+    try:
+        db = get_db()
+        migrated = []
+        errors = []
+        
+        # Find all clients with legacy keys
+        docs = list(db.collection("clients").stream())
+        
+        for doc in docs:
+            if not doc.exists:
+                continue
+                
+            data = doc.to_dict() or {}
+            client_id = doc.id
+            
+            # Check if client has legacy key but no secret reference
+            legacy_key = data.get("klaviyo_api_key") or data.get("klaviyo_private_key")
+            has_secret = data.get("klaviyo_secret_name")
+            
+            if legacy_key and not has_secret:
+                try:
+                    await _store_client_klaviyo_key(db, client_id, legacy_key)
+                    migrated.append({
+                        "client_id": client_id,
+                        "client_name": data.get("name", "Unknown")
+                    })
+                except Exception as e:
+                    errors.append({
+                        "client_id": client_id,
+                        "client_name": data.get("name", "Unknown"),
+                        "error": str(e)
+                    })
+        
+        return {
+            "status": "success",
+            "message": f"Migration completed. {len(migrated)} clients migrated, {len(errors)} errors",
+            "migrated": migrated,
+            "errors": errors
+        }
+        
+    except Exception as e:
+        logger.exception("Error during key migration")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _klaviyo_ping(api_key: str) -> Dict[str, Any]:
-    headers = {
-        "Authorization": f"Klaviyo-API-Key {api_key}",
-        "accept": "application/json",
-        "revision": KLAVIYO_REVISION,
-        "content-type": "application/json",
-    }
-    timeout = httpx.Timeout(10.0, connect=5.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        res = await client.get(f"{KLAVIYO_API_BASE}/accounts/", headers=headers)
-        try:
-            payload = res.json()
-        except Exception:
-            payload = {"raw": res.text[:500]}
-        return {"ok": res.status_code == 200, "status_code": res.status_code, "payload": payload}
 
 
 @router.post("/clients/{client_id}/test-klaviyo")
 async def test_klaviyo_connection(client_id: str, request: Request) -> Dict[str, Any]:
-    """Live ping to Klaviyo using a key resolved from Secret Manager (or client doc fallback)."""
+    """Test Klaviyo connection using per-client API key from Secret Manager."""
     get_current_user_from_session(request)
     try:
         db = get_db()
         doc = db.collection("clients").document(client_id).get()
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Client not found")
-        data = doc.to_dict() or {}
 
-        api_key = fetch_klaviyo_key_for_client(client_id, data)
+        # Use the same key resolution logic as performance.py
+        api_key = _resolve_client_key(db, client_id)
         if not api_key:
-            return {"status": "error", "message": "No Klaviyo API key found", "client_id": client_id}
-
-        result = await _klaviyo_ping(api_key)
-        if result["ok"]:
-            acct_name = None
-            try:
-                items = (result["payload"] or {}).get("data") or []
-                if items and isinstance(items, list):
-                    acct_name = (items[0].get("attributes") or {}).get("name")
-            except Exception:
-                pass
             return {
-                "status": "success",
-                "message": "Klaviyo API connection successful",
-                "client_id": client_id,
-                "account_name": acct_name,
-                "response_time_ms": 200,  # Could implement actual timing
+                "status": "error", 
+                "message": "No Klaviyo API key configured for this client", 
+                "client_id": client_id
             }
 
-        return {
-            "status": "error",
-            "message": "Klaviyo API ping failed",
-            "client_id": client_id,
-            "error": f"HTTP {result['status_code']}: {result.get('payload', {})}",
-        }
+        # Use KlaviyoClient to test the connection
+        if not KlaviyoClient:
+            return {
+                "status": "error", 
+                "message": "KlaviyoClient not available", 
+                "client_id": client_id
+            }
+        
+        try:
+            klaviyo_client = KlaviyoClient(api_key)
+            result = await klaviyo_client.test_connection()
+            
+            if result["success"]:
+                return {
+                    "status": "success",
+                    "message": "Klaviyo connection successful",
+                    "client_id": client_id,
+                    "accounts": result.get("accounts", 0)
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Klaviyo connection failed: {result.get('error', 'Unknown error')}",
+                    "client_id": client_id
+                }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Klaviyo connection test failed: {str(e)}",
+                "client_id": client_id
+            }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Error testing Klaviyo connection for %s", client_id)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ----------------------------
+# Live Klaviyo ping endpoint (using global API key)
+# ----------------------------
+@router.get("/klaviyo/ping")
+async def klaviyo_ping(request: Request) -> Dict[str, Any]:
+    """Test endpoint for system health - removed global key support."""
+    get_current_user_from_session(request)
+    
+    return {
+        "status": "info",
+        "message": "Global Klaviyo ping removed - use per-client testing instead",
+        "note": "Use POST /api/admin/clients/{client_id}/test-klaviyo to test specific client connections",
+        "timestamp": datetime.utcnow().isoformat()
+    }

@@ -1,9 +1,5 @@
-// Enhanced AI Chat Component for Calendar with Firebase Integration
+// Enhanced AI Chat Component for Calendar with FastAPI Backend Integration
 const { useState, useEffect, useRef } = React;
-
-// Initialize services
-const firebaseService = new window.FirebaseCalendarService();
-const geminiService = new window.GeminiChatService(firebaseService);
 
 function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
     const [messages, setMessages] = useState([]);
@@ -11,6 +7,7 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
     const [isLoading, setIsLoading] = useState(false);
     const [chatHistory, setChatHistory] = useState([]);
     const [campaigns, setCampaigns] = useState({});
+    const [lastActionId, setLastActionId] = useState(null);
     const messagesEndRef = useRef(null);
     
     // Auto-scroll to bottom when new messages are added
@@ -30,7 +27,7 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
                 {
                     id: 'welcome',
                     type: 'ai',
-                    content: "Hello! I'm your Goal-Aware Calendar AI assistant. I can help you with questions about your campaigns, revenue goals, or make changes to your calendar. What would you like to know?",
+                    content: "Hello! I'm your enhanced Calendar AI assistant. I can help you query calendar events, add new events, update existing ones, or delete events through natural language. Try asking me about your campaigns or tell me to create/modify events!",
                     timestamp: new Date()
                 }
             ]);
@@ -38,18 +35,30 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
         }
     }, [clientId]);
 
-    // Load client campaigns
+    // Load client campaigns from API
     const loadCampaigns = async () => {
         try {
-            const clientData = await firebaseService.getClientData(clientId);
-            setCampaigns(clientData?.campaignData || {});
+            const response = await fetch(`/api/calendar/events/${clientId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const events = await response.json();
+                setCampaigns(events || {});
+            } else {
+                console.error('Failed to load campaigns:', response.statusText);
+                setCampaigns({});
+            }
         } catch (error) {
             console.error('Error loading campaigns:', error);
             setCampaigns({});
         }
     };
 
-    // Send message to AI
+    // Send message to AI using enhanced backend endpoint
     const handleSendMessage = async () => {
         if (!inputMessage.trim() || !clientId || isLoading) return;
 
@@ -76,42 +85,73 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
         setMessages(prev => [...prev, loadingMessage]);
 
         try {
-            // Send to Gemini directly
-            const aiResponse = await geminiService.chatWithGemini(
-                chatHistory, 
-                userMessage.content, 
-                clientName || 'the current client',
-                campaigns,
-                goals
-            );
+            // Send to enhanced chat endpoint
+            const response = await fetch('/api/calendar/ai/chat-enhanced', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: userMessage.content,
+                    client_id: clientId,
+                    client_name: clientName || 'the current client',
+                    chat_history: chatHistory,
+                    goals: goals
+                })
+            });
 
             // Remove loading message
             setMessages(prev => prev.filter(msg => msg.id !== 'loading'));
 
-            // Try to parse as JSON action first
-            try {
-                const action = JSON.parse(aiResponse);
-                await performAiAction(action);
-            } catch (e) {
-                // Not a JSON action, so it's a conversational response
-                const aiMessage = {
-                    id: (Date.now() + 1).toString(),
-                    type: 'ai',
-                    content: aiResponse,
-                    timestamp: new Date()
-                };
-
-                setMessages(prev => [...prev, aiMessage]);
-                chatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // Update chat history for context
-            chatHistory.push({ role: "user", parts: [{ text: userMessage.content }] });
+            const data = await response.json();
+
+            // Create AI message
+            const aiMessage = {
+                id: (Date.now() + 1).toString(),
+                type: 'ai',
+                content: data.response,
+                timestamp: new Date(),
+                isAction: data.is_action || false,
+                actionType: data.action_type || null,
+                actionExecuted: data.action_executed || false
+            };
+
+            setMessages(prev => [...prev, aiMessage]);
+
+            // If an action was executed, refresh the calendar
+            if (data.action_executed) {
+                await loadCampaigns(); // Refresh campaigns data
+                if (onEventAction) {
+                    onEventAction(); // Trigger calendar refresh
+                }
+                
+                // Show success feedback
+                const successMessage = {
+                    id: (Date.now() + 2).toString(),
+                    type: 'system',
+                    content: `✅ Calendar updated! ${getActionFeedback(data.action_type)}`,
+                    timestamp: new Date(),
+                    isSuccess: true
+                };
+                
+                setTimeout(() => {
+                    setMessages(prev => [...prev, successMessage]);
+                }, 500);
+            }
+
+            // Update chat history for context (keep format simple)
+            const newHistory = [
+                ...chatHistory,
+                { role: "user", content: userMessage.content },
+                { role: "assistant", content: data.response }
+            ];
             
             // Keep only last 10 messages for context
-            if (chatHistory.length > 10) {
-                setChatHistory(chatHistory.slice(-10));
-            }
+            setChatHistory(newHistory.slice(-10));
 
         } catch (error) {
             // Remove loading message
@@ -132,79 +172,16 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
         }
     };
 
-    // Perform AI action (create, update, delete)
-    const performAiAction = async (action) => {
-        let confirmationMessage = "I'm sorry, I couldn't perform that action.";
-        let actionTaken = false;
-
-        try {
-            const clientData = await firebaseService.getClientData(clientId);
-            const updatedCampaigns = { ...(clientData?.campaignData || {}) };
-
-            switch (action.action) {
-                case 'delete':
-                    if (updatedCampaigns[action.eventId]) {
-                        delete updatedCampaigns[action.eventId];
-                        actionTaken = true;
-                        confirmationMessage = `Okay, I've deleted the event.`;
-                    } else {
-                        confirmationMessage = `I couldn't find an event with the ID ${action.eventId} to delete.`;
-                    }
-                    break;
-                case 'update':
-                    if (updatedCampaigns[action.eventId]) {
-                        Object.assign(updatedCampaigns[action.eventId], action.updates);
-                        actionTaken = true;
-                        confirmationMessage = `Okay, I've updated the event.`;
-                    } else {
-                        confirmationMessage = `I couldn't find an event with the ID ${action.eventId} to update.`;
-                    }
-                    break;
-                case 'create':
-                    const newId = 'ai-event-' + Date.now();
-                    const campaignType = firebaseService.detectCampaignType(action.event.title, action.event.content);
-                    const CAMPAIGN_COLORS = window.CAMPAIGN_COLORS;
-                    updatedCampaigns[newId] = {
-                        ...action.event,
-                        color: CAMPAIGN_COLORS[campaignType] || CAMPAIGN_COLORS.default
-                    };
-                    actionTaken = true;
-                    confirmationMessage = `Okay, I've created the new event: "${action.event.title}".`;
-                    break;
-            }
-
-            if (actionTaken) {
-                // Save to Firebase
-                await firebaseService.saveClientData(clientId, {
-                    ...clientData,
-                    campaignData: updatedCampaigns
-                });
-                
-                // Update local state
-                setCampaigns(updatedCampaigns);
-                
-                // Trigger calendar refresh
-                if (onEventAction) {
-                    onEventAction();
-                }
-            }
-        } catch (error) {
-            console.error('Error performing AI action:', error);
-            confirmationMessage = "I encountered an error while trying to perform that action.";
+    // Get feedback message for action types
+    const getActionFeedback = (actionType) => {
+        switch (actionType) {
+            case 'create': return 'New event added to calendar';
+            case 'update': return 'Event updated successfully';
+            case 'delete': return 'Event removed from calendar';
+            default: return 'Action completed';
         }
-
-        // Add confirmation message to chat
-        const aiBubble = {
-            id: Date.now().toString(),
-            type: 'ai',
-            content: confirmationMessage,
-            isAction: actionTaken,
-            timestamp: new Date()
-        };
-
-        setMessages(prev => [...prev, aiBubble]);
-        chatHistory.push({ role: "model", parts: [{ text: confirmationMessage }] });
     };
+
 
     // Handle Enter key press
     const handleKeyPress = (e) => {
@@ -227,20 +204,40 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
         setChatHistory([]);
     };
 
+    // Show suggestions
+    const handleShowSuggestions = () => {
+        const suggestionMessage = {
+            id: Date.now().toString(),
+            type: 'ai',
+            content: "Here are some things you can ask me to do:\n\n🔍 **Query Events:**\n• Show me all campaigns for this month\n• What events are scheduled for next week?\n• Find all SMS campaigns in December\n\n➕ **Create Events:**\n• Create a Black Friday sale campaign on November 24th\n• Add a nurturing email series starting tomorrow\n• Schedule a product launch event for next Friday at 2pm\n\n✏️ **Update/Delete:**\n• Move the holiday campaign to December 15th\n• Change the title of tomorrow's email to 'Special Offer'\n• Delete all cancelled campaigns\n\nJust tell me what you want to do in plain English!",
+            timestamp: new Date(),
+            isSuggestion: true
+        };
+        setMessages(prev => [...prev, suggestionMessage]);
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-lg">
             {/* Chat Header */}
             <div className="p-4 border-b border-gray-200">
                 <div className="flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-gray-900">
-                        Calendar AI Assistant
+                        Enhanced Calendar AI
                     </h3>
-                    <button
-                        onClick={handleClearChat}
-                        className="text-sm text-gray-500 hover:text-gray-700"
-                    >
-                        Clear Chat
-                    </button>
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={handleShowSuggestions}
+                            className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                            Help
+                        </button>
+                        <button
+                            onClick={handleClearChat}
+                            className="text-sm text-gray-500 hover:text-gray-700"
+                        >
+                            Clear
+                        </button>
+                    </div>
                 </div>
                 {!clientId && (
                     <p className="text-sm text-yellow-600 mt-1">
@@ -288,16 +285,20 @@ function CalendarChat({ clientId, onEventAction, clientName, goals = [] }) {
                 {clientId && (
                     <div className="mt-2 flex flex-wrap gap-2">
                         <QuickActionButton
-                            text="How many campaigns this month?"
-                            onClick={() => setInputMessage("How many campaigns do we have scheduled for this month?")}
+                            text="Show upcoming events"
+                            onClick={() => setInputMessage("Show me all upcoming calendar events")}
                         />
                         <QuickActionButton
-                            text="What's next week's schedule?"
-                            onClick={() => setInputMessage("What campaigns are scheduled for next week?")}
+                            text="Create new campaign"
+                            onClick={() => setInputMessage("Create a new email campaign for next Friday")}
                         />
                         <QuickActionButton
-                            text="Show SMS campaigns"
-                            onClick={() => setInputMessage("Show me all SMS Alert campaigns")}
+                            text="What's this week?"
+                            onClick={() => setInputMessage("What campaigns are scheduled for this week?")}
+                        />
+                        <QuickActionButton
+                            text="Delete old events"
+                            onClick={() => setInputMessage("Delete any events older than 30 days")}
                         />
                     </div>
                 )}
@@ -323,25 +324,33 @@ function ChatMessage({ message }) {
     }
 
     const isUser = message.type === 'user';
+    const isSystem = message.type === 'system';
     const isError = message.isError;
     const isAction = message.isAction;
+    const isSuccess = message.isSuccess;
+    const isSuggestion = message.isSuggestion;
+    const actionExecuted = message.actionExecuted;
 
     return (
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
                 isUser 
                     ? 'bg-indigo-600 text-white' 
+                    : isSystem && isSuccess
+                    ? 'bg-green-50 text-green-800 border border-green-200'
                     : isError 
                     ? 'bg-red-100 text-red-800 border border-red-200'
-                    : isAction
-                    ? 'bg-green-100 text-green-800 border border-green-200'
+                    : isSuggestion
+                    ? 'bg-blue-50 text-blue-900 border border-blue-300'
+                    : isAction || actionExecuted
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200'
                     : 'bg-gray-200 text-gray-800'
             }`}>
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                 
-                {isAction && message.actionType && (
+                {(isAction || actionExecuted) && message.actionType && (
                     <div className="mt-1 text-xs opacity-75">
-                        Action: {message.actionType}
+                        {actionExecuted ? `✓ Action Completed: ${message.actionType}` : `Action: ${message.actionType}`}
                     </div>
                 )}
                 
@@ -370,18 +379,37 @@ function QuickActionButton({ text, onClick }) {
     );
 }
 
-// Example usage suggestions component
+// Enhanced usage suggestions component
 function ChatSuggestions() {
     return (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
-            <h4 className="font-medium text-blue-900 text-sm mb-2">Try asking:</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-                <li>• "How many campaigns are scheduled for October?"</li>
-                <li>• "Show me all nurturing campaigns"</li>
-                <li>• "Delete the cheese club campaign on October 15th"</li>
-                <li>• "Create a new SMS campaign for next Friday"</li>
-                <li>• "Move the promotion campaign to next week"</li>
-            </ul>
+            <h4 className="font-medium text-blue-900 text-sm mb-2">Enhanced AI Assistant - Try asking:</h4>
+            <div className="text-sm text-blue-800 space-y-2">
+                <div>
+                    <strong>Query Events:</strong>
+                    <ul className="ml-2 space-y-1">
+                        <li>• "Show me all campaigns for this month"</li>
+                        <li>• "What events are scheduled for next week?"</li>
+                        <li>• "Find all SMS campaigns in December"</li>
+                    </ul>
+                </div>
+                <div>
+                    <strong>Create Events:</strong>
+                    <ul className="ml-2 space-y-1">
+                        <li>• "Create a Black Friday sale campaign on November 24th"</li>
+                        <li>• "Add a nurturing email series starting tomorrow"</li>
+                        <li>• "Schedule a product launch event for next Friday at 2pm"</li>
+                    </ul>
+                </div>
+                <div>
+                    <strong>Update/Delete:</strong>
+                    <ul className="ml-2 space-y-1">
+                        <li>• "Move the holiday campaign to December 15th"</li>
+                        <li>• "Change the title of tomorrow's email to 'Special Offer'"</li>
+                        <li>• "Delete all cancelled campaigns"</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     );
 }

@@ -92,11 +92,11 @@ python migrate_mcp_tables.py
 
 4. **Run the application:**
 ```bash
-uvicorn main:app --reload --port 8080
+uvicorn main:app --reload --port 8000
 ```
 
 5. **Access the admin panel:**
-- Navigate to http://localhost:8080/app
+- Navigate to http://localhost:8000/app
 - Login with admin credentials
 - Go to Admin > MCP Management
 

@@ -33,6 +33,7 @@ echo "🔧 Compiling JSX components..."
 
 # Define components that need JSX compilation
 JSX_COMPONENTS=(
+    "app.js"
     "AdminAgentsPanel.js"
     "Calendar.js"
     "EventModal.js" 
@@ -45,6 +46,7 @@ JSX_COMPONENTS=(
     "GoalGeneratorPanel.js"
     "GoalsDashboard.js"
     "CalendarViewLocal.js"
+    "MCPManagement.js"
 )
 
 # Compile main app.js with JSX
@@ -70,9 +72,10 @@ for component in "${JSX_COMPONENTS[@]}"; do
         # Extract component name without .js extension
         component_name=$(basename "$component" .js)
         
+        # Compile without global-name to avoid variable shadowing
+        # The source files already have window.ComponentName assignments
         npx esbuild "frontend/public/components/$component" \
             --format=iife \
-            --global-name="$component_name" \
             --loader:.js=jsx \
             --jsx=transform \
             --jsx-factory=React.createElement \
@@ -93,11 +96,27 @@ NON_JSX_COMPONENTS=(
     "GeminiChatService.js"
     "CalendarViewSimple.js"
     "AdminClientManagement.js"
+    "AdminOAuthConfig.js"
     "DevLogin.js"
     "MCPKlaviyoManagement.js"
     "MCPManagementLocal.js"
     "UnifiedClientForm.js"
 )
+
+# Copy utilities from utils folder
+echo "📋 Copying utility files..."
+UTILITY_FILES=(
+    "auth.js"
+)
+
+for utility in "${UTILITY_FILES[@]}"; do
+    if [[ -f "frontend/public/utils/$utility" ]]; then
+        echo "  📄 Copying utils/$utility..."
+        cp "frontend/public/utils/$utility" "frontend/public/dist/$utility"
+    else
+        echo "  ⚠️  Utility $utility not found, skipping..."
+    fi
+done
 
 for component in "${NON_JSX_COMPONENTS[@]}"; do
     if [[ -f "frontend/public/components/$component" ]]; then
@@ -111,58 +130,62 @@ done
 # Create a component loader to ensure proper loading order
 echo "🔗 Creating component loader..."
 cat > frontend/public/dist/component-loader.js << 'EOF'
-// Component Loader - Ensures proper loading order and global availability
+// Component loader with event-based ready signal
 (function() {
-    'use strict';
+    const requiredComponents = ['CalendarView', 'Calendar', 'EventModal', 'CalendarViewSimple'];
     
-    console.log('EmailPilot: Component loader initialized');
-    
-    // Track loaded components
-    window.EmailPilot = window.EmailPilot || {};
-    window.EmailPilot.loadedComponents = {};
-    window.EmailPilot.services = {};
-    
-    // Component loading tracker
-    function markComponentLoaded(name) {
-        window.EmailPilot.loadedComponents[name] = true;
-        console.log('EmailPilot: Component loaded -', name);
+    function checkComponents() {
+        const missing = [];
+        const available = [];
         
-        // Dispatch custom event for components that depend on others
-        window.dispatchEvent(new CustomEvent('emailpilot-component-loaded', {
-            detail: { componentName: name }
+        requiredComponents.forEach(name => {
+            if (typeof window[name] === 'function') {
+                available.push(name);
+            } else {
+                missing.push(name);
+            }
+        });
+        
+        console.log('Component check:', {
+            required: requiredComponents,
+            available: available,
+            missing: missing
+        });
+        
+        return missing.length === 0;
+    }
+    
+    function notifyReady() {
+        console.log('All components ready!');
+        window.dispatchEvent(new CustomEvent('components:ready', {
+            detail: { components: requiredComponents }
         }));
     }
     
-    // Service initialization helper
-    function initializeServices() {
-        if (window.FirebaseCalendarService && !window.EmailPilot.services.firebase) {
-            console.log('EmailPilot: Initializing Firebase service...');
-            window.EmailPilot.services.firebase = new window.FirebaseCalendarService();
-        }
+    // Check immediately
+    if (checkComponents()) {
+        notifyReady();
+    } else {
+        // Poll for components
+        let attempts = 0;
+        const maxAttempts = 30; // 3 seconds at 100ms intervals
         
-        if (window.GeminiChatService && window.EmailPilot.services.firebase && !window.EmailPilot.services.gemini) {
-            console.log('EmailPilot: Initializing Gemini service...');
-            window.EmailPilot.services.gemini = new window.GeminiChatService(window.EmailPilot.services.firebase);
-        }
+        const interval = setInterval(() => {
+            attempts++;
+            if (checkComponents()) {
+                clearInterval(interval);
+                notifyReady();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                console.warn('Component loading timeout - some components may be missing');
+                window.dispatchEvent(new CustomEvent('components:timeout', {
+                    detail: { 
+                        missing: requiredComponents.filter(n => typeof window[n] !== 'function')
+                    }
+                }));
+            }
+        }, 100);
     }
-    
-    // Auto-initialize services when components are loaded
-    window.addEventListener('emailpilot-component-loaded', function(e) {
-        initializeServices();
-    });
-    
-    // Global error handler for component loading
-    window.addEventListener('error', function(e) {
-        if (e.filename && e.filename.includes('/dist/')) {
-            console.error('EmailPilot: Component loading error:', e.message, e.filename);
-        }
-    });
-    
-    // Make functions available globally
-    window.EmailPilot.markComponentLoaded = markComponentLoaded;
-    window.EmailPilot.initializeServices = initializeServices;
-    
-    console.log('EmailPilot: Component loader ready');
 })();
 EOF
 

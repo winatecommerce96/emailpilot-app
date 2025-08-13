@@ -1,5 +1,6 @@
 """
 Authentication utilities for EmailPilot API
+Legacy auth for backward compatibility - use app.services.auth for new implementations
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -8,14 +9,21 @@ import jwt
 import os
 from typing import Optional, Dict, Any
 
-# JWT Configuration
+# Import new auth functions for compatibility
+from app.services.auth import (
+    create_access_token as new_create_access_token,
+    verify_token as new_verify_token,
+    require_admin as new_require_admin
+)
+
+# JWT Configuration - DEPRECATED: Use Secret Manager instead
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 security = HTTPBearer()
 
-# Demo users for development - in production, use proper user management
+# Demo users for development - DEPRECATED: Use Firestore admin system
 DEMO_USERS = {
     "admin": {"username": "admin", "password": "admin123", "role": "admin"},
     "user": {"username": "user", "password": "user123", "role": "user"}

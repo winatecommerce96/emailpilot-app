@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Goals Module Test</title>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 p-8">
+    <div id="root"></div>
+    
+    <script>
+        window.API_BASE_URL = 'http://localhost:8000';
+    </script>
+    
+    <!-- Load Goals components -->
+    <script src="/static/dist/GoalsDataStatus.js"></script>
+    <script src="/static/dist/GoalGeneratorPanel.js"></script>
+    <script src="/static/dist/GoalsCompanyDashboard.js"></script>
+    
+    <script>
+        // Wait for components and render
+        setTimeout(() => {
+            if (window.GoalsCompanyDashboard) {
+                const root = document.getElementById('root');
+                ReactDOM.render(
+                    React.createElement('div', { className: 'max-w-7xl mx-auto' },
+                        React.createElement('h1', { className: 'text-2xl font-bold mb-4' }, 'Goals Module Test'),
+                        React.createElement('div', { className: 'bg-green-100 p-4 rounded mb-4' },
+                            'Components loaded successfully!'
+                        ),
+                        React.createElement(window.GoalsCompanyDashboard, {
+                            user: { email: 'test@emailpilot.ai' },
+                            authToken: 'test'
+                        })
+                    ),
+                    root
+                );
+            } else {
+                document.getElementById('root').innerHTML = '<div class="bg-red-100 p-4 rounded">Failed to load GoalsCompanyDashboard</div>';
+            }
+        }, 500);
+    </script>
+</body>
+</html>

@@ -66,8 +66,8 @@ def setup_local_development():
         
         print("\n🎉 Local Development Setup Complete!")
         print("\n🚀 To start developing:")
-        print("   1. uvicorn main:app --reload --port 8080")
-        print("   2. Open http://localhost:8080")
+        print("   1. uvicorn main:app --reload --port 8000")
+        print("   2. Open http://localhost:8000")
         print("   3. Login with demo credentials")
         print("   4. Navigate to Calendar")
         print("   5. Select 'Demo Client' to test")

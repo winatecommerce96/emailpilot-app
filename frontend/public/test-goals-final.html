@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals Tab Test - EmailPilot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    </style>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <h1 class="text-3xl font-bold mb-6">Goals Tab Test Results</h1>
+    
+    <div id="test-results" class="space-y-4"></div>
+    
+    <div class="mt-8">
+        <h2 class="text-xl font-bold mb-4">Goals Component Test</h2>
+        <div id="goals-test-area" class="bg-white p-6 rounded-lg shadow"></div>
+    </div>
+
+    <!-- Load all necessary components -->
+    <script src="/static/dist/GoalsDashboard.js"></script>
+    <script src="/static/dist/GoalsCompanyDashboard.js"></script>
+    <script src="/static/dist/GoalsEnhancedDashboard.js"></script>
+    <script src="/static/dist/GoalsDataStatus.js"></script>
+    <script src="/static/dist/GoalGeneratorPanel.js"></script>
+    <script src="/static/dist/app.js"></script>
+
+    <script>
+        window.API_BASE_URL = 'http://localhost:8000';
+        
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('test-results');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            resultsDiv.appendChild(div);
+            console.log(message);
+        }
+
+        async function runTests() {
+            addResult('Starting Goals tab comprehensive test...', 'info');
+            
+            // Test 1: API Connectivity
+            try {
+                const response = await axios.get('/api/goals/clients', {
+                    withCredentials: true
+                });
+                addResult(`✅ Goals API working: Found ${response.data.clients?.length || 0} clients`, 'success');
+            } catch (error) {
+                addResult(`❌ Goals API failed: ${error.message}`, 'error');
+            }
+
+            // Test 2: Component Availability
+            const components = [
+                'GoalsDashboard',
+                'GoalsCompanyDashboard', 
+                'GoalsEnhancedDashboard',
+                'GoalsDataStatus',
+                'GoalGeneratorPanel'
+            ];
+            
+            let availableComponents = 0;
+            components.forEach(comp => {
+                if (window[comp]) {
+                    addResult(`✅ ${comp} loaded and available`, 'success');
+                    availableComponents++;
+                } else {
+                    addResult(`❌ ${comp} not available`, 'error');
+                }
+            });
+
+            // Test 3: Try to render Goals component
+            if (window.GoalsCompanyDashboard) {
+                try {
+                    const testElement = React.createElement(window.GoalsCompanyDashboard, {
+                        user: { email: 'test@emailpilot.ai' },
+                        authToken: 'test'
+                    });
+                    ReactDOM.render(testElement, document.getElementById('goals-test-area'));
+                    addResult('✅ GoalsCompanyDashboard rendered successfully!', 'success');
+                } catch (error) {
+                    addResult(`❌ Goals component render failed: ${error.message}`, 'error');
+                    console.error(error);
+                }
+            } else {
+                addResult('❌ Cannot test rendering - GoalsCompanyDashboard not available', 'error');
+            }
+
+            // Test 4: Check if main app has Goals view
+            if (typeof window.EmailPilotApp !== 'undefined') {
+                addResult('✅ Main EmailPilot app is available', 'success');
+            } else {
+                addResult('❌ Main EmailPilot app not available', 'error');
+            }
+
+            // Summary
+            addResult(`Test Summary: ${availableComponents}/${components.length} components available`, 
+                     availableComponents === components.length ? 'success' : 'error');
+                     
+            // Instructions for manual test
+            setTimeout(() => {
+                addResult('📋 Manual Test: Please go to http://localhost:8000 and click the Goals tab to verify it works', 'info');
+            }, 1000);
+        }
+
+        // Wait for all components to load then run tests
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 2000); // Give components time to load
+        });
+    </script>
+</body>
+</html>

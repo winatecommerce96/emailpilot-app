@@ -6,6 +6,7 @@ const { useState, useEffect } = React;
 function CalendarViewLocal() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [iframeRef, setIframeRef] = useState(null);
     
     useEffect(() => {
         // Check if API is available
@@ -21,6 +22,38 @@ function CalendarViewLocal() {
                 setLoading(false);
             });
     }, []);
+    
+    useEffect(() => {
+        // Setup safe message receiver for iframe communication
+        if (window.MessagingGuard) {
+            window.MessagingGuard.setupMessageReceiver((event) => {
+                // Handle messages from iframe calendar
+                if (event.origin === window.location.origin) {
+                    console.debug('Calendar iframe message:', event.data);
+                    // Handle calendar-specific messages here
+                }
+            });
+        }
+    }, []);
+    
+    const handleIframeLoad = async () => {
+        if (iframeRef?.contentWindow && window.MessagingGuard) {
+            // Wait for iframe to be ready for communication
+            const isReady = await window.MessagingGuard.waitForMessageTarget(
+                iframeRef.contentWindow, 
+                window.location.origin, 
+                2000
+            );
+            if (isReady) {
+                console.log('Calendar iframe ready for communication');
+                // Send initialization message if needed
+                window.MessagingGuard.safePostMessage(iframeRef.contentWindow, { 
+                    type: 'INIT', 
+                    config: { apiBase: 'http://127.0.0.1:8000' }
+                }, window.location.origin);
+            }
+        }
+    };
     
     if (loading) {
         return (
@@ -51,9 +84,11 @@ function CalendarViewLocal() {
     return (
         <div className="h-full">
             <iframe 
+                ref={setIframeRef}
                 src="/calendar-local"
                 className="w-full h-screen border-0"
                 title="EmailPilot Calendar"
+                onLoad={handleIframeLoad}
             />
         </div>
     );
@@ -86,11 +121,16 @@ function CalendarViewDirect() {
     
     const loadClients = async () => {
         try {
-            const response = await fetch(`${API_BASE}/api/calendar/clients`);
-            const data = await response.json();
-            setClients(Array.isArray(data) ? data : []);
-            if (data.length > 0 && !selectedClient) {
-                setSelectedClient(data[0]);
+            const response = await fetch(`${API_BASE}/api/admin/clients`, {
+                credentials: 'include'
+            });
+            const result = await response.json();
+            // Extract clients array and filter for active clients only
+            const allClients = result?.clients || [];
+            const activeClients = allClients.filter(client => client.is_active !== false);
+            setClients(activeClients);
+            if (activeClients.length > 0 && !selectedClient) {
+                setSelectedClient(activeClients[0]);
             }
         } catch (error) {
             console.error('Failed to load clients:', error);
@@ -422,7 +462,7 @@ function EventModal({ event, onSave, onDelete, onClose }) {
 }
 
 // Register components globally
-window.CalendarView = CalendarViewDirect;
+// Note: Do NOT override window.CalendarView - that should be the main CalendarView component
 window.CalendarViewLocal = CalendarViewLocal;
 window.CalendarViewDirect = CalendarViewDirect;
 

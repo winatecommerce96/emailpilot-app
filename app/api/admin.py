@@ -11,14 +11,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Optional, Any, List
-from sqlalchemy.orm import Session
 from datetime import datetime
 import asyncio
 import logging
 
-from app.core.database import get_db
-from app.core.config import settings
-from app.services.secret_manager import get_secret_manager
+from app.core.config import settings, get_settings
+from app.services.secret_manager import get_secret_manager, EnhancedSecretManagerService
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +49,7 @@ class SecretListResponse(BaseModel):
 
 # Sensitive environment variables that should be masked
 SENSITIVE_VARS = {
-    "SECRET_KEY", "KLAVIYO_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
+    "SECRET_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
     "DATABASE_URL", "GOOGLE_APPLICATION_CREDENTIALS", "SLACK_WEBHOOK_URL"
 }
 
@@ -59,7 +57,6 @@ SENSITIVE_VARS = {
 SECRET_MAPPINGS = {
     "DATABASE_URL": "emailpilot-database-url",
     "SECRET_KEY": "emailpilot-secret-key",
-    "KLAVIYO_API_KEY": "emailpilot-klaviyo-api-key",
     "SLACK_WEBHOOK_URL": "emailpilot-slack-webhook-url",
     "GEMINI_API_KEY": "emailpilot-gemini-api-key",
     "OPENAI_API_KEY": "emailpilot-openai-api-key",
@@ -84,12 +81,6 @@ ADMIN_ENV_VARS = {
         "description": "OpenAI API key for GPT models",
         "example": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "required": False,
-        "sensitive": True
-    },
-    "KLAVIYO_API_KEY": {
-        "description": "Klaviyo API key for accessing client data",
-        "example": "pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "required": True,
         "sensitive": True
     },
     "DATABASE_URL": {
@@ -182,7 +173,8 @@ def save_env_file(env_vars: Dict[str, str]):
             existing_vars[key] = value
     
     # Remove sensitive vars from .env file if Secret Manager is enabled
-    if settings.secret_manager_enabled:
+    sm_settings = get_settings()
+    if sm_settings.secret_manager_enabled:
         for key in SENSITIVE_VARS:
             existing_vars.pop(key, None)
     else:
@@ -194,7 +186,7 @@ def save_env_file(env_vars: Dict[str, str]):
         f.write("# EmailPilot Environment Configuration\n")
         f.write(f"# Last updated: {datetime.now().isoformat()}\n")
         f.write("# This file is automatically managed by the Admin interface\n")
-        if settings.secret_manager_enabled:
+        if sm_settings.secret_manager_enabled:
             f.write("# Sensitive values are stored in Google Secret Manager\n")
         f.write("\n")
         
@@ -210,7 +202,8 @@ def save_env_file(env_vars: Dict[str, str]):
 
 def get_secret_value(key: str) -> Optional[str]:
     """Get a secret value from Secret Manager or environment"""
-    if settings.secret_manager_enabled and key in SECRET_MAPPINGS:
+    sm_settings = get_settings()
+    if sm_settings.secret_manager_enabled and key in SECRET_MAPPINGS:
         try:
             secret_manager = get_secret_manager()
             secret_id = SECRET_MAPPINGS[key]
@@ -226,7 +219,8 @@ def set_secret_value(key: str, value: str) -> bool:
     success = False
     
     # Update in Secret Manager if enabled and it's a sensitive var
-    if settings.secret_manager_enabled and key in SECRET_MAPPINGS:
+    sm_settings = get_settings()
+    if sm_settings.secret_manager_enabled and key in SECRET_MAPPINGS:
         try:
             secret_manager = get_secret_manager()
             secret_id = SECRET_MAPPINGS[key]
@@ -251,7 +245,7 @@ def set_secret_value(key: str, value: str) -> bool:
         setattr(settings, key.lower().replace('_', ''), value)
     
     # Save to .env file if not using Secret Manager or for non-sensitive vars
-    if not settings.secret_manager_enabled or key not in SENSITIVE_VARS:
+    if not sm_settings.secret_manager_enabled or key not in SENSITIVE_VARS:
         save_env_file({key: value})
         success = True
     
@@ -263,7 +257,7 @@ async def admin_health_check():
     return {
         "status": "healthy",
         "service": "EmailPilot Admin API",
-        "secret_manager_enabled": settings.secret_manager_enabled,
+        "secret_manager_enabled": get_settings().secret_manager_enabled,
         "endpoints_available": [
             "POST /admin/slack/test",
             "GET /admin/environment",
@@ -313,7 +307,7 @@ async def test_slack_webhook():
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": f"This is a test message from EmailPilot Admin interface. Secret Manager: {'✅ Enabled' if settings.secret_manager_enabled else '❌ Disabled'}"
+                            "text": f"This is a test message from EmailPilot Admin interface. Secret Manager: {'✅ Enabled' if get_settings().secret_manager_enabled else '❌ Disabled'}"
                         }
                     ]
                 }
@@ -331,7 +325,7 @@ async def test_slack_webhook():
             return SlackTestResponse(
                 status="success",
                 message="Test message sent successfully! Check your Slack channel.",
-                webhook_url=webhook_url if not settings.secret_manager_enabled else "***hidden***"
+                webhook_url=webhook_url if not get_settings().secret_manager_enabled else "***hidden***"
             )
         else:
             raise HTTPException(
@@ -352,42 +346,34 @@ async def test_slack_webhook():
             detail=f"Slack test failed: {str(e)}"
         )
 
-@router.get("/environment", response_model=EnvironmentVariablesResponse)
+@router.get("/environment")
 async def get_environment_variables():
-    """Get current environment variables (with sensitive values masked)"""
+    """Get account-level environment variables from Secret Manager"""
     try:
-        env_vars = {}
+        # Use the enhanced service for account-level variables
+        svc = EnhancedSecretManagerService()
+        items = svc.list_account_vars()
         
-        for key, config in ADMIN_ENV_VARS.items():
-            # Get value from Secret Manager or environment
-            current_value = get_secret_value(key) or ""
-            
-            # Check if it's actually stored in Secret Manager
-            stored_in_secret_manager = False
-            if settings.secret_manager_enabled and key in SECRET_MAPPINGS:
-                try:
-                    secret_manager = get_secret_manager()
-                    secret_value = secret_manager.get_secret(SECRET_MAPPINGS[key])
-                    stored_in_secret_manager = secret_value is not None
-                except:
-                    pass
-            
-            masked_value = mask_sensitive_value(key, current_value)
-            
-            env_vars[key] = {
-                "value": masked_value,
-                "description": config["description"],
-                "example": config.get("example", ""),
-                "required": config.get("required", False),
-                "is_set": bool(current_value),
-                "is_sensitive": config.get("sensitive", False),
-                "stored_in_secret_manager": stored_in_secret_manager
-            }
+        # Mask sensitive values
+        safe_items = {k: svc.mask_sensitive(k, v) for k, v in items.items()}
         
-        return EnvironmentVariablesResponse(
-            variables=env_vars,
-            secret_manager_enabled=settings.secret_manager_enabled
-        )
+        # Get current settings for metadata
+        from app.core.config import get_settings
+        sm_settings = get_settings()
+        
+        return {
+            "source": {
+                "type": "secret_manager",
+                "provider": sm_settings.secret_manager_provider,
+                "scope": "account"
+            },
+            "environment": sm_settings.environment,
+            "prefix": sm_settings.secret_manager_prefix,
+            "variables": safe_items,
+            "edit_via": "PUT /api/admin/environment (account scope)",
+            "client_variables_managed_in": "MCP Management",
+            "secret_manager_enabled": sm_settings.secret_manager_enabled
+        }
         
     except Exception as e:
         raise HTTPException(
@@ -397,8 +383,19 @@ async def get_environment_variables():
 
 @router.post("/environment")
 async def update_environment_variables(request: UpdateEnvironmentRequest):
-    """Update environment variables in Secret Manager or .env file"""
+    """Update account-level environment variables in Secret Manager"""
     try:
+        from app.core.config import get_settings
+        sm_settings = get_settings()
+        
+        if not sm_settings.secret_manager_enabled:
+            raise HTTPException(
+                status_code=400,
+                detail="Secret Manager is disabled"
+            )
+        
+        # Use the enhanced service for account-level variables
+        svc = EnhancedSecretManagerService()
         updated_vars = []
         errors = []
         
@@ -415,37 +412,38 @@ async def update_environment_variables(request: UpdateEnvironmentRequest):
             )
         
         for key, value in variables_to_update.items():
-            if key not in ADMIN_ENV_VARS:
-                errors.append(f"Unknown environment variable: {key}")
+            # Ensure key has the required prefix
+            if not key.startswith(sm_settings.secret_manager_prefix):
+                errors.append(f"Key '{key}' must start with prefix '{sm_settings.secret_manager_prefix}'")
                 continue
             
             try:
-                if set_secret_value(key, value):
-                    updated_vars.append(key)
-                else:
-                    errors.append(f"Failed to update {key}")
+                svc.put_account_var(key, value)
+                updated_vars.append(key)
             except Exception as e:
                 errors.append(f"Failed to update {key}: {str(e)}")
         
-        if errors:
+        if errors and not updated_vars:
             raise HTTPException(
                 status_code=400,
                 detail={
-                    "message": "Some environment variables could not be updated",
-                    "errors": errors,
-                    "updated": updated_vars
+                    "message": "Failed to update environment variables",
+                    "errors": errors
                 }
             )
         
-        storage_location = "Secret Manager" if settings.secret_manager_enabled else ".env file"
-        
-        return {
-            "status": "success",
-            "message": f"Successfully updated {len(updated_vars)} environment variables",
+        result = {
+            "status": "success" if not errors else "partial_success",
+            "message": f"Updated {len(updated_vars)} account-level variables",
             "updated_variables": updated_vars,
-            "storage_location": storage_location,
-            "note": f"Changes have been saved to {storage_location} and will persist across restarts."
+            "storage_location": f"Secret Manager ({sm_settings.secret_manager_provider})",
+            "scope": "account"
         }
+        
+        if errors:
+            result["errors"] = errors
+            
+        return result
         
     except HTTPException:
         raise
@@ -458,7 +456,8 @@ async def update_environment_variables(request: UpdateEnvironmentRequest):
 @router.get("/secrets", response_model=SecretListResponse)
 async def list_secrets():
     """List all secrets in Secret Manager"""
-    if not settings.secret_manager_enabled:
+    sm_settings = get_settings()
+    if not sm_settings.secret_manager_enabled:
         return SecretListResponse(
             secrets=[],
             total=0,
@@ -499,7 +498,8 @@ async def list_secrets():
 @router.post("/secrets/migrate")
 async def migrate_to_secret_manager():
     """Migrate sensitive environment variables from .env to Secret Manager"""
-    if not settings.secret_manager_enabled:
+    sm_settings = get_settings()
+    if not sm_settings.secret_manager_enabled:
         raise HTTPException(
             status_code=400,
             detail="Secret Manager is not enabled. Set SECRET_MANAGER_ENABLED=true first."
@@ -565,7 +565,6 @@ async def get_system_status():
         # Get configuration from Secret Manager or environment
         slack_configured = bool(get_secret_value('SLACK_WEBHOOK_URL'))
         gemini_configured = bool(get_secret_value('GEMINI_API_KEY'))
-        klaviyo_configured = bool(get_secret_value('KLAVIYO_API_KEY'))
         db_url = get_secret_value('DATABASE_URL') or 'sqlite:///./emailpilot.db'
         
         return {
@@ -580,8 +579,8 @@ async def get_system_status():
                     "details": f"Using: {db_url.split('://', 1)[0] if db_url else 'None'}"
                 },
                 "secret_manager": {
-                    "status": "operational" if settings.secret_manager_enabled else "disabled",
-                    "details": f"Google Cloud Project: {settings.google_cloud_project}" if settings.secret_manager_enabled else "Using .env file"
+                    "status": "operational",
+                    "details": f"Provider: GCP, Project: {settings.project}"
                 },
                 "slack": {
                     "status": "operational" if slack_configured else "not_configured",
@@ -591,14 +590,10 @@ async def get_system_status():
                     "status": "operational" if gemini_configured else "not_configured",
                     "details": "API key is set" if gemini_configured else "No API key configured"
                 },
-                "klaviyo": {
-                    "status": "operational" if klaviyo_configured else "not_configured",
-                    "details": "API key is set" if klaviyo_configured else "No API key configured"
-                }
             },
             "environment": os.getenv('ENVIRONMENT', 'development'),
             "debug": os.getenv('DEBUG', 'false').lower() == 'true',
-            "secret_manager_enabled": settings.secret_manager_enabled
+            "secret_manager_enabled": True  # Always enabled in this architecture
         }
         
     except Exception as e:

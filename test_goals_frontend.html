@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Goals Tab - Client Names Display</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        // ClientGoalCard component for testing client name display
+        function ClientGoalCard({ client, onClick }) {
+            return (
+                <div 
+                    className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-200 border"
+                    onClick={onClick}
+                >
+                    <div className="flex justify-between items-start mb-3">
+                        <h4 className="font-semibold text-gray-900">{client.name || 'Unnamed Client'}</h4>
+                        <span className="text-sm text-gray-500">
+                            {client.goals_count || 0} goals
+                        </span>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Open:</span>
+                            <span className="font-medium text-blue-600">{client.open || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">In Progress:</span>
+                            <span className="font-medium text-orange-600">{client.in_progress || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Done:</span>
+                            <span className="font-medium text-green-600">{client.done || 0}</span>
+                        </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-xs text-gray-400">ID: {client.id}</div>
+                        <div className="text-xs text-gray-400">Client ID: {client.clientId}</div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Test the Goals data fetching and display client names
+        function TestComponent() {
+            const [clients, setClients] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [error, setError] = React.useState(null);
+            const [testResults, setTestResults] = React.useState([]);
+            
+            React.useEffect(() => {
+                async function runTests() {
+                    const results = [];
+                    
+                    try {
+                        // Test 1: Fetch clients data
+                        results.push('🔄 Testing /api/goals/clients endpoint...');
+                        setTestResults([...results]);
+                        
+                        const clientsResponse = await fetch('http://localhost:8000/api/goals/clients');
+                        const clientsData = await clientsResponse.json();
+                        
+                        if (!clientsResponse.ok) {
+                            throw new Error(`HTTP ${clientsResponse.status}: ${clientsResponse.statusText}`);
+                        }
+                        
+                        results.push('✅ API endpoint responding successfully');
+                        console.log('Clients data:', clientsData);
+                        
+                        // Test 2: Verify data structure
+                        if (clientsData.clients && Array.isArray(clientsData.clients)) {
+                            results.push('✅ Clients data is properly structured as an array');
+                            
+                            // Test 3: Check client names
+                            const clientsWithNames = clientsData.clients.filter(client => client.name);
+                            const clientsWithoutNames = clientsData.clients.filter(client => !client.name);
+                            
+                            results.push(`✅ Found ${clientsData.clients.length} total clients`);
+                            results.push(`✅ ${clientsWithNames.length} clients have names`);
+                            
+                            if (clientsWithoutNames.length > 0) {
+                                results.push(`⚠️ ${clientsWithoutNames.length} clients missing names`);
+                                clientsWithoutNames.forEach(client => {
+                                    results.push(`   - Client ID: ${client.id} (no name)`);
+                                });
+                            }
+                            
+                            // Test 4: Test reduce operation
+                            const totalGoals = clientsData.clients.reduce((sum, client) => sum + (client.goals_count || 0), 0);
+                            results.push(`✅ Reduce operation successful, total goals: ${totalGoals}`);
+                            
+                            // Test 5: Check specific client names
+                            clientsWithNames.slice(0, 5).forEach(client => {
+                                results.push(`✅ Client "${client.name}" (ID: ${client.id})`);
+                            });
+                            
+                            setClients(clientsData.clients);
+                        } else {
+                            results.push('❌ Clients data is not an array');
+                            throw new Error('Invalid data structure');
+                        }
+                        
+                        results.push('🎉 All tests passed! Client names are being returned correctly.');
+                        setTestResults(results);
+                        setLoading(false);
+                        
+                    } catch (error) {
+                        results.push(`❌ Test failed: ${error.message}`);
+                        setTestResults(results);
+                        setError(error.message);
+                        setLoading(false);
+                        console.error('Test error:', error);
+                    }
+                }
+                
+                runTests();
+            }, []);
+            
+            const handleClientClick = (client) => {
+                alert(`Clicked client: ${client.name || 'Unnamed'} (ID: ${client.id})`);
+            };
+            
+            return (
+                <div className="max-w-6xl mx-auto p-6 bg-gray-100 min-h-screen">
+                    <div className="bg-white rounded-lg shadow p-6 mb-6">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-4">Goals Frontend Test - Client Names Display</h1>
+                        
+                        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                            <h3 className="font-bold text-lg mb-2">Test Results:</h3>
+                            <div className="space-y-1 font-mono text-sm">
+                                {testResults.map((result, index) => (
+                                    <div key={index} className={
+                                        result.includes('✅') ? 'text-green-600' :
+                                        result.includes('⚠️') ? 'text-orange-600' :
+                                        result.includes('❌') ? 'text-red-600' :
+                                        result.includes('🎉') ? 'text-purple-600 font-bold' :
+                                        'text-gray-600'
+                                    }>
+                                        {result}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {!loading && !error && (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-xl font-bold text-gray-800 mb-4">
+                                Client Goals Display ({clients.length} clients)
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {clients.map((client, index) => (
+                                    <ClientGoalCard
+                                        key={client.id || index}
+                                        client={client}
+                                        onClick={() => handleClientClick(client)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {loading && (
+                        <div className="bg-white rounded-lg shadow p-6 text-center">
+                            <div className="text-gray-500 text-lg">Loading tests...</div>
+                        </div>
+                    )}
+                    
+                    {error && (
+                        <div className="bg-white rounded-lg shadow p-6 text-center">
+                            <div className="text-red-600 text-lg font-bold">Test Failed</div>
+                            <div className="text-red-500 mt-2">{error}</div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        ReactDOM.render(<TestComponent />, document.getElementById('root'));
+    </script>
+</body>
+</html>

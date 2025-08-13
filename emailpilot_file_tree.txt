@@ -1,0 +1,392 @@
+.
+├── __MACOSX
+│   └── emailpilot_calendar_tab_20250809_122906
+├── __pycache__
+│   ├── main_firestore.cpython-312.pyc
+│   ├── test_admin_endpoints.cpython-312-pytest-7.4.4.pyc
+│   └── test_klaviyo_connection.cpython-312.pyc
+├── ADMIN_404_FIX.md
+├── ADMIN_ENV_PERSISTENCE.md
+├── ADMIN_IMPLEMENTATION_SUMMARY.md
+├── app
+│   ├── __init__.py
+│   ├── __pycache__
+│   ├── api
+│   ├── core
+│   ├── deps
+│   ├── main.py
+│   ├── models
+│   ├── schemas
+│   └── services
+├── archive_old_calendars.sh
+├── BROWSER_CONSOLE_TESTS.md
+├── calendar_backups
+│   └── main_20250810_175513.py
+├── CALENDAR_CLOUD_RUN_DEPLOYMENT.md
+├── CALENDAR_DEPLOYMENT_GUIDE.md
+├── CALENDAR_DEPLOYMENT_READY.md
+├── CALENDAR_FINAL_SOLUTION.md
+├── CALENDAR_IMPLEMENTATION_GUIDE.md
+├── CALENDAR_INTEGRATION_GUIDE.md
+├── CALENDAR_INTEGRATION.md
+├── CALENDAR_LOCAL_DEV.md
+├── CALENDAR_LOCAL_READY.md
+├── CALENDAR_PACKAGE_SUMMARY.md
+├── CALENDAR_TAB_DEPLOYMENT_COMPLETE.md
+├── CALENDAR_TAB_FIX.md
+├── calendar_tab_integration.md
+├── calendar-api-fix
+│   ├── api-config.js
+│   ├── CalendarViewAPIFixed.js
+│   ├── DashboardAPIFixed.js
+│   ├── deploy_to_emailpilot.sh
+│   └── README.md
+├── calendar-goals-package.zip
+├── calendar-project
+│   ├── app
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   ├── main.py
+│   ├── README.md
+│   └── requirements.txt
+├── check_active_models.py
+├── CHECK_MCP_DEPLOYMENT.txt
+├── check_package_compatibility.py
+├── CLAUDE.md
+├── cloudbuild.yaml
+├── CLOUDSHELL_CHECK_DEPLOYMENT_LOG.txt
+├── CLOUDSHELL_CHECK_LOGS.txt
+├── CLOUDSHELL_CHECK_STATUS.txt
+├── CLOUDSHELL_CHECK_WHAT_HAPPENED.txt
+├── CLOUDSHELL_DIRECT_FIX.txt
+├── CLOUDSHELL_FINAL_TEST.txt
+├── CLOUDSHELL_SIMPLE_FUNCTION.txt
+├── CLOUDSHELL_SIMPLE_TEST.txt
+├── CLOUDSHELL_STEP1_TEST.txt
+├── CLOUDSHELL_STEP2_DEPLOY.txt
+├── CLOUDSHELL_TROUBLESHOOT.txt
+├── CLOUDSHELL_UPDATE_FRONTEND.txt
+├── cookies.txt
+├── create_calendar_tables.py
+├── DASHBOARD_FIXES_STATUS.md
+├── debug_routes.py
+├── deploy_admin_fix.sh
+├── deploy_calendar_production.sh
+├── deploy_calendar_safe.sh
+├── deploy_calendar_tab.sh
+├── deploy_enhanced_calendar.sh
+├── deploy_firebase_calendar.sh
+├── deploy_firestore_fix.sh
+├── deploy_integrated_calendar.sh
+├── deploy_master.sh
+├── DEPLOY_MCP_NOW.txt
+├── deploy_mcp_system_fixed.sh
+├── deploy_mcp_system.sh
+├── deploy_mcp_to_cloud_run.sh
+├── DEPLOY_MCP_TO_SPA.txt
+├── DEPLOY_MCP_WITH_SECRETS.txt
+├── DEPLOY_TO_PRODUCTION.md
+├── deploy_unified_client_form.sh
+├── deploy_with_secrets.sh
+├── deploy-calendar-quick.sh
+├── deploy-calendar-to-cloud-run.sh
+├── deploy.sh
+├── DEPLOYMENT_AGENT_CONFIG.md
+├── DEPLOYMENT_AGENT_CRITICAL_UPDATES.md
+├── DEPLOYMENT_AGENT_LESSONS_LEARNED.md
+├── DEPLOYMENT_AGENT_SPA_CONFIG.yaml
+├── DEPLOYMENT_AGENT_V3_CONFIG.yaml
+├── DEPLOYMENT_AGENT_V4_LESSONS.yaml
+├── DEPLOYMENT_CHECKLIST.md
+├── deployment_summary_20250810_175508.md
+├── DEPLOYMENT_SUMMARY.md
+├── DEPLOYMENT_SYSTEM_README.md
+├── deployment-agent-implementation.py
+├── deployments
+│   └── mcp_integration_backup_20250811_151809
+├── Dockerfile
+├── Dockerfile.simple
+├── email-sms-mcp-server
+│   ├── __pycache__
+│   ├── agent_instructions.py
+│   ├── agents_config.json
+│   ├── cloudbuild.yaml
+│   ├── deploy_to_cloud.sh
+│   ├── deploy_with_cloud_build.sh
+│   ├── Dockerfile
+│   ├── enhanced_server.py
+│   ├── example_usage.py
+│   ├── INSTRUCTION_TUNING_GUIDE.md
+│   ├── package.json
+│   ├── README.md
+│   ├── requirements_cloud.txt
+│   ├── requirements.txt
+│   ├── server_http.py
+│   ├── server.py
+│   └── test_cloud_deployment.py
+├── EMAILPILOT_CALENDAR_FINAL.md
+├── EMAILPILOT_FILE_TREE.md
+├── emailpilot_file_tree.txt
+├── emailpilot_firebase_deploy_20250809_122212
+│   ├── __init__.py
+│   ├── api
+│   ├── core
+│   ├── firebase_calendar_integration.py
+│   ├── main.py
+│   ├── models
+│   ├── production_deployment_guide.md
+│   ├── public
+│   ├── requirements.txt
+│   ├── schemas
+│   ├── service-account.json
+│   ├── services
+│   └── start_production.sh
+├── EMAILPILOT_SETUP.md
+├── emailpilot-calendar-spa-deployment
+│   ├── api
+│   ├── compatibility
+│   ├── deploy_to_emailpilot.sh
+│   ├── frontend
+│   ├── INTEGRATION_INSTRUCTIONS.md
+│   └── README.md
+├── emailpilot-calendar-spa-fixed
+│   ├── calendar-init.html
+│   ├── CalendarViewFixed.js
+│   ├── deploy_to_emailpilot.sh
+│   ├── FirebaseServiceProvider.js
+│   └── README.md
+├── emailpilot-firestore-key.json
+├── emailpilot.db
+├── emailpilot.db\012
+├── EMERGENCY_ROLLBACK.txt
+├── extract_routes.py
+├── FINAL_STEP_COMPLETED.md
+├── final_test.py
+├── firebase_calendar_integration.py
+├── FIREBASE_CALENDAR_SUMMARY.md
+├── firebase_goals_calendar_integration.py
+├── firebase_setup_guide.md
+├── firestore.indexes.json
+├── fix_calendar_tab.sh
+├── fix_database_schema.py
+├── FIXED_MCP_DEPLOYMENT.txt
+├── FIXED_MCP_FRONTEND.js
+├── FIXED_MCP_INJECTOR.js
+├── frontend
+│   └── public
+├── FRONTEND_BUILD_SUMMARY.md
+├── get_firebase_config.py
+├── GOALS_AWARE_CALENDAR_COMPLETE.md
+├── goals_enhancement_deploy_20250809_140023
+│   ├── app
+│   ├── DEPLOY_INSTRUCTIONS.txt
+│   ├── deploy.sh
+│   ├── firebase_goals_calendar_integration.py
+│   └── frontend
+├── GOALS_ENHANCEMENT_DEPLOYMENT.md
+├── improved_deploy_to_emailpilot.sh
+├── INJECT_MCP_DIRECTLY.html
+├── INJECT_MCP_PRODUCTION.txt
+├── inspect_firestore.py
+├── integrate_performance_monitoring.sh
+├── integrations
+│   └── calendar_goals_20250811_055221
+├── INVESTIGATE_CONTAINER.txt
+├── local_dev_setup.py
+├── main_emergency.py.old
+├── main_firestore.py
+├── main_simple.py.old
+├── main_with_db.py.old
+├── main.py.old
+├── Makefile
+├── MCP_COMPLETE_FILE_REVIEW.md
+├── MCP_DEPLOYMENT_CHECKLIST.md
+├── MCP_INJECTION_SPA.js
+├── MCP_PRODUCTION_TESTING.md
+├── MCP_SYSTEM_README.md
+├── mcp-cloud-function-frontend-update
+│   ├── deploy_to_emailpilot.sh
+│   ├── DEPLOYMENT_CHECKLIST.md
+│   ├── frontend
+│   ├── README.md
+│   ├── rollback_script.sh
+│   └── test_cloud_function_endpoints.html
+├── mcp-files-export
+│   ├── backend
+│   ├── cloud-functions
+│   ├── frontend
+│   ├── index.html
+│   ├── injection
+│   ├── package.json
+│   ├── README.md
+│   └── testing
+├── mcp-files-export 2
+│   ├── backend
+│   ├── cloud-functions
+│   ├── frontend
+│   ├── index.html
+│   ├── injection
+│   ├── package.json
+│   ├── README.md
+│   └── testing
+├── mcp-files-export 3
+│   ├── backend
+│   ├── cloud-functions
+│   ├── frontend
+│   ├── index.html
+│   ├── injection
+│   ├── package.json
+│   ├── README.md
+│   └── testing
+├── mcp-final-deployment
+│   ├── bookmarklet.js
+│   ├── console-injector.js
+│   ├── deploy-mcp.sh
+│   ├── DEPLOYMENT_SUMMARY.md
+│   ├── mcp-final-deployment.zip
+│   ├── mcp-management-fixed.js
+│   ├── README.md
+│   ├── rollback.sh
+│   ├── test-endpoints.html
+│   └── TROUBLESHOOTING.md
+├── mcp-management-package
+│   ├── api
+│   ├── core
+│   ├── deploy_to_emailpilot.sh
+│   ├── frontend
+│   ├── migrate_mcp_only.py
+│   ├── models
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── schemas
+│   ├── services
+│   └── test_compatibility.py
+├── mcp-management-package-simple
+│   ├── api
+│   ├── core
+│   ├── deploy_to_emailpilot.sh
+│   ├── frontend
+│   ├── migrate_mcp_only.py
+│   ├── models
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── schemas
+│   ├── services
+│   └── test_compatibility.py
+├── mcp-production-fix-v4.0.0
+│   ├── deploy.sh
+│   ├── frontend
+│   ├── injection
+│   ├── install.sh
+│   ├── package.json
+│   ├── README.md
+│   ├── rollback.sh
+│   └── test-endpoints.sh
+├── mcp-testing-interface
+│   ├── auto_integration_deploy.sh
+│   ├── AutoIntegrationDialog.js
+│   ├── BACKEND_INTEGRATION_REQUIRED.md
+│   ├── cloud_shell_deployment_fix.sh
+│   ├── console_integration.js
+│   ├── DEPLOY_REMAINING_FUNCTIONS.txt
+│   ├── deploy_to_emailpilot.sh
+│   ├── deployment_diagnostic.js
+│   ├── integrate_testing_ui.js
+│   ├── integration_config.json
+│   ├── INTEGRATION_SUMMARY.md
+│   ├── main_firestore_integration.py
+│   ├── manual_fix_deployment.sh
+│   ├── MANUAL_INTEGRATION.md
+│   ├── MCP_BOOKMARKLET.md
+│   ├── MCP_SUCCESS_SUMMARY.md
+│   ├── mcp-auto-integration-v2.0.0.zip
+│   ├── mcp-testing-interface-v1.0.0.zip
+│   ├── MCPManagementWithTesting.js
+│   ├── MCPTestingInterface.js
+│   ├── package_upload_enhancement.py
+│   ├── PASTE_IN_CONSOLE.md
+│   ├── PRODUCTION_MCP_INJECTOR.js
+│   ├── QUICK_CONSOLE_TEST.js
+│   ├── README_AUTO_INTEGRATION.md
+│   ├── README.md
+│   ├── simple_console_script.txt
+│   ├── test-mcp-cloud-functions.html
+│   └── UPDATE_EMAILPILOT_FRONTEND.js
+├── migrate_api_keys.py
+├── migrate_local_data.py
+├── migrate_mcp_only.py
+├── migrate_mcp_tables.py
+├── migrate_secrets.py
+├── migrate_to_firebase.py
+├── migrate_to_firestore.py
+├── PACKAGE_DEPLOYMENT_INSTRUCTIONS.md
+├── package-lock.json
+├── package.json
+├── packages
+├── PERFORMANCE_MONITORING_INTEGRATION_COMPLETE.md
+├── PERMANENT_MCP_INTEGRATION.md
+├── populate_mcp_models.py
+├── production_deployment_guide.md
+├── PRODUCTION_ENV_FIX.md
+├── requirements_firestore.txt
+├── requirements_simple.txt
+├── requirements.txt
+├── restart.sh
+├── run_all_tests.sh
+├── safe_calendar_deployment.py
+├── SAFE_DEPLOYMENT_TEMPLATE.sh
+├── SAFE_MCP_APPROACH.md
+├── sample_client_document.json
+├── scripts
+│   ├── build_frontend.sh
+│   ├── component_registrar.py
+│   ├── health_checker.py
+│   ├── rollback_manager.sh
+│   ├── service_manager.sh
+│   ├── test_env_vars.py
+│   └── validate_dev_env.sh
+├── SECRET_MANAGER_MIGRATION.md
+├── SPA_DEPLOYMENT_GUIDE.md
+├── spa-deployment-validator.py
+├── src
+│   └── features
+├── start_calendar_dev.sh
+├── startup.sh
+├── static
+│   └── calendar-local.html
+├── sync_goals_to_firestore.py
+├── test_admin_agents.py
+├── test_admin_endpoints.py
+├── test_admin_interface.html
+├── test_calendar_local.py
+├── test_calendar_route.py
+├── test_client_keys.py
+├── test_compatibility.py
+├── test_dashboard_curl_commands.sh
+├── test_dashboard_fixes.py
+├── test_emailpilot.db
+├── test_endpoints.py
+├── test_firebase_calendar_local.py
+├── test_firebase_calendar.html
+├── test_firestore_api.py
+├── test_integration.html
+├── test_klaviyo_connection.py
+├── test_live_api.py
+├── test_local_calendar.py
+├── test_main.py
+├── test_mcp_firestore_sync.py
+├── test_mcp_models.py
+├── test_multi_agent_local.py
+├── test_openai_key.py
+├── test_package_extraction.py
+├── test_requirements.txt
+├── test_routes.py
+├── test_save_openai_key.sh
+├── test_secret_manager.py
+├── test_server.py
+├── test_urls.py
+├── UPDATED_DEPLOYMENT_AGENT_CONFIG.yaml
+├── verify_and_start.sh
+└── verify_deployment.py
+
+83 directories, 307 files

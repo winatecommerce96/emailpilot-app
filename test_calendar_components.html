@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Components Test</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+</head>
+<body>
+    <div id="test-output"></div>
+    
+    <script>
+        // Set API base URL
+        window.API_BASE_URL = 'http://localhost:8000';
+        
+        // Test component loading
+        function testComponents() {
+            const results = {
+                CalendarViewSimple: typeof window.CalendarViewSimple,
+                CalendarView: typeof window.CalendarView,
+                Calendar: typeof window.Calendar,
+                EventModal: typeof window.EventModal,
+                CalendarChat: typeof window.CalendarChat,
+                CalendarViewLocal: typeof window.CalendarViewLocal,
+                CalendarViewDirect: typeof window.CalendarViewDirect
+            };
+            
+            document.getElementById('test-output').innerHTML = `
+                <h1>Calendar Component Loading Test</h1>
+                <h2>Component Status:</h2>
+                <ul>
+                    ${Object.entries(results).map(([name, type]) => 
+                        `<li><strong>${name}:</strong> ${type} ${type === 'function' ? '✅' : '❌'}</li>`
+                    ).join('')}
+                </ul>
+                <h2>Loading Order Test:</h2>
+                <p>Check browser console for loading messages...</p>
+            `;
+            
+            console.log('Component loading test results:', results);
+            return results;
+        }
+        
+        // Test after 2 seconds to allow scripts to load
+        setTimeout(testComponents, 2000);
+    </script>
+    
+    <!-- Load components in the same order as index.html -->
+    <script src="http://localhost:8000/static/dist/component-loader.js"></script>
+    <script src="http://localhost:8000/static/dist/FirebaseCalendarService.js"></script>
+    <script src="http://localhost:8000/static/dist/GeminiChatService.js"></script>
+    <script src="http://localhost:8000/static/dist/CalendarViewSimple.js"></script>
+    <script src="http://localhost:8000/static/dist/CalendarViewLocal.js"></script>
+    <script src="http://localhost:8000/static/dist/Calendar.js"></script>
+    <script src="http://localhost:8000/static/dist/EventModal.js"></script>
+    <script src="http://localhost:8000/static/dist/CalendarChat.js"></script>
+    <script src="http://localhost:8000/static/dist/CalendarView.js"></script>
+    
+    <script>
+        // Test again after all scripts loaded
+        setTimeout(() => {
+            console.log('Final component check:');
+            testComponents();
+        }, 3000);
+    </script>
+</body>
+</html>

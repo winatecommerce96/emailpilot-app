@@ -37,7 +37,10 @@ function GoalsCompanyDashboard({ user, authToken }) {
             );
             
             if (!clientsResponse.ok) throw new Error('Failed to fetch clients');
-            const clientsList = await clientsResponse.json();
+            const clientsResponseData = await clientsResponse.json();
+            // The API returns {clients: [...], count: X, total_goals: Y}
+            // We need to extract the clients array
+            const clientsList = clientsResponseData?.clients || [];
             setClients(clientsList);
             
             // Fetch goals and MTD data for each client

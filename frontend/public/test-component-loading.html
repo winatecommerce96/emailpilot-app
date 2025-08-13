@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Component Loading Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .component-status {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status-ok { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        .loading-step {
+            margin: 5px 0;
+            padding: 5px;
+            background: #e3f2fd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Calendar Component Loading Test</h1>
+        <p>This page tests the loading order and registration of calendar components.</p>
+        
+        <div id="loading-steps"></div>
+        <div id="component-status"></div>
+        <div id="detailed-info"></div>
+    </div>
+
+    <script>
+        const loadingSteps = document.getElementById('loading-steps');
+        const componentStatus = document.getElementById('component-status');
+        const detailedInfo = document.getElementById('detailed-info');
+        
+        function logStep(message) {
+            const step = document.createElement('div');
+            step.className = 'loading-step';
+            step.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            loadingSteps.appendChild(step);
+            console.log(message);
+        }
+        
+        function checkComponent(name) {
+            const exists = typeof window[name] === 'function';
+            const status = document.createElement('div');
+            status.className = `component-status ${exists ? 'status-ok' : 'status-error'}`;
+            status.innerHTML = `
+                <strong>${name}:</strong> 
+                ${exists ? '✅ Loaded' : '❌ Missing'} 
+                (type: ${typeof window[name]})
+            `;
+            componentStatus.appendChild(status);
+            return exists;
+        }
+        
+        function updateComponentStatus() {
+            componentStatus.innerHTML = '<h3>Component Status:</h3>';
+            const components = ['CalendarView', 'Calendar', 'EventModal', 'CalendarViewSimple', 'CalendarViewLocal'];
+            const results = {};
+            
+            components.forEach(name => {
+                results[name] = checkComponent(name);
+            });
+            
+            // Show detailed info
+            detailedInfo.innerHTML = `
+                <h3>Detailed Information:</h3>
+                <pre>${JSON.stringify({
+                    windowKeys: Object.keys(window).filter(k => k.includes('Calendar') || k.includes('Event')),
+                    reactLoaded: typeof React !== 'undefined',
+                    reactDomLoaded: typeof ReactDOM !== 'undefined',
+                    results: results
+                }, null, 2)}</pre>
+            `;
+        }
+        
+        logStep('Starting component loading test...');
+        logStep('React loaded: ' + (typeof React !== 'undefined'));
+        logStep('ReactDOM loaded: ' + (typeof ReactDOM !== 'undefined'));
+        
+        // Initial check
+        updateComponentStatus();
+        
+        // Monitor for window object changes
+        let checkCount = 0;
+        const maxChecks = 50;
+        const checkInterval = setInterval(() => {
+            checkCount++;
+            logStep(`Check ${checkCount}: Monitoring component registration...`);
+            updateComponentStatus();
+            
+            if (checkCount >= maxChecks) {
+                clearInterval(checkInterval);
+                logStep('Stopped monitoring after maximum checks');
+            }
+        }, 200);
+        
+        // Listen for component loader events
+        window.addEventListener('components:ready', (event) => {
+            logStep('🎉 Components ready event received!');
+            logStep('Ready components: ' + JSON.stringify(event.detail.components));
+            updateComponentStatus();
+        });
+        
+        window.addEventListener('components:timeout', (event) => {
+            logStep('⚠️ Component loading timeout!');
+            logStep('Missing components: ' + JSON.stringify(event.detail.missing));
+            updateComponentStatus();
+        });
+    </script>
+
+    <!-- Load components in same order as main app -->
+    <script src="/static/dist/component-loader.js" onload="logStep('component-loader.js loaded')" onerror="logStep('Failed to load component-loader.js')"></script>
+    <script src="/static/dist/FirebaseCalendarService.js" onload="logStep('FirebaseCalendarService.js loaded')" onerror="logStep('Failed to load FirebaseCalendarService.js')"></script>
+    <script src="/static/dist/GeminiChatService.js" onload="logStep('GeminiChatService.js loaded')" onerror="logStep('Failed to load GeminiChatService.js')"></script>
+    <script src="/static/dist/CalendarViewSimple.js" onload="logStep('CalendarViewSimple.js loaded')" onerror="logStep('Failed to load CalendarViewSimple.js')"></script>
+    <script src="/static/dist/CalendarViewLocal.js" onload="logStep('CalendarViewLocal.js loaded')" onerror="logStep('Failed to load CalendarViewLocal.js')"></script>
+    <script src="/static/dist/Calendar.js" onload="logStep('Calendar.js loaded')" onerror="logStep('Failed to load Calendar.js')"></script>
+    <script src="/static/dist/EventModal.js" onload="logStep('EventModal.js loaded')" onerror="logStep('Failed to load EventModal.js')"></script>
+    <script src="/static/dist/CalendarView.js" onload="logStep('CalendarView.js loaded')" onerror="logStep('Failed to load CalendarView.js')"></script>
+</body>
+</html>

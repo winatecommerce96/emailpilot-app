@@ -4,7 +4,7 @@ const { useState, useEffect } = React;
 // API Configuration
 // In production, the API is served from the same domain
 const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8080' 
+    ? 'http://localhost:8000' 
     : window.location.origin; // Use the same origin as the frontend
 
 // Make API_BASE_URL available globally for components
@@ -514,9 +514,11 @@ function GoalsView() {
             const response = await axios.get(`${API_BASE_URL}/api/goals/clients`, { 
                 withCredentials: true 
             });
-            setClients(response.data);
+            // API returns {clients: [...], count: X, total_goals: Y}
+            setClients(response.data.clients || []);
         } catch (error) {
             console.error('Failed to load clients with goals:', error);
+            setClients([]); // Ensure clients is always an array
         } finally {
             setLoading(false);
         }
@@ -630,7 +632,7 @@ function GoalsView() {
                             <option value="">Select Client</option>
                             {clients.map(client => (
                                 <option key={client.id} value={client.id}>
-                                    {client.name}
+                                    {client?.name || client?.id || 'Unnamed Client'}
                                 </option>
                             ))}
                         </select>
@@ -931,7 +933,7 @@ function ClientCard({ client, onEdit, onView, onDeactivate }) {
     return (
         <div className="bg-white rounded-lg shadow hover:shadow-md transition-shadow p-6">
             <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">{client.name}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{client?.name || client?.id || 'Unnamed Client'}</h3>
                 <div className="flex space-x-2">
                     <button
                         onClick={() => onView(client.id)}
@@ -1105,7 +1107,7 @@ function ClientDetailsModal({ client, onClose }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-96 overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">{client.name} - Details</h3>
+                    <h3 className="text-lg font-semibold">{client?.name || client?.id || 'Unnamed Client'} - Details</h3>
                     <button
                         onClick={onClose}
                         className="text-gray-400 hover:text-gray-600"
@@ -1185,15 +1187,19 @@ function ClientDetailsModal({ client, onClose }) {
 
 // Client Goal Card Component
 function ClientGoalCard({ client, onClick }) {
+    // Defensive coding: ensure client name is available
+    const clientName = client?.name || client?.id || 'Unnamed Client';
+    const goalsCount = client?.goals_count || 0;
+    
     return (
         <div 
             className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors duration-200"
             onClick={onClick}
         >
             <div className="flex justify-between items-start mb-3">
-                <h4 className="font-semibold text-gray-900">{client.name}</h4>
+                <h4 className="font-semibold text-gray-900">{clientName}</h4>
                 <span className="text-sm text-gray-500">
-                    {client.goals_count || 0} goals
+                    {goalsCount} goals
                 </span>
             </div>
             <div className="space-y-2">
@@ -1275,7 +1281,7 @@ function ClientGoalsDetailView({
                         ← Back to Overview
                     </button>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{client.name} Goals</h2>
+                        <h2 className="text-2xl font-bold text-gray-900">{client?.name || client?.id || 'Unnamed Client'} Goals</h2>
                         <p className="text-gray-600">Monthly revenue goals and performance tracking</p>
                     </div>
                 </div>
@@ -2125,6 +2131,7 @@ function AdminView({ user }) {
     const [slackTesting, setSlackTesting] = useState(false);
     const [envVars, setEnvVars] = useState({});
     const [envLoading, setEnvLoading] = useState(false);
+    const [envLoaded, setEnvLoaded] = useState(false);
     const [restarting, setRestarting] = useState(false);
     const [systemStatus, setSystemStatus] = useState(null);
     const [showEnvVarForm, setShowEnvVarForm] = useState(false);
@@ -2142,7 +2149,7 @@ function AdminView({ user }) {
     useEffect(() => {
         if (activeTab === 'overview') {
             loadSystemStatus();
-        } else if (activeTab === 'environment') {
+        } else if (activeTab === 'environment' && !envLoaded) {
             loadEnvironmentVariables();
         } else if (activeTab === 'packages') {
             loadPackages();
@@ -2150,7 +2157,7 @@ function AdminView({ user }) {
             // Load MCP component dynamically
             loadMCPComponent();
         }
-    }, [activeTab, mcpLoaded]);
+    }, [activeTab, mcpLoaded, envLoaded]);
 
     const loadSystemStatus = async () => {
         try {
@@ -2172,6 +2179,7 @@ function AdminView({ user }) {
             });
             console.log('Environment variables response:', response.data);
             setEnvVars(response.data.variables || {});
+            setEnvLoaded(true);
         } catch (error) {
             console.error('Failed to load environment variables:', {
                 message: error.message,
@@ -2242,6 +2250,7 @@ function AdminView({ user }) {
             alert('Environment variables updated successfully!\n\n' + response.data.note);
             setShowEnvVarForm(false);
             setEnvFormData({});
+            setEnvLoaded(false);
             loadEnvironmentVariables(); // Reload to see changes
 
         } catch (error) {
@@ -2292,12 +2301,16 @@ function AdminView({ user }) {
             script.src = 'components/MCPManagement.js';
             script.type = 'text/babel';
             script.onload = () => {
-                // Give Babel time to process the script
-                setTimeout(() => {
+                // Listen for components:ready event instead of using setTimeout
+                const checkMCP = () => {
                     if (window.MCPManagement) {
                         setMcpLoaded(true);
+                        document.removeEventListener('components:ready', checkMCP);
                     }
-                }, 500);
+                };
+                document.addEventListener('components:ready', checkMCP);
+                // Also check immediately in case it's already loaded
+                checkMCP();
             };
             document.head.appendChild(script);
         }
@@ -2638,7 +2651,10 @@ function AdminView({ user }) {
                                     </p>
                                 </div>
                                 <button
-                                    onClick={loadEnvironmentVariables}
+                                    onClick={() => {
+                                        setEnvLoaded(false);
+                                        loadEnvironmentVariables();
+                                    }}
                                     disabled={envLoading}
                                     className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                 >

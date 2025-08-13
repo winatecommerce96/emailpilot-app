@@ -1,0 +1,48 @@
+{
+  "comment": "Representative Firestore client document structure based on EmailPilot application",
+  "collection": "clients",
+  "document_id": "client_abc123",
+  "fields": {
+    "name": "Acme Corporation",
+    "email": "admin@acmecorp.com",
+    "klaviyo_api_key": "pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "klaviyo_public_key": "pk_public_xxxxxxxxxxxx",
+    "status": "active",
+    "is_active": true,
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-12-12T15:45:00Z",
+    "settings": {
+      "send_weekly_reports": true,
+      "send_monthly_reports": true,
+      "timezone": "America/New_York",
+      "notification_email": "reports@acmecorp.com"
+    },
+    "metadata": {
+      "industry": "E-commerce",
+      "tier": "premium",
+      "monthly_email_volume": 50000,
+      "contact_person": "John Smith"
+    },
+    "performance_goals": {
+      "monthly_revenue_target": 100000,
+      "email_open_rate_target": 0.25,
+      "click_rate_target": 0.05,
+      "conversion_rate_target": 0.03
+    },
+    "integrations": {
+      "shopify": {
+        "enabled": true,
+        "store_url": "acmecorp.myshopify.com"
+      },
+      "google_analytics": {
+        "enabled": true,
+        "property_id": "UA-123456789-1"
+      }
+    }
+  },
+  "subcollections": {
+    "campaigns": "Collection of campaign documents for this client",
+    "reports": "Collection of generated reports for this client",
+    "goals": "Collection of monthly/quarterly goals for this client"
+  }
+}

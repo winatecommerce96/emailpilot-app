@@ -37,6 +37,81 @@
                 padding: 0.5rem;
             }
         }
+        
+        /* Calendar Drag and Drop Styles */
+        .calendar-day {
+            transition: all 0.2s ease;
+        }
+        
+        .drop-zone-active {
+            background: rgba(99, 102, 241, 0.1) !important;
+            border-color: rgb(99, 102, 241) !important;
+            border-width: 2px !important;
+            border-style: dashed !important;
+            transform: scale(1.02);
+        }
+        
+        .drop-success {
+            background: rgba(34, 197, 94, 0.2) !important;
+            border-color: rgb(34, 197, 94) !important;
+            animation: dropSuccess 0.6s ease;
+        }
+        
+        .drop-invalid {
+            background: rgba(239, 68, 68, 0.2) !important;
+            border-color: rgb(239, 68, 68) !important;
+            animation: dropError 1s ease;
+        }
+        
+        @keyframes dropSuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); background: rgba(34, 197, 94, 0.3); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes dropError {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); background: rgba(239, 68, 68, 0.4); }
+            75% { transform: translateX(5px); background: rgba(239, 68, 68, 0.4); }
+            100% { transform: translateX(0); }
+        }
+        
+        /* Context Menu Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .animate-in {
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        /* Event Selection */
+        .event-selected {
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+        }
+        
+        /* Touch Support for Mobile */
+        @media (max-width: 768px) {
+            .calendar-day {
+                min-height: 100px;
+                touch-action: manipulation;
+            }
+            
+            .context-menu {
+                min-width: 180px;
+                font-size: 16px; /* Prevent zoom on iOS */
+            }
+        }
+        
+        /* Dragging States */
+        .dragging-cursor {
+            cursor: grabbing !important;
+        }
+        
+        .dragging-cursor * {
+            cursor: grabbing !important;
+        }
     </style>
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
@@ -52,39 +127,60 @@
         // Set consistent API base URL for all components
         window.API_BASE_URL = window.location.origin;
         console.log('API Base URL set to:', window.API_BASE_URL);
+        
+        // Campaign type colors for calendar components
+        window.CAMPAIGN_COLORS = {
+            'RRB Promotion': 'bg-red-300 text-red-800',
+            'Cheese Club': 'bg-green-200 text-green-800',
+            'Nurturing/Education': 'bg-blue-200 text-blue-800',
+            'Community/Lifestyle': 'bg-purple-200 text-purple-800',
+            'Re-engagement': 'bg-yellow-200 text-yellow-800',
+            'SMS Alert': 'bg-orange-300 text-orange-800',
+            'default': 'bg-gray-200 text-gray-800'
+        };
+        console.log('CAMPAIGN_COLORS defined for calendar components');
     </script>
     
+    <!-- Messaging Guard Utilities (loaded first) -->
+    <script src="/static/utils/messaging-guard.js"></script>
+    
+    <!-- Authentication Utilities -->
+    <script src="/static/dist/auth.js"></script>
+    
     <!-- Component Loader - Manages service initialization -->
-    <script src="dist/component-loader.js"></script>
+    <script src="/static/dist/component-loader.js"></script>
     
     <!-- Core Services (loaded first) -->
-    <script src="dist/FirebaseCalendarService.js"></script>
-    <script src="dist/GeminiChatService.js"></script>
+    <script src="/static/dist/FirebaseCalendarService.js"></script>
+    <script src="/static/dist/GeminiChatService.js"></script>
     
     <!-- Dashboard Components -->
-    <script src="dist/GoalsDashboard.js"></script>
-    <script src="dist/CalendarViewSimple.js"></script>
-    <script src="dist/CalendarViewLocal.js"></script>
+    <script src="/static/dist/GoalsDashboard.js"></script>
+    <script src="/static/dist/CalendarViewSimple.js"></script>
+    <script src="/static/dist/CalendarViewLocal.js"></script>
     
     <!-- Calendar Components (pre-compiled from JSX) -->
-    <script src="dist/Calendar.js"></script>
-    <script src="dist/EventModal.js"></script>
-    <script src="dist/CalendarChat.js"></script>
-    <script src="dist/CalendarView.js"></script>
+    <script src="/static/dist/Calendar.js"></script>
+    <script src="/static/dist/EventModal.js"></script>
+    <script src="/static/dist/PlanCampaignDialog.js"></script>
+    <script src="/static/dist/CalendarChat.js"></script>
+    <script src="/static/dist/CalendarView.js"></script>
     
     <!-- Goals Components (pre-compiled from JSX) -->
-    <script src="dist/GoalsAwareCalendarDashboard.js"></script>
-    <script src="dist/GoalsEnhancedDashboard.js"></script>
-    <script src="dist/GoalsCompanyDashboard.js"></script>
-    <script src="dist/GoalsDataStatus.js"></script>
-    <script src="dist/GoalGeneratorPanel.js"></script>
+    <script src="/static/dist/GoalsAwareCalendarDashboard.js"></script>
+    <script src="/static/dist/GoalsEnhancedDashboard.js"></script>
+    <script src="/static/dist/GoalsCompanyDashboard.js"></script>
+    <script src="/static/dist/GoalsDataStatus.js"></script>
+    <script src="/static/dist/GoalGeneratorPanel.js"></script>
     
     <!-- Admin Components -->
-    <script src="dist/AdminClientManagement.js"></script>
-    <script src="dist/DevLogin.js"></script>
+    <script src="/static/dist/AdminClientManagement.js"></script>
+    <script src="/static/dist/AdminOAuthConfig.js"></script>
+    <script src="/static/dist/DevLogin.js"></script>
+    <script src="/static/dist/GoogleLogin.js"></script>
     
     <!-- Main App (pre-compiled from JSX) -->
-    <script src="dist/app.js"></script>
+    <script src="/static/dist/app.js"></script>
     <!-- Debug script to check loading -->
     <script>
         setTimeout(() => {

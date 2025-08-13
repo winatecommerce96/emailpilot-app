@@ -118,6 +118,53 @@ async def get_current_user(current_user: dict = Depends(verify_token)):
     """Get current user info"""
     return current_user
 
+@router.post("/google/callback")
+async def google_demo_callback(user_data: dict):
+    """Demo Google OAuth callback endpoint for development"""
+    
+    # Extract user info from request
+    email = user_data.get("email", "").strip()
+    name = user_data.get("name", "").strip()
+    picture = user_data.get("picture", "")
+    
+    if not email or not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email and name are required"
+        )
+    
+    # Check if user is admin
+    admin_emails = {"damon@winatecommerce.com", "admin@emailpilot.ai"}
+    is_admin = email in admin_emails
+    
+    # Check if user exists in demo users or create a new demo user
+    if email in DEMO_USERS:
+        user = DEMO_USERS[email]
+        user["is_admin"] = is_admin
+    else:
+        # Create new demo user
+        user = {
+            "id": len(DEMO_USERS) + 1,
+            "name": name,
+            "role": "admin" if is_admin else "user",
+            "email": email,
+            "picture": picture,
+            "is_admin": is_admin
+        }
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token = create_access_token(
+        data={"sub": email}, expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": settings.access_token_expire_minutes * 60,
+        "user": user
+    }
+
 @router.post("/logout")
 async def logout():
     """Logout endpoint"""

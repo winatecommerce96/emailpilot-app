@@ -24,16 +24,16 @@ class CalendarEventBase(BaseModel):
     ab_test: Optional[str] = None
 
 class CalendarEventCreate(CalendarEventBase):
-    client_id: int
+    client_id: str
 
 class CalendarEventUpdate(CalendarEventBase):
     title: Optional[str] = None
     event_date: Optional[date] = None
-    client_id: Optional[int] = None
+    client_id: Optional[str] = None
 
 class CalendarEventResponse(CalendarEventBase):
-    id: int
-    client_id: int
+    id: str
+    client_id: str
     imported_from_doc: bool = False
     import_doc_id: Optional[str] = None
     original_event_id: Optional[str] = None
@@ -44,14 +44,36 @@ class CalendarEventResponse(CalendarEventBase):
         from_attributes = True
 
 class GoogleDocImportRequest(BaseModel):
-    client_id: int
+    client_id: str
     doc_id: str
     access_token: str
 
 class CalendarChatRequest(BaseModel):
-    client_id: int
+    client_id: str
     message: str
     chat_history: Optional[List[Dict[str, Any]]] = []
+
+class AICalendarRequest(BaseModel):
+    """Enhanced AI request for calendar operations"""
+    message: str
+    client_id: str
+    chat_history: Optional[List[Dict[str, Any]]] = []
+    context: Optional[Dict[str, Any]] = {}
+
+class CampaignPlanRequest(BaseModel):
+    """Request schema for AI-powered campaign planning"""
+    client_id: str = Field(..., description="Client identifier")
+    campaign_type: str = Field(..., description="Type of campaign: New Product, Limited Time Offer, Flash Sale, Other")
+    start_date: str = Field(..., description="Campaign start date in YYYY-MM-DD format")
+    end_date: str = Field(..., description="Campaign end date in YYYY-MM-DD format")
+    promotion_details: str = Field(..., description="Details about the promotion, product, or campaign objective")
+
+class CampaignPlanResponse(BaseModel):
+    """Response schema for campaign planning"""
+    campaign_plan: str = Field(..., description="AI-generated campaign strategy")
+    events_created: List[Dict[str, Any]] = Field(..., description="List of calendar events created")
+    total_events: int = Field(..., description="Total number of events created")
+    touchpoints: Dict[str, int] = Field(..., description="Breakdown of touchpoints by type")
 
 class AIAction(BaseModel):
     action: str  # create, update, delete
@@ -65,8 +87,8 @@ class AIResponse(BaseModel):
     action: Optional[AIAction] = None
 
 class CalendarImportLogResponse(BaseModel):
-    id: int
-    client_id: int
+    id: str
+    client_id: str
     import_type: str
     source_id: Optional[str] = None
     status: str

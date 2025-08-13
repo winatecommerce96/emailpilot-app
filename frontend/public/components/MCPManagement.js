@@ -31,12 +31,20 @@ const MCPManagement = () => {
         loadModels();
     }, []);
 
+    // Helper function to create headers with optional authentication
+    const getHeaders = () => {
+        const headers = {};
+        const token = localStorage.getItem('token');
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        return headers;
+    };
+
     const loadClients = async () => {
         try {
             const response = await fetch('/api/mcp/clients', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+                headers: getHeaders()
             });
             if (response.ok) {
                 const data = await response.json();
@@ -50,9 +58,7 @@ const MCPManagement = () => {
     const loadModels = async () => {
         try {
             const response = await fetch('/api/mcp/models', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+                headers: getHeaders()
             });
             if (response.ok) {
                 const data = await response.json();
@@ -66,9 +72,7 @@ const MCPManagement = () => {
     const loadUsageStats = async (clientId) => {
         try {
             const response = await fetch(`/api/mcp/usage/${clientId}/stats?period=weekly`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+                headers: getHeaders()
             });
             if (response.ok) {
                 const data = await response.json();
@@ -102,7 +106,7 @@ const MCPManagement = () => {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    ...getHeaders()
                 },
                 body: JSON.stringify(formData)
             });
@@ -130,9 +134,7 @@ const MCPManagement = () => {
         try {
             const response = await fetch(`/api/mcp/clients/${clientId}`, {
                 method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+                headers: getHeaders()
             });
 
             if (response.ok) {
@@ -152,7 +154,7 @@ const MCPManagement = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    ...getHeaders()
                 },
                 body: JSON.stringify({
                     client_id: clientId,
@@ -184,7 +186,7 @@ const MCPManagement = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    ...getHeaders()
                 },
                 body: JSON.stringify({
                     client_id: clientId,

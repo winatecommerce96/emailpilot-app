@@ -4,40 +4,53 @@ const { useState, useEffect } = React;
 // API Configuration
 // In production, the API is served from the same domain
 const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://127.0.0.1:8000' 
+    ? 'http://localhost:8000' 
     : window.location.origin; // Use the same origin as the frontend
 
 // Make API_BASE_URL available globally for components
 window.API_BASE_URL = API_BASE_URL;
 
-// Calendar wrapper component that waits for CalendarView to load
+// Calendar wrapper component that waits for components to load using event system
 function CalendarWrapper() {
     const [isLoaded, setIsLoaded] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
+    const [componentsTimeout, setComponentsTimeout] = useState(false);
     
     useEffect(() => {
-        let checkCount = 0;
-        // Check if CalendarView is loaded
-        const checkInterval = setInterval(() => {
-            checkCount++;
-            if (window.CalendarView) {
-                setIsLoaded(true);
-                clearInterval(checkInterval);
-            } else if (checkCount > 30) { // Stop after 3 seconds
-                clearInterval(checkInterval);
-                setRetryCount(prev => prev + 1);
-            }
-        }, 100);
+        // Check if components are already available
+        if (window.CalendarView) {
+            setIsLoaded(true);
+            return;
+        }
+        
+        // Listen for components ready event
+        const handleComponentsReady = (event) => {
+            console.log('Components ready event received:', event.detail);
+            setIsLoaded(true);
+        };
+        
+        // Listen for components timeout event
+        const handleComponentsTimeout = (event) => {
+            console.warn('Components timeout event received:', event.detail);
+            setComponentsTimeout(true);
+            setRetryCount(prev => prev + 1);
+        };
+        
+        window.addEventListener('components:ready', handleComponentsReady);
+        window.addEventListener('components:timeout', handleComponentsTimeout);
         
         // Cleanup
-        return () => clearInterval(checkInterval);
-    }, [retryCount]);
+        return () => {
+            window.removeEventListener('components:ready', handleComponentsReady);
+            window.removeEventListener('components:timeout', handleComponentsTimeout);
+        };
+    }, []);
     
-    if (!isLoaded && retryCount < 3) {
+    if (!isLoaded && !componentsTimeout) {
         return (
             <div className="p-8 text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
-                <p className="text-sm text-gray-600">Loading Calendar components... (attempt {retryCount + 1})</p>
+                <p className="text-sm text-gray-600">Waiting for components to load...</p>
             </div>
         );
     }
@@ -68,7 +81,10 @@ function CalendarWrapper() {
                             Reload Page
                         </button>
                         <button 
-                            onClick={() => setRetryCount(0)}
+                            onClick={() => {
+                                setRetryCount(0);
+                                setComponentsTimeout(false);
+                            }}
                             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
                         >
                             Try Again
@@ -106,13 +122,23 @@ function App() {
                 email: googleUser.email,
                 name: googleUser.name,
                 picture: googleUser.picture
-            });
+            }, { withCredentials: true });
             
             const { user: userData } = response.data;
+            
+            // Check if user has admin role from backend
+            if (userData.is_admin || userData.role === 'admin' || 
+                userData.email === 'damon@winatecommerce.com' || 
+                userData.email === 'admin@emailpilot.ai') {
+                userData.isAdmin = true;
+            }
+            
             setUser(userData);
             
         } catch (error) {
-            alert('Login failed: ' + (error.response?.data?.detail || 'Unknown error'));
+            const errorMsg = error.response?.data?.detail || error.message || 'Unknown error';
+            console.error('Login failed:', error);
+            alert('Login failed: ' + errorMsg);
         } finally {
             setLoading(false);
         }
@@ -120,19 +146,22 @@ function App() {
 
     // Check for existing session on load
     useEffect(() => {
-        // For development/testing, set a default user
-        setUser({
-            email: 'demo@emailpilot.ai',
-            name: 'Demo User',
-            picture: ''
-        });
-        
-        // Try to get real user session (optional)
+        // Try to get existing user session first
         axios.get(`${API_BASE_URL}/api/auth/me`, { withCredentials: true })
-            .then(response => setUser(response.data))
+            .then(response => {
+                const userData = response.data;
+                // Check if user has admin role from backend
+                if (userData.is_admin || userData.role === 'admin' || 
+                    userData.email === 'damon@winatecommerce.com' || 
+                    userData.email === 'admin@emailpilot.ai') {
+                    userData.isAdmin = true;
+                }
+                setUser(userData);
+            })
             .catch(() => {
-                // Keep demo user if no session
-                console.log('Using demo mode - auth bypassed for testing');
+                // No valid session - user needs to login
+                setUser(null);
+                console.log('No valid session found - please login');
             });
     }, []);
 
@@ -183,17 +212,33 @@ function App() {
 
 // Login Screen Component with Google OAuth
 function LoginScreen({ onGoogleLogin, loading }) {
+    const [showEmailForm, setShowEmailForm] = useState(false);
+    const [email, setEmail] = useState('');
+    const [name, setName] = useState('');
+
     const handleGoogleLogin = () => {
-        // Simple demo - in production you'd use Google OAuth library
-        const mockGoogleUser = {
-            email: prompt("Enter your email to simulate Google login:"),
-            name: "Demo User",
-            picture: ""
-        };
-        
-        if (mockGoogleUser.email) {
+        setShowEmailForm(true);
+    };
+
+    const handleFormSubmit = (e) => {
+        e.preventDefault();
+        if (email && name) {
+            const mockGoogleUser = {
+                email: email.trim(),
+                name: name.trim(),
+                picture: ""
+            };
             onGoogleLogin(mockGoogleUser);
         }
+    };
+
+    const handleDemoLogin = () => {
+        const demoUser = {
+            email: 'demo@emailpilot.ai',
+            name: 'Demo User',
+            picture: ""
+        };
+        onGoogleLogin(demoUser);
     };
 
     return (
@@ -216,20 +261,88 @@ function LoginScreen({ onGoogleLogin, loading }) {
                     </div>
                 </div>
                 
-                <div className="space-y-6">
-                    <button
-                        onClick={handleGoogleLogin}
-                        disabled={loading}
-                        className="w-full bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 focus:ring-2 focus:ring-red-500 disabled:opacity-50 flex items-center justify-center space-x-2"
-                    >
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                            <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                            <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                            <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                        <span>{loading ? 'Signing in...' : 'Continue with Google'}</span>
-                    </button>
+                <div className="space-y-4">
+                    {!showEmailForm ? (
+                        <>
+                            <button
+                                onClick={handleGoogleLogin}
+                                disabled={loading}
+                                className="w-full bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 focus:ring-2 focus:ring-red-500 disabled:opacity-50 flex items-center justify-center space-x-2"
+                            >
+                                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                <span>{loading ? 'Signing in...' : 'Sign in with Google'}</span>
+                            </button>
+                            
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-300"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-2 bg-white text-gray-500">or</span>
+                                </div>
+                            </div>
+                            
+                            <button
+                                onClick={handleDemoLogin}
+                                disabled={loading}
+                                className="w-full bg-gray-600 text-white py-3 px-4 rounded-md hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                            >
+                                Continue as Demo User
+                            </button>
+                        </>
+                    ) : (
+                        <form onSubmit={handleFormSubmit} className="space-y-4">
+                            <div>
+                                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="your@email.com"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Name
+                                </label>
+                                <input
+                                    type="text"
+                                    id="name"
+                                    required
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Your Name"
+                                />
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEmailForm(false)}
+                                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:ring-2 focus:ring-gray-500"
+                                >
+                                    Back
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading || !email || !name}
+                                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                >
+                                    {loading ? 'Signing in...' : 'Sign in'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
                 </div>
                 
                 <div className="mt-6 text-xs text-gray-500 text-center">
@@ -256,7 +369,10 @@ function Sidebar({ currentView, onViewChange, user }) {
         { id: 'design', label: 'Design', icon: '🎨' },
     ];
     
-    if (user.email === 'damon@winatecommerce.com' || user.email === 'admin@emailpilot.ai') {
+    // Show admin link if user has admin privileges
+    if (user.isAdmin || user.is_admin || user.role === 'admin' || 
+        user.email === 'damon@winatecommerce.com' || 
+        user.email === 'admin@emailpilot.ai') {
         menuItems.push({ id: 'admin', label: 'Admin', icon: '⚙️' });
     }
     
@@ -339,12 +455,36 @@ function Navigation({ user, currentView, onViewChange, onLogout }) {
                     </div>
                     
                     <div className="flex items-center space-x-4">
-                        <span className="text-white">Hello, {user.name}</span>
+                        <div className="flex items-center space-x-2">
+                            {user.picture && (
+                                <img 
+                                    src={user.picture} 
+                                    alt="Profile" 
+                                    className="w-8 h-8 rounded-full border-2 border-white"
+                                />
+                            )}
+                            <div className="text-white">
+                                <div className="flex items-center space-x-2">
+                                    <span>Hello, {user.name}</span>
+                                    {(user.isAdmin || user.is_admin || user.role === 'admin' || 
+                                      user.email === 'damon@winatecommerce.com' || 
+                                      user.email === 'admin@emailpilot.ai') && (
+                                        <span className="bg-yellow-500 text-black text-xs px-2 py-1 rounded font-semibold">
+                                            ADMIN
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-xs opacity-75">{user.email}</div>
+                            </div>
+                        </div>
                         <button
                             onClick={onLogout}
-                            className="text-white hover:bg-white hover:bg-opacity-20 px-3 py-1 rounded transition-all"
+                            className="text-white hover:bg-white hover:bg-opacity-20 px-3 py-1 rounded transition-all flex items-center space-x-1"
                         >
-                            Logout
+                            <span>Logout</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -413,8 +553,10 @@ function Dashboard({ onViewChange }) {
             
             // Calculate real statistics
             const activeClients = clientsList.filter(c => c.is_active).length;
-            const totalGoals = goalsResponse.data?.reduce((sum, client) => 
-                sum + (client.goals_count || 0), 0) || 0;
+            // Extract clients array from goals response and ensure it's an array
+            const goalsData = Array.isArray(goalsResponse.data?.clients) ? goalsResponse.data.clients : [];
+            const totalGoals = goalsData.reduce((sum, client) => 
+                sum + (client.goals_count || 0), 0);
             const reportsCount = reportsResponse.data?.length || 0;
             
             // Get last report date
@@ -749,9 +891,13 @@ function GoalsView() {
             const response = await axios.get(`${API_BASE_URL}/api/goals/clients`, { 
                 withCredentials: true 
             });
-            setClients(response.data);
+            // The API returns {clients: [...], count: X, total_goals: Y}
+            // We need to extract the clients array
+            const clientsData = response.data?.clients || [];
+            setClients(clientsData);
         } catch (error) {
             console.error('Failed to load clients with goals:', error);
+            setClients([]); // Ensure we have an empty array on error
         } finally {
             setLoading(false);
         }
@@ -812,6 +958,13 @@ function GoalsView() {
         return <div className="text-center py-8">Loading goals data...</div>;
     }
 
+    // Debug component availability
+    console.log('Goals components check:', {
+        GoalsCompanyDashboard: !!window.GoalsCompanyDashboard,
+        GoalsEnhancedDashboard: !!window.GoalsEnhancedDashboard,
+        viewMode: viewMode
+    });
+
     // Company-Wide Goals Dashboard View (Default)
     if (viewMode === 'enhanced' && window.GoalsCompanyDashboard) {
         return (
@@ -836,10 +989,37 @@ function GoalsView() {
                         </button>
                     </div>
                 </div>
-                <window.GoalsCompanyDashboard
-                    user={{ email: 'user@emailpilot.ai' }}
-                    authToken={'session'}
-                />
+                {React.createElement(window.GoalsCompanyDashboard, {
+                    user: { email: 'user@emailpilot.ai' },
+                    authToken: 'session'
+                })}
+            </div>
+        );
+    }
+
+    // Fallback if enhanced components aren't available
+    if (viewMode === 'enhanced' && !window.GoalsCompanyDashboard) {
+        console.warn('GoalsCompanyDashboard not available, falling back to overview');
+        return (
+            <div className="space-y-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">Enhanced Goals View Loading</h3>
+                    <p className="text-sm text-yellow-700 mb-4">The enhanced goals components are still loading. You can:</p>
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => setViewMode('overview')}
+                            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                        >
+                            Use Basic View
+                        </button>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                        >
+                            Reload Page
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -884,12 +1064,12 @@ function GoalsView() {
                     </div>
                 </div>
                 {selectedClient ? (
-                    <window.GoalsEnhancedDashboard
-                        selectedClient={selectedClient}
-                        user={{ email: 'user@emailpilot.ai' }}
-                        authToken={'session'}
-                        onClientChange={setSelectedClient}
-                    />
+                    React.createElement(window.GoalsEnhancedDashboard, {
+                        selectedClient: selectedClient,
+                        user: { email: 'user@emailpilot.ai' },
+                        authToken: 'session',
+                        onClientChange: setSelectedClient
+                    })
                 ) : (
                     <div className="text-center py-16 bg-white rounded-lg shadow">
                         <p className="text-gray-600">Please select a client to view their goals and performance</p>
@@ -1072,7 +1252,7 @@ function ClientsView() {
         // Load the unified client form if not already loaded
         if (!window.UnifiedClientForm) {
             const script = document.createElement('script');
-            script.src = 'components/UnifiedClientForm.js';
+            script.src = '/static/dist/UnifiedClientForm.js';
             script.onload = () => {
                 setShowAddForm(true);
                 setEditingClient(null);
@@ -2387,6 +2567,7 @@ function AdminView({ user }) {
     const [slackTesting, setSlackTesting] = useState(false);
     const [envVars, setEnvVars] = useState({});
     const [envLoading, setEnvLoading] = useState(false);
+    const [envLoaded, setEnvLoaded] = useState(false);
     const [restarting, setRestarting] = useState(false);
     const [systemStatus, setSystemStatus] = useState(null);
     const [showEnvVarForm, setShowEnvVarForm] = useState(false);
@@ -2404,15 +2585,15 @@ function AdminView({ user }) {
     useEffect(() => {
         if (activeTab === 'overview') {
             loadSystemStatus();
-        } else if (activeTab === 'environment') {
+        } else if (activeTab === 'environment' && !envLoaded) {
             loadEnvironmentVariables();
         } else if (activeTab === 'packages') {
             loadPackages();
-        } else if (activeTab === 'mcp' && !mcpLoaded) {
-            // Load MCP component dynamically
+        } else if ((activeTab === 'mcp' || activeTab === 'ai-models') && !mcpLoaded) {
+            // Load MCP component dynamically for both MCP Management and AI Models tabs
             loadMCPComponent();
         }
-    }, [activeTab, mcpLoaded]);
+    }, [activeTab, mcpLoaded, envLoaded]);
 
     const loadSystemStatus = async () => {
         try {
@@ -2433,7 +2614,35 @@ function AdminView({ user }) {
                 withCredentials: true
             });
             console.log('Environment variables response:', response.data);
-            setEnvVars(response.data.variables || {});
+            
+            // Store the full response for metadata
+            window.envMetadata = response.data;
+            
+            // Handle both old and new API response formats
+            if (response.data.variables && typeof response.data.variables === 'object') {
+                // Check if it's the new simple format (just key-value pairs)
+                const firstValue = Object.values(response.data.variables)[0];
+                if (typeof firstValue === 'string' || firstValue === null) {
+                    // New format - convert to old format for display
+                    const formattedVars = {};
+                    Object.entries(response.data.variables).forEach(([key, value]) => {
+                        formattedVars[key] = {
+                            value: value || '',
+                            description: `Account-level variable from ${response.data.source?.provider || 'Secret Manager'}`,
+                            is_set: !!value,
+                            is_sensitive: value === '••••••••',
+                            stored_in_secret_manager: true
+                        };
+                    });
+                    setEnvVars(formattedVars);
+                } else {
+                    // Old format - use as is
+                    setEnvVars(response.data.variables);
+                }
+            } else {
+                setEnvVars({});
+            }
+            setEnvLoaded(true);
         } catch (error) {
             console.error('Failed to load environment variables:', {
                 message: error.message,
@@ -2504,6 +2713,7 @@ function AdminView({ user }) {
             alert('Environment variables updated successfully!\n\n' + response.data.note);
             setShowEnvVarForm(false);
             setEnvFormData({});
+            setEnvLoaded(false);
             loadEnvironmentVariables(); // Reload to see changes
 
         } catch (error) {
@@ -2551,15 +2761,18 @@ function AdminView({ user }) {
         } else {
             // Try to load the component
             const script = document.createElement('script');
-            script.src = 'components/MCPManagement.js';
-            script.type = 'text/babel';
+            script.src = '/static/dist/MCPManagement.js';
             script.onload = () => {
-                // Give Babel time to process the script
-                setTimeout(() => {
+                // Listen for components:ready event instead of using setTimeout
+                const checkMCP = () => {
                     if (window.MCPManagement) {
                         setMcpLoaded(true);
+                        document.removeEventListener('components:ready', checkMCP);
                     }
-                }, 500);
+                };
+                document.addEventListener('components:ready', checkMCP);
+                // Also check immediately in case it's already loaded
+                checkMCP();
             };
             document.head.appendChild(script);
         }
@@ -2695,6 +2908,7 @@ function AdminView({ user }) {
                         { id: 'overview', label: 'Overview', icon: '🏠' },
                         { id: 'clients', label: 'Client Management', icon: '👥' },
                         { id: 'mcp', label: 'MCP Management', icon: '🤖' },
+                        { id: 'ai-models', label: 'AI Models', icon: '🧠' },
                         { id: 'slack', label: 'Slack Integration', icon: '💬' },
                         { id: 'environment', label: 'Environment Variables', icon: '⚙️' },
                         { id: 'packages', label: 'Package Upload', icon: '📦' }
@@ -2902,11 +3116,19 @@ function AdminView({ user }) {
                                 <div>
                                     <h3 className="text-lg font-semibold text-gray-900">Environment Variables</h3>
                                     <p className="text-sm text-gray-600 mt-1">
-                                        Manage important system configuration variables
+                                        Account-level variables from Secret Manager (prefix: EMAILPILOT_)
                                     </p>
+                                    <div className="text-xs text-blue-600 mt-1">
+                                        Source: {window.envMetadata?.source?.provider || 'GCP'} Secret Manager • 
+                                        Scope: {window.envMetadata?.source?.scope || 'account'} • 
+                                        Client variables managed in MCP
+                                    </div>
                                 </div>
                                 <button
-                                    onClick={loadEnvironmentVariables}
+                                    onClick={() => {
+                                        setEnvLoaded(false);
+                                        loadEnvironmentVariables();
+                                    }}
                                     disabled={envLoading}
                                     className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
                                 >
@@ -3253,6 +3475,88 @@ function AdminView({ user }) {
                     )}
                 </div>
             )}
+
+            {/* AI Models Tab */}
+            {activeTab === 'ai-models' && (
+                <div className="space-y-6">
+                    {/* Header Section */}
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center">
+                                <span className="text-2xl mr-3">🧠</span>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-900">AI Models Management</h2>
+                                    <p className="text-gray-600">Configure AI models, test connections, and manage API settings for your clients</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                                <div className="flex items-center">
+                                    <span className="text-2xl mr-3">🤖</span>
+                                    <div>
+                                        <p className="text-sm font-medium text-blue-800">Claude Models</p>
+                                        <p className="text-xs text-blue-600">Anthropic's Claude family</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-green-50 p-4 rounded-lg">
+                                <div className="flex items-center">
+                                    <span className="text-2xl mr-3">💬</span>
+                                    <div>
+                                        <p className="text-sm font-medium text-green-800">OpenAI Models</p>
+                                        <p className="text-xs text-green-600">GPT-4, GPT-3.5, and more</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded-lg">
+                                <div className="flex items-center">
+                                    <span className="text-2xl mr-3">✨</span>
+                                    <div>
+                                        <p className="text-sm font-medium text-purple-800">Gemini Models</p>
+                                        <p className="text-xs text-purple-600">Google's Gemini family</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* AI Models Management Interface */}
+                    {!mcpLoaded ? (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <div className="flex items-center justify-center">
+                                <div className="text-center">
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                                    <p className="text-sm text-gray-600">Loading AI Models Management...</p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : window.MCPManagement ? (
+                        <div className="bg-white rounded-lg shadow">
+                            <div className="px-6 py-4 border-b border-gray-200">
+                                <h3 className="text-lg font-medium text-gray-900">Model Configuration & Testing</h3>
+                                <p className="text-sm text-gray-600 mt-1">Manage AI model settings, API keys, and test model connections for your clients</p>
+                            </div>
+                            <div className="p-6">
+                                <window.MCPManagement />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <div className="text-center text-gray-500">
+                                <p>AI Models Management component could not be loaded.</p>
+                                <button
+                                    onClick={() => loadMCPComponent()}
+                                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                    Retry Loading
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -3260,6 +3564,7 @@ function AdminView({ user }) {
 ReactDOM.render(
     <>
         <App />
+        {window.AdminNavigation && <AdminNavigation />}
         {window.DevLogin && <DevLogin />}
     </>, 
     document.getElementById('root')

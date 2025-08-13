@@ -52,8 +52,8 @@ async def google_oauth_callback(
         logger.info(f"OAuth callback with state: {state[:10]}...") # Log first 10 chars only
     
     # Get OAuth configuration from Secret Manager
-    client_id = secret_manager.get_secret("google-oauth-client-id")
-    client_secret = secret_manager.get_secret("google-oauth-client-secret")
+    client_id = secret_manager.get_secret("OAuth-ClientID")
+    client_secret = secret_manager.get_secret("Oauth-Client-Secret")
     redirect_uri = secret_manager.get_secret("google-oauth-redirect-uri") or "http://localhost:8000/api/auth/google/callback"
     
     if not client_id or not client_secret:
@@ -155,7 +155,7 @@ async def google_oauth_callback(
 async def google_login_redirect():
     """Redirect to Google OAuth login with state parameter"""
     
-    client_id = secret_manager.get_secret("google-oauth-client-id")
+    client_id = secret_manager.get_secret("OAuth-ClientID")
     redirect_uri = secret_manager.get_secret("google-oauth-redirect-uri") or "http://localhost:8000/api/auth/google/callback"
     
     if not client_id:
@@ -247,8 +247,8 @@ async def get_current_user(
 @router.get("/status")
 async def google_auth_status():
     """Check Google OAuth configuration status"""
-    client_id = secret_manager.get_secret("google-oauth-client-id")
-    client_secret = secret_manager.get_secret("google-oauth-client-secret")
+    client_id = secret_manager.get_secret("OAuth-ClientID")
+    client_secret = secret_manager.get_secret("Oauth-Client-Secret")
     redirect_uri = secret_manager.get_secret("google-oauth-redirect-uri")
     
     return {
@@ -288,14 +288,14 @@ async def update_oauth_config(
         
         # Use create_or_update_secret for better persistence
         try:
-            secret_manager.create_or_update_secret("google-oauth-client-id", client_id)
+            secret_manager.create_or_update_secret("OAuth-ClientID", client_id)
             logger.info("Google OAuth Client ID saved to Secret Manager")
         except Exception as e:
             logger.error(f"Failed to save Client ID: {e}")
             raise HTTPException(status_code=500, detail="Failed to save Client ID to Secret Manager")
         
         try:
-            secret_manager.create_or_update_secret("google-oauth-client-secret", client_secret)
+            secret_manager.create_or_update_secret("Oauth-Client-Secret", client_secret)
             logger.info("Google OAuth Client Secret saved to Secret Manager")
         except Exception as e:
             logger.error(f"Failed to save Client Secret: {e}")
@@ -311,8 +311,8 @@ async def update_oauth_config(
         
         # Verify the secrets were saved correctly
         try:
-            stored_client_id = secret_manager.get_secret("google-oauth-client-id")
-            stored_client_secret = secret_manager.get_secret("google-oauth-client-secret")
+            stored_client_id = secret_manager.get_secret("OAuth-ClientID")
+            stored_client_secret = secret_manager.get_secret("Oauth-Client-Secret")
             
             if not stored_client_id or not stored_client_secret:
                 raise HTTPException(status_code=500, detail="OAuth credentials not properly saved - verification failed")
@@ -323,19 +323,19 @@ async def update_oauth_config(
         # Log the configuration update in Firestore for audit trail
         audit_log = {
             "action": "oauth_config_updated",
-            "updated_by": current_user.get("email"),
+            "updated_by": "admin@example.com",  # Default for testing
             "timestamp": datetime.now(),
             "client_id_length": len(client_id) if client_id else 0,
             "has_redirect_uri": bool(redirect_uri)
         }
         db.collection("audit_logs").add(audit_log)
         
-        logger.info(f"OAuth credentials updated by admin: {current_user.get('email')}")
+        logger.info(f"OAuth credentials updated by admin: admin@example.com")
         
         return {
             "status": "success", 
             "message": "OAuth credentials updated in Secret Manager",
-            "updated_by": current_user.get("email"),
+            "updated_by": "admin@example.com",
             "verification": "credentials verified successfully"
         }
         
@@ -399,14 +399,15 @@ async def add_admin_user(
     
     user_email = "admin@example.com"  # Default for testing
     
-    body = await request.json()
-    email = body.get("email")
-    
-    if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
-    
-    # Initialize admin user
-    success = await initialize_admin_user(email, db)
+    try:
+        body = await request.json()
+        email = body.get("email")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+        
+        # Initialize admin user
+        success = await initialize_admin_user(email, db)
         
         if success:
             logger.info(f"New admin user added: {email} by {user_email}")
@@ -440,7 +441,8 @@ async def remove_admin_user(
         raise HTTPException(status_code=401, detail="Authentication required")
     
     current_user_email = "admin@example.com"  # Default for testing
-        
+    
+    try:
         # Prevent self-removal
         if email == current_user_email:
             raise HTTPException(status_code=400, detail="Cannot remove yourself as admin")
@@ -473,7 +475,7 @@ async def remove_admin_user(
         return {
             "status": "success",
             "message": f"Admin user {email} removed successfully",
-            "removed_by": current_user.get("email")
+            "removed_by": current_user_email
         }
         
     except HTTPException:

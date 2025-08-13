@@ -15,12 +15,99 @@
     <!-- Load pre-compiled component -->
     <script src="/static/dist/AdminAgentsPanel.js"></script>
     <script>
-        // Initialize the component
-        if (window.AdminAgentsPanel) {
-            ReactDOM.render(React.createElement(window.AdminAgentsPanel), document.getElementById('root'));
-        } else {
-            console.error('AdminAgentsPanel component not found');
-        }
+        // Create wrapper component with navigation
+        const AdminAgentsPage = () => {
+            return React.createElement('div', { 
+                style: { 
+                    minHeight: '100vh',
+                    background: '#f9fafb',
+                    padding: '20px'
+                }
+            },
+                React.createElement('div', {
+                    style: {
+                        maxWidth: '1200px',
+                        margin: '0 auto'
+                    }
+                },
+                    // Header with navigation
+                    React.createElement('div', { 
+                        style: { 
+                            marginBottom: '32px',
+                            padding: '20px',
+                            background: 'white',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0'
+                        }
+                    },
+                        React.createElement('h1', { 
+                            style: { 
+                                margin: '0 0 12px 0', 
+                                fontSize: '32px', 
+                                fontWeight: 'bold',
+                                color: '#1e293b' 
+                            }
+                        }, '⚙️ EmailPilot Admin'),
+                        React.createElement('nav', { 
+                            style: { 
+                                display: 'flex', 
+                                gap: '16px',
+                                fontSize: '14px'
+                            }
+                        },
+                            React.createElement('a', {
+                                href: '/admin-agents.html',
+                                style: {
+                                    color: '#1e293b',
+                                    textDecoration: 'none',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    background: '#f1f5f9',
+                                    fontWeight: '600'
+                                }
+                            }, '🤖 Email/SMS Agents'),
+                            React.createElement('a', {
+                                href: '/admin-oauth.html',
+                                style: {
+                                    color: '#3b82f6',
+                                    textDecoration: 'none',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px'
+                                }
+                            }, '🔐 OAuth Configuration'),
+                            React.createElement('a', {
+                                href: '/index.html',
+                                style: {
+                                    color: '#3b82f6',
+                                    textDecoration: 'none',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px'
+                                }
+                            }, '📊 Dashboard')
+                        )
+                    ),
+                    
+                    // Admin Agents Component
+                    window.AdminAgentsPanel ? 
+                        React.createElement(window.AdminAgentsPanel) :
+                        React.createElement('div', {
+                            style: {
+                                padding: '20px',
+                                background: '#fee2e2',
+                                border: '1px solid #fca5a5',
+                                borderRadius: '8px',
+                                color: '#dc2626'
+                            }
+                        }, 'Error: AdminAgentsPanel component not found')
+                )
+            );
+        };
+        
+        // Mount the page component
+        ReactDOM.render(
+            React.createElement(AdminAgentsPage),
+            document.getElementById('root')
+        );
     </script>
 </body>
 </html>

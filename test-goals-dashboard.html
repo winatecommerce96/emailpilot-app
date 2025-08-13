@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals Dashboard Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Load Goals Components -->
+    <script src="/static/dist/GoalsCompanyDashboard.js"></script>
+    <script src="/static/dist/GoalsEnhancedDashboard.js"></script>
+    <script src="/static/dist/GoalsDashboard.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = 'http://localhost:8000';
+
+        function GoalsTestDashboard() {
+            const [viewMode, setViewMode] = useState('overview');
+            const [clients, setClients] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [apiData, setApiData] = useState(null);
+            const [componentsLoaded, setComponentsLoaded] = useState({
+                GoalsCompanyDashboard: false,
+                GoalsEnhancedDashboard: false,
+                GoalsDashboard: false
+            });
+
+            useEffect(() => {
+                // Check component availability
+                const checkComponents = () => {
+                    setComponentsLoaded({
+                        GoalsCompanyDashboard: !!window.GoalsCompanyDashboard,
+                        GoalsEnhancedDashboard: !!window.GoalsEnhancedDashboard,
+                        GoalsDashboard: !!window.GoalsDashboard
+                    });
+                };
+
+                checkComponents();
+                loadGoalsData();
+
+                // Check again after a delay
+                setTimeout(checkComponents, 2000);
+            }, []);
+
+            const loadGoalsData = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+                    
+                    // Test the Goals API
+                    const response = await axios.get(`${API_BASE_URL}/api/goals/clients`);
+                    console.log('Goals API Response:', response.data);
+                    
+                    setApiData(response.data);
+                    const clientsData = response.data.clients || [];
+                    setClients(clientsData);
+                    
+                } catch (err) {
+                    console.error('Failed to load goals:', err);
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const renderDebugInfo = () => (
+                <div className="bg-gray-100 rounded-lg p-4 mb-6">
+                    <h3 className="text-lg font-semibold mb-2">Debug Information</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <strong>API Status:</strong> {loading ? 'Loading...' : error ? '❌ Error' : '✅ Connected'}
+                        </div>
+                        <div>
+                            <strong>Clients Found:</strong> {clients.length}
+                        </div>
+                        <div>
+                            <strong>Total Goals:</strong> {apiData?.total_goals || 0}
+                        </div>
+                        <div>
+                            <strong>View Mode:</strong> {viewMode}
+                        </div>
+                    </div>
+                    
+                    <div className="mt-4">
+                        <strong>Components Loaded:</strong>
+                        <div className="mt-1 space-y-1">
+                            {Object.entries(componentsLoaded).map(([name, loaded]) => (
+                                <div key={name} className="flex items-center">
+                                    <span className={`mr-2 ${loaded ? 'text-green-600' : 'text-red-600'}`}>
+                                        {loaded ? '✅' : '❌'}
+                                    </span>
+                                    <span className="text-sm">{name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderOverviewMode = () => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {clients.map(client => (
+                        <div key={client.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                {client.name || client.id}
+                            </h3>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">Total Goals:</span>
+                                    <span className="font-semibold">{client.goals_count || 0}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">Open:</span>
+                                    <span className="text-yellow-600 font-semibold">{client.open || 0}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">In Progress:</span>
+                                    <span className="text-blue-600 font-semibold">{client.in_progress || 0}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-600">Done:</span>
+                                    <span className="text-green-600 font-semibold">{client.done || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+
+            const renderEnhancedMode = () => {
+                if (window.GoalsCompanyDashboard) {
+                    return React.createElement(window.GoalsCompanyDashboard, {
+                        user: { email: 'test@emailpilot.ai' },
+                        authToken: 'test-session'
+                    });
+                } else {
+                    return (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                            <p className="text-yellow-800 mb-4">GoalsCompanyDashboard component not loaded yet.</p>
+                            <button 
+                                onClick={() => window.location.reload()}
+                                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                            >
+                                Reload Page
+                            </button>
+                        </div>
+                    );
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                                Goals Dashboard Test
+                            </h1>
+                            <p className="text-gray-600 mb-4">
+                                Testing Goals module functionality with different view modes
+                            </p>
+                            
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={() => setViewMode('overview')}
+                                    className={`px-4 py-2 rounded ${
+                                        viewMode === 'overview' 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    }`}
+                                >
+                                    Overview Mode
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('enhanced')}
+                                    className={`px-4 py-2 rounded ${
+                                        viewMode === 'enhanced' 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    }`}
+                                >
+                                    Enhanced Mode
+                                </button>
+                                <button
+                                    onClick={loadGoalsData}
+                                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                >
+                                    Refresh Data
+                                </button>
+                            </div>
+                        </div>
+
+                        {renderDebugInfo()}
+
+                        {loading && (
+                            <div className="text-center py-12">
+                                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                                <p className="mt-4 text-gray-600">Loading goals data...</p>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8">
+                                <strong>Error:</strong> {error}
+                            </div>
+                        )}
+
+                        {!loading && !error && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                {viewMode === 'overview' && renderOverviewMode()}
+                                {viewMode === 'enhanced' && renderEnhancedMode()}
+                            </div>
+                        )}
+
+                        {!loading && clients.length === 0 && (
+                            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+                                No clients with goals found.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GoalsTestDashboard />);
+    </script>
+</body>
+</html>

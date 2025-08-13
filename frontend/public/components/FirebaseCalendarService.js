@@ -87,10 +87,12 @@ class FirebaseCalendarService {
     // Get clients list
     async getClients() {
         try {
-            const response = await axios.get(`${this.apiBase}/api/clients/`, {
+            const response = await axios.get(`${this.apiBase}/api/admin/clients`, {
                 withCredentials: true
             });
-            this.clients = response.data || [];
+            // Extract clients array from the response and filter for active clients only
+            const allClients = response.data?.clients || [];
+            this.clients = allClients.filter(client => client.is_active !== false);
             return this.clients;
         } catch (error) {
             console.warn('Failed to fetch clients:', error);

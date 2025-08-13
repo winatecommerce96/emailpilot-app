@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals Module - Final Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Load all Goals Components -->
+    <script src="/static/dist/GoalsCompanyDashboard.js"></script>
+    <script src="/static/dist/GoalsEnhancedDashboard.js"></script>
+    <script src="/static/dist/GoalsDashboard.js"></script>
+    <script src="/static/dist/GoalsDataStatus.js"></script>
+    <script src="/static/dist/GoalGeneratorPanel.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = 'http://localhost:8000';
+
+        function GoalsFinalTest() {
+            const [testResults, setTestResults] = useState({
+                apiTest: null,
+                componentsTest: null,
+                dataStructureTest: null,
+                renderTest: null
+            });
+            const [apiData, setApiData] = useState(null);
+            const [currentView, setCurrentView] = useState('overview');
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                runAllTests();
+            }, []);
+
+            const runAllTests = async () => {
+                setLoading(true);
+                
+                // Test 1: API Connectivity
+                const apiResult = await testAPI();
+                
+                // Test 2: Component Loading
+                const componentsResult = testComponents();
+                
+                // Test 3: Data Structure
+                const dataResult = testDataStructure(apiResult.data);
+                
+                // Test 4: Render Test
+                const renderResult = testRendering();
+
+                setTestResults({
+                    apiTest: apiResult,
+                    componentsTest: componentsResult,
+                    dataStructureTest: dataResult,
+                    renderTest: renderResult
+                });
+                
+                setLoading(false);
+            };
+
+            const testAPI = async () => {
+                try {
+                    const response = await axios.get(`${API_BASE_URL}/api/goals/clients`);
+                    setApiData(response.data);
+                    
+                    // Check for proper response structure
+                    const hasClients = Array.isArray(response.data.clients);
+                    const hasCount = typeof response.data.count === 'number';
+                    const hasTotalGoals = typeof response.data.total_goals === 'number';
+                    
+                    return {
+                        passed: hasClients && hasCount && hasTotalGoals,
+                        message: `API returned ${response.data.clients?.length || 0} clients with ${response.data.total_goals || 0} total goals`,
+                        data: response.data
+                    };
+                } catch (error) {
+                    return {
+                        passed: false,
+                        message: `API Error: ${error.message}`,
+                        data: null
+                    };
+                }
+            };
+
+            const testComponents = () => {
+                const components = {
+                    'GoalsCompanyDashboard': !!window.GoalsCompanyDashboard,
+                    'GoalsEnhancedDashboard': !!window.GoalsEnhancedDashboard,
+                    'GoalsDashboard': !!window.GoalsDashboard,
+                    'GoalsDataStatus': !!window.GoalsDataStatus,
+                    'GoalGeneratorPanel': !!window.GoalGeneratorPanel
+                };
+                
+                const allLoaded = Object.values(components).every(c => c === true);
+                const loadedCount = Object.values(components).filter(c => c === true).length;
+                
+                return {
+                    passed: allLoaded,
+                    message: `${loadedCount}/5 components loaded`,
+                    details: components
+                };
+            };
+
+            const testDataStructure = (data) => {
+                if (!data || !data.clients) {
+                    return {
+                        passed: false,
+                        message: 'No data to test'
+                    };
+                }
+                
+                const firstClient = data.clients[0];
+                const requiredFields = ['id', 'name', 'goals_count'];
+                const hasAllFields = firstClient && requiredFields.every(field => field in firstClient);
+                
+                // Check if names are actual names, not "undefined" or IDs
+                const hasProperNames = data.clients.every(client => 
+                    client.name && 
+                    client.name !== 'undefined' && 
+                    client.name !== client.id
+                );
+                
+                return {
+                    passed: hasAllFields && hasProperNames,
+                    message: hasProperNames ? 
+                        'All clients have proper names' : 
+                        'Some clients missing proper names',
+                    sampleClient: firstClient
+                };
+            };
+
+            const testRendering = () => {
+                try {
+                    // Try to create a test component
+                    if (window.GoalsCompanyDashboard) {
+                        const testElement = React.createElement(window.GoalsCompanyDashboard, {
+                            user: { email: 'test@emailpilot.ai' },
+                            authToken: 'test'
+                        });
+                        
+                        return {
+                            passed: true,
+                            message: 'Component can be rendered'
+                        };
+                    }
+                    
+                    return {
+                        passed: false,
+                        message: 'GoalsCompanyDashboard not available'
+                    };
+                } catch (error) {
+                    return {
+                        passed: false,
+                        message: `Render error: ${error.message}`
+                    };
+                }
+            };
+
+            const TestResultCard = ({ title, result }) => {
+                if (!result) return null;
+                
+                return (
+                    <div className={`p-4 rounded-lg border-2 ${
+                        result.passed ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'
+                    }`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold">{title}</h3>
+                            <span className={`text-2xl ${result.passed ? 'text-green-600' : 'text-red-600'}`}>
+                                {result.passed ? '✅' : '❌'}
+                            </span>
+                        </div>
+                        <p className="text-sm text-gray-700">{result.message}</p>
+                        {result.details && (
+                            <div className="mt-2 text-xs">
+                                <details>
+                                    <summary className="cursor-pointer text-blue-600">Details</summary>
+                                    <pre className="mt-2 p-2 bg-white rounded">
+                                        {JSON.stringify(result.details, null, 2)}
+                                    </pre>
+                                </details>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const renderLiveView = () => {
+                if (currentView === 'overview' && apiData?.clients) {
+                    return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {apiData.clients.slice(0, 6).map(client => (
+                                <div key={client.id} className="bg-white p-4 rounded-lg shadow">
+                                    <h4 className="font-semibold text-lg mb-2">{client.name}</h4>
+                                    <div className="space-y-1 text-sm">
+                                        <div className="flex justify-between">
+                                            <span>Total Goals:</span>
+                                            <span className="font-medium">{client.goals_count}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Open:</span>
+                                            <span className="text-yellow-600">{client.open}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>In Progress:</span>
+                                            <span className="text-blue-600">{client.in_progress}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Done:</span>
+                                            <span className="text-green-600">{client.done}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    );
+                }
+                
+                if (currentView === 'enhanced' && window.GoalsCompanyDashboard) {
+                    return React.createElement(window.GoalsCompanyDashboard, {
+                        user: { email: 'test@emailpilot.ai' },
+                        authToken: 'test-session'
+                    });
+                }
+                
+                return (
+                    <div className="text-center py-8 text-gray-500">
+                        Select a view mode above
+                    </div>
+                );
+            };
+
+            const allTestsPassed = Object.values(testResults).every(r => r?.passed === true);
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                                Goals Module - Final Verification
+                            </h1>
+                            
+                            {loading ? (
+                                <p className="text-gray-600">Running tests...</p>
+                            ) : (
+                                <div className={`inline-flex items-center px-4 py-2 rounded-full text-white font-semibold ${
+                                    allTestsPassed ? 'bg-green-600' : 'bg-red-600'
+                                }`}>
+                                    {allTestsPassed ? '✅ All Tests Passed!' : '⚠️ Some Tests Failed'}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <TestResultCard title="API Connectivity" result={testResults.apiTest} />
+                            <TestResultCard title="Component Loading" result={testResults.componentsTest} />
+                            <TestResultCard title="Data Structure" result={testResults.dataStructureTest} />
+                            <TestResultCard title="Render Capability" result={testResults.renderTest} />
+                        </div>
+
+                        {apiData && (
+                            <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+                                <h2 className="text-xl font-bold mb-4">Summary Statistics</h2>
+                                <div className="grid grid-cols-3 gap-4 text-center">
+                                    <div className="p-4 bg-blue-50 rounded">
+                                        <div className="text-2xl font-bold text-blue-600">
+                                            {apiData.clients?.length || 0}
+                                        </div>
+                                        <div className="text-sm text-gray-600">Active Clients</div>
+                                    </div>
+                                    <div className="p-4 bg-green-50 rounded">
+                                        <div className="text-2xl font-bold text-green-600">
+                                            {apiData.total_goals || 0}
+                                        </div>
+                                        <div className="text-sm text-gray-600">Total Goals</div>
+                                    </div>
+                                    <div className="p-4 bg-purple-50 rounded">
+                                        <div className="text-2xl font-bold text-purple-600">
+                                            {apiData.clients?.filter(c => c.name && c.name !== 'undefined').length || 0}
+                                        </div>
+                                        <div className="text-sm text-gray-600">Named Clients</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold">Live Component View</h2>
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={() => setCurrentView('overview')}
+                                        className={`px-4 py-2 rounded ${
+                                            currentView === 'overview' 
+                                                ? 'bg-blue-600 text-white' 
+                                                : 'bg-gray-200 text-gray-700'
+                                        }`}
+                                    >
+                                        Overview
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentView('enhanced')}
+                                        className={`px-4 py-2 rounded ${
+                                            currentView === 'enhanced' 
+                                                ? 'bg-blue-600 text-white' 
+                                                : 'bg-gray-200 text-gray-700'
+                                        }`}
+                                    >
+                                        Enhanced Dashboard
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {renderLiveView()}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GoalsFinalTest />);
+    </script>
+</body>
+</html>

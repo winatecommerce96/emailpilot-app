@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals Test - Working Version</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = 'http://localhost:8000';
+
+        function GoalsTestApp() {
+            const [clients, setClients] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [selectedClient, setSelectedClient] = useState(null);
+
+            useEffect(() => {
+                loadGoalsData();
+            }, []);
+
+            const loadGoalsData = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+                    
+                    const response = await axios.get(`${API_BASE_URL}/api/goals/clients`);
+                    console.log('Goals API Response:', response.data);
+                    
+                    // Extract clients array from response
+                    const clientsData = response.data.clients || [];
+                    setClients(clientsData);
+                    
+                } catch (err) {
+                    console.error('Failed to load goals:', err);
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const ClientCard = ({ client }) => {
+                const total = client.goals_count || 0;
+                const open = client.open || 0;
+                const inProgress = client.in_progress || 0;
+                const done = client.done || 0;
+                
+                return (
+                    <div 
+                        onClick={() => setSelectedClient(client)}
+                        className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-blue-500"
+                    >
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            {client.name || client.id || 'Unnamed Client'}
+                        </h3>
+                        <div className="text-sm text-gray-600 mb-4">
+                            ID: {client.id?.substring(0, 8)}...
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Total Goals:</span>
+                                <span className="font-semibold">{total}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Open:</span>
+                                <span className="text-yellow-600 font-semibold">{open}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">In Progress:</span>
+                                <span className="text-blue-600 font-semibold">{inProgress}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Done:</span>
+                                <span className="text-green-600 font-semibold">{done}</span>
+                            </div>
+                        </div>
+                        
+                        {total > 0 && (
+                            <div className="mt-4">
+                                <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+                                    <div 
+                                        className="h-full bg-green-500 transition-all"
+                                        style={{ width: `${(done / total) * 100}%` }}
+                                    />
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1 text-center">
+                                    {Math.round((done / total) * 100)}% Complete
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                                Goals Dashboard Test
+                            </h1>
+                            <p className="text-gray-600">
+                                Testing Goals API and Client Names Display
+                            </p>
+                        </div>
+
+                        {loading && (
+                            <div className="text-center py-12">
+                                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                                <p className="mt-4 text-gray-600">Loading goals data...</p>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8">
+                                <strong>Error:</strong> {error}
+                            </div>
+                        )}
+
+                        {!loading && !error && clients.length === 0 && (
+                            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+                                No clients found with goals.
+                            </div>
+                        )}
+
+                        {!loading && clients.length > 0 && (
+                            <>
+                                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-8">
+                                    <p className="text-blue-700">
+                                        <strong>Success!</strong> Found {clients.length} clients with goals. 
+                                        Client names are displaying correctly!
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {clients.map(client => (
+                                        <ClientCard key={client.id} client={client} />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {selectedClient && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                                    <h2 className="text-xl font-bold mb-4">
+                                        {selectedClient.name}
+                                    </h2>
+                                    <pre className="bg-gray-100 p-4 rounded text-xs overflow-auto">
+                                        {JSON.stringify(selectedClient, null, 2)}
+                                    </pre>
+                                    <button 
+                                        onClick={() => setSelectedClient(null)}
+                                        className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<GoalsTestApp />);
+    </script>
+</body>
+</html>
