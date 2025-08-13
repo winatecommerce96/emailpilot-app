@@ -1,275 +1,347 @@
-"""
-Goals API endpoints
-"""
-
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
-from typing import List, Optional, Dict
+# app/api/goals.py
+from fastapi import APIRouter, HTTPException, Depends
+from typing import Dict, Any, List, Optional
+from app.core.config import get_firestore_client
 from datetime import datetime
-import logging
+from google.cloud import firestore as fs
 
-from app.core.database import get_db
-from app.models import Goal, Client
-from app.services.goal_manager import GoalManagerService
-from app.schemas.goal import GoalResponse, GoalCreate, GoalUpdate
+router = APIRouter(prefix="/api/goals", tags=["goals"])
 
-logger = logging.getLogger(__name__)
-router = APIRouter()
+def get_db():
+    """Get Firestore database client"""
+    return get_firestore_client()
 
 @router.get("/clients")
-async def get_clients_with_goals(db: Session = Depends(get_db)):
-    """Get all clients with their goal summary"""
+def goals_by_client() -> Dict[str, Any]:
+    """
+    Return per-client goal counts grouped by status with client names.
+    Since goals don't have status field, we'll group by achievement status.
+    """
+    counts: Dict[str, Dict[str, int]] = {}
+    total_goals = 0
+    
+    db = get_firestore_client()
+    
+    # First pass: collect goal statistics by client ID
+    for snap in db.collection("goals").stream():
+        data = snap.to_dict() or {}
+        cid = data.get("client_id") or data.get("clientId")
+        if not cid:
+            continue
+            
+        total_goals += 1
+        
+        # Determine status based on goal data
+        # If human_override is true, consider it "in_progress"
+        # If confidence is "high", consider it "done" 
+        # Otherwise "open"
+        if data.get("human_override"):
+            status = "in_progress"
+        elif data.get("confidence") == "high":
+            status = "done"
+        else:
+            status = "open"
+            
+        bucket = counts.setdefault(cid, {"open": 0, "in_progress": 0, "done": 0, "goals_count": 0})
+        bucket[status] += 1
+        bucket["goals_count"] += 1
+
+    # Second pass: fetch client names from clients collection
+    client_names: Dict[str, str] = {}
     try:
-        clients = db.query(Client).filter(Client.is_active == True).all()
-        
-        result = []
-        for client in clients:
-            try:
-                # Get latest goals for this client
-                latest_goals = db.query(Goal).filter(
-                    Goal.client_id == client.id,
-                    Goal.year == datetime.now().year
-                ).all()
-                
-                total_yearly = sum(goal.revenue_goal for goal in latest_goals)
-                
-                result.append({
-                    "id": client.id,
-                    "name": client.name,
-                    "total_yearly_goal": total_yearly,
-                    "monthly_goals_count": len(latest_goals),
-                    "is_active": client.is_active
-                })
-            except Exception as e:
-                logger.warning(f"Error processing client {client.id}: {e}")
-                # Include client with zero values if there's an error
-                result.append({
-                    "id": client.id,
-                    "name": client.name,
-                    "total_yearly_goal": 0,
-                    "monthly_goals_count": 0,
-                    "is_active": client.is_active
-                })
-        
-        return {
-            "clients": result,
-            "count": len(result)
-        }
-        
+        clients_ref = db.collection("clients")
+        for client_snap in clients_ref.stream():
+            client_data = client_snap.to_dict() or {}
+            client_id = client_snap.id
+            client_name = client_data.get("name", f"Client {client_id[:8]}")
+            client_names[client_id] = client_name
     except Exception as e:
-        logger.error(f"Error fetching clients with goals: {e}")
-        # Return empty list instead of 500 error
-        return {
-            "clients": [],
-            "count": 0,
-            "error": "Database connection error - using demo mode"
+        # Log the error but continue with fallback names
+        print(f"Warning: Failed to fetch client names: {e}")
+
+    # Build final client list with names
+    clients: List[Dict[str, Any]] = []
+    for cid, stats in counts.items():
+        client_name = client_names.get(cid, f"Client {cid[:8]}")
+        clients.append({
+            "id": cid,
+            "clientId": cid, 
+            "name": client_name,
+            **stats
+        })
+    
+    return {
+        "clients": clients, 
+        "count": len(clients),
+        "total_goals": total_goals
+    }
+
+@router.get("/company/aggregated")
+def company_aggregated() -> Dict[str, Any]:
+    """
+    Company-level aggregates used by dashboard.
+    """
+    total_open = total_in_progress = total_done = 0
+    total_revenue_goal = 0.0
+    
+    db = get_firestore_client()
+    for snap in db.collection("goals").stream():
+        data = snap.to_dict() or {}
+        
+        # Determine status based on goal data
+        if data.get("human_override"):
+            total_in_progress += 1
+        elif data.get("confidence") == "high":
+            total_done += 1
+        else:
+            total_open += 1
+            
+        # Sum revenue goals
+        revenue_goal = data.get("revenue_goal", 0)
+        if isinstance(revenue_goal, (int, float)):
+            total_revenue_goal += revenue_goal
+
+    return {
+        "totals": {
+            "open": total_open,
+            "in_progress": total_in_progress,
+            "done": total_done,
+            "total": total_open + total_in_progress + total_done,
+            "revenue_goal": total_revenue_goal
         }
+    }
+
+@router.get("/data-status")
+def get_data_status() -> Dict[str, Any]:
+    """
+    Check goals data completeness and system status.
+    """
+    total_goals = 0
+    goals_with_revenue = 0
+    goals_with_ai = 0
+    goals_with_override = 0
+    clients_with_goals = set()
+    
+    db = get_firestore_client()
+    for snap in db.collection("goals").stream():
+        data = snap.to_dict() or {}
+        total_goals += 1
+        
+        if data.get("revenue_goal"):
+            goals_with_revenue += 1
+        if data.get("calculation_method") == "ai_suggested":
+            goals_with_ai += 1
+        if data.get("human_override"):
+            goals_with_override += 1
+            
+        client_id = data.get("client_id")
+        if client_id:
+            clients_with_goals.add(client_id)
+    
+    # Get total clients
+    total_clients = 0
+    for _ in db.collection("clients").stream():
+        total_clients += 1
+    
+    return {
+        "status": "healthy" if total_goals > 0 else "no_data",
+        "stats": {
+            "total_goals": total_goals,
+            "goals_with_revenue": goals_with_revenue,
+            "goals_with_ai": goals_with_ai,
+            "goals_with_override": goals_with_override,
+            "clients_with_goals": len(clients_with_goals),
+            "total_clients": total_clients,
+            "coverage_percentage": (len(clients_with_goals) / total_clients * 100) if total_clients > 0 else 0
+        },
+        "last_updated": datetime.utcnow().isoformat()
+    }
+
+@router.get("/accuracy/comparison")
+def get_accuracy_comparison() -> Dict[str, Any]:
+    """
+    Compare AI-generated vs human-overridden goals accuracy.
+    """
+    ai_goals = []
+    human_goals = []
+    
+    db = get_firestore_client()
+    for snap in db.collection("goals").stream():
+        data = snap.to_dict() or {}
+        revenue_goal = data.get("revenue_goal", 0)
+        
+        if data.get("human_override"):
+            human_goals.append(revenue_goal)
+        elif data.get("calculation_method") == "ai_suggested":
+            ai_goals.append(revenue_goal)
+    
+    def calculate_stats(goals: List[float]) -> Dict[str, Any]:
+        if not goals:
+            return {"count": 0, "average": 0, "min": 0, "max": 0}
+        return {
+            "count": len(goals),
+            "average": sum(goals) / len(goals),
+            "min": min(goals),
+            "max": max(goals),
+            "total": sum(goals)
+        }
+    
+    return {
+        "ai_suggested": calculate_stats(ai_goals),
+        "human_override": calculate_stats(human_goals),
+        "comparison": {
+            "total_goals": len(ai_goals) + len(human_goals),
+            "ai_percentage": (len(ai_goals) / (len(ai_goals) + len(human_goals)) * 100) if (ai_goals or human_goals) else 0,
+            "human_percentage": (len(human_goals) / (len(ai_goals) + len(human_goals)) * 100) if (ai_goals or human_goals) else 0
+        }
+    }
 
 @router.get("/{client_id}")
-async def get_client_goals(
-    client_id: str,  # Accept string to handle both numeric and string IDs
-    year: Optional[int] = None,
-    db: Session = Depends(get_db)
-):
-    """Get goals for specific client"""
-    try:
-        # Try to convert to int if it's numeric, otherwise use as string
-        try:
-            client_id_num = int(client_id)
-            client = db.query(Client).filter(Client.id == client_id_num).first()
-        except ValueError:
-            # If it's not numeric, try to find by string ID or name
-            client = db.query(Client).filter(
-                (Client.id == client_id) | (Client.name == client_id)
-            ).first()
+def get_client_goals(client_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all goals for a specific client.
+    """
+    goals = []
+    
+    # Query goals for this client
+    db = get_firestore_client()
+    query = db.collection("goals").where("client_id", "==", client_id)
+    
+    for snap in query.stream():
+        data = snap.to_dict() or {}
+        data["id"] = snap.id
         
-        if not client:
-            raise HTTPException(status_code=404, detail="Client not found")
-        
-        query = db.query(Goal).filter(Goal.client_id == client.id)
-        
-        if year:
-            query = query.filter(Goal.year == year)
+        # Add computed status field
+        if data.get("human_override"):
+            data["status"] = "in_progress"
+        elif data.get("confidence") == "high":
+            data["status"] = "done"
         else:
-            query = query.filter(Goal.year == datetime.now().year)
-        
-        goals = query.order_by(Goal.month).all()
-        
-        return {
-            "client": {
-                "id": client.id,
-                "name": client.name
-            },
-            "goals": goals,
-            "total_yearly": sum(goal.revenue_goal for goal in goals)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching client goals: {e}")
-        # Return demo data instead of error
-        return {
-            "client": {
-                "id": client_id,
-                "name": f"Client {client_id}"
-            },
-            "goals": [],
-            "total_yearly": 0,
-            "error": "Database connection error - using demo mode"
-        }
+            data["status"] = "open"
+            
+        goals.append(data)
+    
+    # Sort by year and month descending
+    goals.sort(key=lambda x: (x.get("year", 0), x.get("month", 0)), reverse=True)
+    
+    return goals
 
-@router.post("/{client_id}")
-async def create_goal(
-    client_id: int,
-    goal_data: GoalCreate,
-    db: Session = Depends(get_db)
-):
-    """Create or update a goal for specific client/month/year"""
+@router.get("/{goal_id}/versions")
+def get_goal_versions(goal_id: str) -> Dict[str, Any]:
+    """
+    Get version history for a specific goal.
+    Currently returns the current version as we don't track history yet.
+    """
     try:
-        client = db.query(Client).filter(Client.id == client_id).first()
-        if not client:
-            raise HTTPException(status_code=404, detail="Client not found")
+        db = get_firestore_client()
+        goal_ref = db.collection("goals").document(goal_id)
+        goal_doc = goal_ref.get()
         
-        # Check if goal already exists
-        existing_goal = db.query(Goal).filter(
-            Goal.client_id == client_id,
-            Goal.year == goal_data.year,
-            Goal.month == goal_data.month
-        ).first()
-        
-        if existing_goal:
-            # Update existing goal
-            existing_goal.revenue_goal = goal_data.revenue_goal
-            existing_goal.calculation_method = goal_data.calculation_method
-            existing_goal.notes = goal_data.notes
-            existing_goal.human_override = goal_data.human_override
-            existing_goal.updated_at = datetime.utcnow()
-            
-            db.commit()
-            db.refresh(existing_goal)
-            return existing_goal
-        else:
-            # Create new goal
-            new_goal = Goal(
-                client_id=client_id,
-                year=goal_data.year,
-                month=goal_data.month,
-                revenue_goal=goal_data.revenue_goal,
-                calculation_method=goal_data.calculation_method,
-                notes=goal_data.notes,
-                human_override=goal_data.human_override
-            )
-            
-            db.add(new_goal)
-            db.commit()
-            db.refresh(new_goal)
-            return new_goal
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating/updating goal: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.put("/{client_id}/{goal_id}")
-async def update_goal(
-    client_id: int,
-    goal_id: int,
-    goal_data: GoalUpdate,
-    db: Session = Depends(get_db)
-):
-    """Update specific goal"""
-    try:
-        goal = db.query(Goal).filter(
-            Goal.id == goal_id,
-            Goal.client_id == client_id
-        ).first()
-        
-        if not goal:
+        if not goal_doc.exists:
             raise HTTPException(status_code=404, detail="Goal not found")
         
-        # Update fields
-        if goal_data.revenue_goal is not None:
-            goal.revenue_goal = goal_data.revenue_goal
-        if goal_data.notes is not None:
-            goal.notes = goal_data.notes
-        if goal_data.human_override is not None:
-            goal.human_override = goal_data.human_override
+        current_data = goal_doc.to_dict()
+        current_data["id"] = goal_id
         
-        goal.calculation_method = "manual"  # Mark as manual when updated
-        goal.updated_at = datetime.utcnow()
-        
-        db.commit()
-        db.refresh(goal)
-        return goal
-        
-    except HTTPException:
-        raise
+        # For now, return just the current version
+        # In future, we could store versions in a subcollection
+        return {
+            "goal_id": goal_id,
+            "current_version": current_data,
+            "versions": [
+                {
+                    "version": 1,
+                    "timestamp": current_data.get("updated_at", current_data.get("created_at")),
+                    "data": current_data,
+                    "changes": "Initial version"
+                }
+            ],
+            "total_versions": 1
+        }
     except Exception as e:
-        logger.error(f"Error updating goal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/generate")
-async def generate_ai_goals(
-    background_tasks: BackgroundTasks,
-    client_id: Optional[int] = None,
-    year: int = datetime.now().year + 1,
-    db: Session = Depends(get_db)
-):
-    """Generate AI-powered goals for client(s)"""
+@router.post("/{client_id}")
+def create_goal(client_id: str, goal_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Create a new goal for a client.
+    """
     try:
-        goal_service = GoalManagerService(db)
+        db = get_firestore_client()
         
-        if client_id:
-            # Generate for specific client
-            client = db.query(Client).filter(Client.id == client_id).first()
-            if not client:
-                raise HTTPException(status_code=404, detail="Client not found")
-            
-            background_tasks.add_task(
-                goal_service.generate_yearly_goals,
-                client_id,
-                year
-            )
-            
-            return {
-                "message": f"AI goal generation started for {client.name}",
-                "client_id": client_id,
-                "year": year
-            }
-        else:
-            # Generate for all active clients
-            active_clients = db.query(Client).filter(Client.is_active == True).all()
-            
-            for client in active_clients:
-                background_tasks.add_task(
-                    goal_service.generate_yearly_goals,
-                    client.id,
-                    year
-                )
-            
-            return {
-                "message": f"AI goal generation started for {len(active_clients)} clients",
-                "clients": len(active_clients),
-                "year": year
-            }
-            
+        # Prepare goal document
+        new_goal = {
+            "client_id": client_id,
+            "revenue_goal": goal_data.get("revenue_goal", 0),
+            "year": goal_data.get("year", datetime.now().year),
+            "month": goal_data.get("month", datetime.now().month),
+            "calculation_method": goal_data.get("calculation_method", "manual"),
+            "confidence": goal_data.get("confidence", "medium"),
+            "human_override": goal_data.get("human_override", False),
+            "notes": goal_data.get("notes", ""),
+            "created_at": fs.SERVER_TIMESTAMP,
+            "updated_at": fs.SERVER_TIMESTAMP
+        }
+        
+        # Add to Firestore
+        doc_ref = db.collection("goals").add(new_goal)
+        goal_id = doc_ref[1].id
+        
+        # Return created goal with ID
+        new_goal["id"] = goal_id
+        new_goal["created_at"] = datetime.utcnow().isoformat()
+        new_goal["updated_at"] = datetime.utcnow().isoformat()
+        
+        return {
+            "success": True,
+            "goal": new_goal,
+            "message": "Goal created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{goal_id}")
+def update_goal(goal_id: str, goal_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update an existing goal.
+    """
+    try:
+        db = get_firestore_client()
+        goal_ref = db.collection("goals").document(goal_id)
+        
+        # Check if goal exists
+        if not goal_ref.get().exists:
+            raise HTTPException(status_code=404, detail="Goal not found")
+        
+        # Prepare update data
+        update_data = {
+            "updated_at": fs.SERVER_TIMESTAMP
+        }
+        
+        # Only update provided fields
+        allowed_fields = [
+            "revenue_goal", "year", "month", "calculation_method",
+            "confidence", "human_override", "notes"
+        ]
+        
+        for field in allowed_fields:
+            if field in goal_data:
+                update_data[field] = goal_data[field]
+        
+        # Update in Firestore
+        goal_ref.update(update_data)
+        
+        # Get updated document
+        updated_doc = goal_ref.get()
+        updated_data = updated_doc.to_dict()
+        updated_data["id"] = goal_id
+        
+        return {
+            "success": True,
+            "goal": updated_data,
+            "message": "Goal updated successfully"
+        }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error starting goal generation: {e}")
-        return {
-            "message": "Goal generation service temporarily unavailable",
-            "status": "error",
-            "error": str(e)
-        }
-
-@router.get("/progress/status")
-async def get_goal_generation_progress():
-    """Get progress of AI goal generation"""
-    # This would connect to your existing progress tracking
-    return {
-        "status": "completed",
-        "message": "All goal generation processes completed"
-    }
+        raise HTTPException(status_code=500, detail=str(e))
