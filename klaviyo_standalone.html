@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klaviyo Account Linking - Truly Standalone</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a202c;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+        h2 {
+            color: #2d3748;
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 20px;
+        }
+        .notice {
+            background: #fef5e7;
+            border: 2px solid #f39c12;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .notice h3 {
+            color: #e67e22;
+            margin-bottom: 8px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .status-card {
+            background: #f7fafc;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .status-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .status-label {
+            color: #718096;
+            font-size: 14px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 12px;
+            margin-bottom: 12px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-blue {
+            background: #4299e1;
+            color: white;
+        }
+        .btn-blue:hover:not(:disabled) {
+            background: #3182ce;
+        }
+        .btn-green {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-green:hover:not(:disabled) {
+            background: #38a169;
+        }
+        .btn-purple {
+            background: #9f7aea;
+            color: white;
+        }
+        .btn-purple:hover:not(:disabled) {
+            background: #805ad5;
+        }
+        .btn-indigo {
+            background: #667eea;
+            color: white;
+        }
+        .btn-indigo:hover:not(:disabled) {
+            background: #5a67d8;
+        }
+        .btn-gray {
+            background: #718096;
+            color: white;
+        }
+        .btn-gray:hover:not(:disabled) {
+            background: #4a5568;
+        }
+        .account-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .account-info h3 {
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+        .account-info p {
+            color: #718096;
+            font-size: 14px;
+        }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-linked {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        .badge-unlinked {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        .log {
+            background: #1a202c;
+            color: #68d391;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 4px;
+        }
+        .log-error { color: #fc8181; }
+        .log-warning { color: #f6e05e; }
+        .log-success { color: #68d391; }
+        .log-info { color: #63b3ed; }
+        
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            margin-right: 8px;
+            font-size: 14px;
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        select {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            margin-right: 8px;
+            font-size: 14px;
+        }
+        
+        .link-interface {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: #f7fafc;
+        }
+        
+        .link-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        
+        .link-controls select {
+            flex: 1;
+        }
+        
+        .success-check {
+            color: #48bb78;
+            font-size: 28px;
+        }
+        .error-x {
+            color: #f56565;
+            font-size: 28px;
+        }
+        
+        .token-input-group {
+            margin-bottom: 16px;
+        }
+        
+        .token-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+        
+        .info-box {
+            background: #ebf8ff;
+            border: 1px solid #90cdf4;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .info-box p {
+            color: #2c5282;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="card">
+            <h1>🔗 Klaviyo Account → Client Linking (Standalone)</h1>
+            <p class="subtitle">Direct connection without server dependency</p>
+        </div>
+
+        <!-- Important Notice -->
+        <div class="notice">
+            <h3>⚠️ Direct Access Mode</h3>
+            <p>This page connects directly to the EmailPilot API. You need to provide your access token manually.</p>
+            <p style="margin-top: 8px;"><strong>To get your token:</strong></p>
+            <ol style="margin-left: 20px; margin-top: 8px;">
+                <li>Open the main EmailPilot app at <a href="http://localhost:8000" target="_blank">http://localhost:8000</a></li>
+                <li>Login with your account</li>
+                <li>Open browser DevTools (F12)</li>
+                <li>Go to Console and type: <code>localStorage.getItem('access_token')</code></li>
+                <li>Copy the token and paste it below</li>
+            </ol>
+        </div>
+
+        <!-- Token Input -->
+        <div class="card">
+            <h2>Authentication</h2>
+            <div class="token-input-group">
+                <label for="tokenInput">Access Token:</label>
+                <input type="text" id="tokenInput" placeholder="Paste your access token here..." />
+                <button class="btn btn-blue" onclick="setToken()">Set Token</button>
+                <button class="btn btn-gray" onclick="useStoredToken()">Use Stored Token</button>
+            </div>
+            <div class="info-box">
+                <p id="tokenStatus">No token set</p>
+            </div>
+        </div>
+
+        <!-- Status Dashboard -->
+        <div class="card">
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-value" id="authStatus">-</div>
+                    <div class="status-label">Authentication</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-value" id="klaviyoStatus">-</div>
+                    <div class="status-label">Klaviyo OAuth</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-value" id="accountCount">0</div>
+                    <div class="status-label">Discovered Accounts</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-value" id="clientCount">0</div>
+                    <div class="status-label">Available Clients</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <h2>Actions</h2>
+            <div>
+                <button class="btn btn-green" onclick="checkStatus()" id="checkBtn">
+                    Check Status
+                </button>
+                <button class="btn btn-purple" onclick="discoverAccounts()" id="discoverBtn" disabled>
+                    Discover Accounts
+                </button>
+                <button class="btn btn-indigo" onclick="loadLinking()" id="linkBtn" disabled>
+                    Link to Clients
+                </button>
+            </div>
+        </div>
+
+        <!-- Discovered Accounts -->
+        <div class="card" id="accountsCard" style="display: none;">
+            <h2>Discovered Klaviyo Accounts</h2>
+            <div id="accountsList"></div>
+        </div>
+
+        <!-- Linking Interface -->
+        <div class="card" id="linkingCard" style="display: none;">
+            <h2>Link Accounts to Clients</h2>
+            <div id="linkingInterface"></div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="card">
+            <h2>Activity Log</h2>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8000';
+        let currentToken = null;
+        let accounts = [];
+        let clients = [];
+
+        function log(msg, type = 'info') {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${time}] ${msg}`;
+            logEl.insertBefore(entry, logEl.firstChild);
+        }
+
+        function setToken() {
+            const tokenInput = document.getElementById('tokenInput');
+            const token = tokenInput.value.trim();
+            
+            if (!token) {
+                log('Please enter a token', 'error');
+                return;
+            }
+            
+            currentToken = token;
+            localStorage.setItem('access_token', token);
+            document.getElementById('tokenStatus').textContent = `Token set: ${token.substring(0, 20)}...`;
+            log('Token set successfully', 'success');
+            
+            // Enable check button
+            document.getElementById('checkBtn').disabled = false;
+            
+            // Auto-check status
+            checkStatus();
+        }
+
+        function useStoredToken() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                log('No stored token found', 'error');
+                document.getElementById('tokenStatus').textContent = 'No stored token found';
+                return;
+            }
+            
+            currentToken = token;
+            document.getElementById('tokenInput').value = token;
+            document.getElementById('tokenStatus').textContent = `Using stored token: ${token.substring(0, 20)}...`;
+            log('Using stored token', 'success');
+            
+            // Enable check button
+            document.getElementById('checkBtn').disabled = false;
+            
+            // Auto-check status
+            checkStatus();
+        }
+
+        async function checkStatus() {
+            if (!currentToken) {
+                log('No token set', 'error');
+                return;
+            }
+
+            log('Checking status...');
+
+            try {
+                // Check auth
+                const authRes = await fetch(`${API}/api/auth/google/me`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                
+                if (authRes.ok) {
+                    const user = await authRes.json();
+                    document.getElementById('authStatus').innerHTML = '<span class="success-check">✓</span>';
+                    log(`Authenticated as ${user.email}`, 'success');
+                    
+                    // Check Klaviyo
+                    const klavRes = await fetch(`${API}/api/integrations/klaviyo/status`, {
+                        headers: { 'Authorization': `Bearer ${currentToken}` }
+                    });
+                    
+                    if (klavRes.ok) {
+                        const klavData = await klavRes.json();
+                        if (klavData.connected) {
+                            document.getElementById('klaviyoStatus').innerHTML = '<span class="success-check">✓</span>';
+                            document.getElementById('discoverBtn').disabled = false;
+                            log('Klaviyo connected', 'success');
+                            
+                            // Check discovered accounts
+                            const accRes = await fetch(`${API}/api/klaviyo/available-accounts`, {
+                                headers: { 'Authorization': `Bearer ${currentToken}` }
+                            });
+                            
+                            if (accRes.ok) {
+                                const accData = await accRes.json();
+                                accounts = accData.accounts || [];
+                                document.getElementById('accountCount').textContent = accounts.length;
+                                if (accounts.length > 0) {
+                                    document.getElementById('linkBtn').disabled = false;
+                                    showAccounts();
+                                }
+                                log(`Found ${accounts.length} discovered accounts`, 'info');
+                            }
+                        } else {
+                            document.getElementById('klaviyoStatus').innerHTML = '<span class="error-x">✗</span>';
+                            log('Klaviyo not connected - OAuth required', 'warning');
+                        }
+                    }
+                } else {
+                    document.getElementById('authStatus').innerHTML = '<span class="error-x">✗</span>';
+                    log('Authentication failed - token may be invalid', 'error');
+                }
+            } catch (error) {
+                log(`Status check error: ${error.message}`, 'error');
+            }
+        }
+
+        async function discoverAccounts() {
+            if (!currentToken) {
+                log('No token set', 'error');
+                return;
+            }
+
+            log('Discovering Klaviyo accounts...');
+            
+            try {
+                const res = await fetch(`${API}/api/klaviyo/discover-accounts`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Discovered ${data.discovered_accounts?.length || 0} accounts!`, 'success');
+                    checkStatus();
+                } else {
+                    const error = await res.json();
+                    log(`Discovery failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Discovery error: ${error.message}`, 'error');
+            }
+        }
+
+        function showAccounts() {
+            const card = document.getElementById('accountsCard');
+            const list = document.getElementById('accountsList');
+            
+            card.style.display = 'block';
+            list.innerHTML = accounts.map(acc => `
+                <div class="account-item">
+                    <div class="account-info">
+                        <h3>${acc.account_name || 'Unnamed Account'}</h3>
+                        <p>${acc.contact_email || 'No email'} | ID: ${acc.account_id}</p>
+                    </div>
+                    <span class="badge ${acc.linked_client_id ? 'badge-linked' : 'badge-unlinked'}">
+                        ${acc.linked_client_id ? 'Linked' : 'Not Linked'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        async function loadLinking() {
+            if (!currentToken) {
+                log('No token set', 'error');
+                return;
+            }
+
+            log('Loading clients...');
+            
+            try {
+                const res = await fetch(`${API}/api/klaviyo/linkable-clients`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    clients = data.clients || [];
+                    document.getElementById('clientCount').textContent = clients.length;
+                    showLinking();
+                    log(`Loaded ${clients.length} available clients`, 'success');
+                }
+            } catch (error) {
+                log(`Failed to load clients: ${error.message}`, 'error');
+            }
+        }
+
+        function showLinking() {
+            const card = document.getElementById('linkingCard');
+            const interface = document.getElementById('linkingInterface');
+            
+            card.style.display = 'block';
+            
+            const unlinked = accounts.filter(a => !a.linked_client_id);
+            
+            if (unlinked.length === 0) {
+                interface.innerHTML = '<p>All accounts are already linked!</p>';
+                return;
+            }
+            
+            interface.innerHTML = unlinked.map(acc => `
+                <div class="link-interface">
+                    <h3>${acc.account_name || 'Unnamed'}</h3>
+                    <div class="link-controls">
+                        <select id="select_${acc.account_id}">
+                            <option value="">Select a client...</option>
+                            ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                        </select>
+                        <button class="btn btn-blue" onclick="linkAccount('${acc.account_id}')">Link</button>
+                        <button class="btn btn-green" onclick="createClient('${acc.account_id}', '${acc.account_name || ''}')">Create New</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function linkAccount(accountId) {
+            if (!currentToken) {
+                log('No token set', 'error');
+                return;
+            }
+
+            const clientId = document.getElementById(`select_${accountId}`).value;
+            
+            if (!clientId) {
+                log('Please select a client', 'warning');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API}/api/klaviyo/link-account`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ account_id: accountId, client_id: clientId })
+                });
+                
+                if (res.ok) {
+                    log('Account linked successfully!', 'success');
+                    checkStatus();
+                } else {
+                    const error = await res.json();
+                    log(`Link failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Link error: ${error.message}`, 'error');
+            }
+        }
+
+        async function createClient(accountId, name) {
+            if (!currentToken) {
+                log('No token set', 'error');
+                return;
+            }
+
+            const clientName = prompt('Client name:', name || 'New Client');
+            
+            if (!clientName) return;
+            
+            try {
+                const res = await fetch(`${API}/api/klaviyo/create-client`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ account_id: accountId, client_name: clientName })
+                });
+                
+                if (res.ok) {
+                    log(`Client "${clientName}" created!`, 'success');
+                    checkStatus();
+                    loadLinking();
+                } else {
+                    const error = await res.json();
+                    log(`Create failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Create error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        window.onload = () => {
+            log('Standalone page loaded');
+            log('This page requires manual token input', 'warning');
+            
+            // Check if there's a stored token
+            const storedToken = localStorage.getItem('access_token');
+            if (storedToken) {
+                document.getElementById('tokenStatus').textContent = 'Found stored token - click "Use Stored Token" to use it';
+                log('Found stored token in localStorage', 'info');
+            }
+        };
+    </script>
+</body>
+</html>

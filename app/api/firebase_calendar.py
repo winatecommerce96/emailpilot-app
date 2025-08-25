@@ -13,6 +13,8 @@ import uuid
 from app.api.auth import verify_token
 from app.services.gemini_service import GeminiService
 from app.services.google_service import GoogleService
+from app.services.secrets import SecretManagerService
+from app.deps import get_secret_manager_service
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -21,9 +23,14 @@ from firebase_calendar_integration import firebase_calendar, firebase_clients, f
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Initialize services
-gemini_service = GeminiService()
+# Initialize stateless services
 google_service = GoogleService()
+
+# Dependency factory for GeminiService (uses Secret Manager)
+def get_gemini_service(
+    secret_manager: SecretManagerService = Depends(get_secret_manager_service),
+) -> GeminiService:
+    return GeminiService(secret_manager=secret_manager)
 
 @router.get("/events")
 async def get_calendar_events(
@@ -140,7 +147,8 @@ async def duplicate_calendar_event(
 async def import_from_google_doc(
     import_data: dict,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(verify_token)
+    current_user: dict = Depends(verify_token),
+    gemini_service: GeminiService = Depends(get_gemini_service),
 ):
     """Import calendar events from Google Doc (Firebase version)"""
     try:
@@ -156,12 +164,13 @@ async def import_from_google_doc(
         if not client:
             raise HTTPException(status_code=404, detail="Client not found")
         
-        # Start background import process
+        # Start background import process, passing dependencies explicitly
         background_tasks.add_task(
             process_google_doc_import,
             client_id=client_id,
             doc_id=doc_id,
-            access_token=access_token
+            access_token=access_token,
+            gemini_service=gemini_service,
         )
         
         return {"message": "Import started successfully"}
@@ -172,7 +181,12 @@ async def import_from_google_doc(
         logger.error(f"Error starting Google Doc import: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def process_google_doc_import(client_id: str, doc_id: str, access_token: str):
+async def process_google_doc_import(
+    client_id: str,
+    doc_id: str,
+    access_token: str,
+    gemini_service: GeminiService,
+):
     """Background task to process Google Doc import"""
     try:
         # Extract document content
@@ -234,7 +248,8 @@ def _extract_event_type_from_color(color: str) -> str:
 @router.post("/chat")
 async def calendar_chat(
     chat_data: dict,
-    current_user: dict = Depends(verify_token)
+    current_user: dict = Depends(verify_token),
+    gemini_service: GeminiService = Depends(get_gemini_service),
 ):
     """Chat with AI about calendar events (Firebase version)"""
     try:

@@ -1,0 +1,198 @@
+{
+  "inventory_date": "2025-08-20",
+  "summary": {
+    "total_endpoints": 165,
+    "exposed_in_ui": 70,
+    "hidden": 95,
+    "dead_or_deprecated": 8,
+    "coverage_percentage": 42.4
+  },
+  "endpoints_by_status": {
+    "active_and_hidden": [
+      {
+        "path": "/api/admin/system/status",
+        "method": "GET",
+        "category": "System Health",
+        "priority": "HIGH",
+        "description": "Complete system health overview",
+        "ui_component_needed": "AdminHealthPanel"
+      },
+      {
+        "path": "/api/mcp/health",
+        "method": "GET",
+        "category": "MCP",
+        "priority": "HIGH",
+        "description": "MCP service status and metrics",
+        "ui_component_needed": "MCPHealthIndicator"
+      },
+      {
+        "path": "/api/ai/stats",
+        "method": "GET",
+        "category": "AI",
+        "priority": "HIGH",
+        "description": "AI usage and performance statistics",
+        "ui_component_needed": "AIStatsWidget"
+      },
+      {
+        "path": "/api/agents/stats",
+        "method": "GET",
+        "category": "Agents",
+        "priority": "HIGH",
+        "description": "Agent performance analytics",
+        "ui_component_needed": "AgentPerformancePanel"
+      },
+      {
+        "path": "/api/ai-models/stats",
+        "method": "GET",
+        "category": "AI",
+        "priority": "HIGH",
+        "description": "Model usage and health data",
+        "ui_component_needed": "AIModelHealthDashboard"
+      },
+      {
+        "path": "/api/dashboard/quick-stats",
+        "method": "GET",
+        "category": "Dashboard",
+        "priority": "HIGH",
+        "description": "Key performance metrics",
+        "ui_component_needed": "QuickStatsWidget"
+      },
+      {
+        "path": "/api/goals/data-status",
+        "method": "GET",
+        "category": "Goals",
+        "priority": "MEDIUM",
+        "description": "Goals system health and data status",
+        "ui_component_needed": "GoalsDataStatusPanel"
+      },
+      {
+        "path": "/api/admin/services/catalog",
+        "method": "GET",
+        "category": "Admin",
+        "priority": "MEDIUM",
+        "description": "Available services overview",
+        "ui_component_needed": "ServiceCatalogPanel"
+      },
+      {
+        "path": "/api/admin/notifications",
+        "method": "GET",
+        "category": "Admin",
+        "priority": "MEDIUM",
+        "description": "System notifications",
+        "ui_component_needed": "NotificationsCenter"
+      },
+      {
+        "path": "/api/agent-config/agents",
+        "method": "GET",
+        "category": "Agents",
+        "priority": "MEDIUM",
+        "description": "Agent configuration management",
+        "ui_component_needed": "AgentConfigManager"
+      },
+      {
+        "path": "/api/proxy/health",
+        "method": "GET",
+        "category": "System",
+        "priority": "MEDIUM",
+        "description": "Proxy service status",
+        "ui_component_needed": "ProxyHealthWidget"
+      },
+      {
+        "path": "/api/calendar/bulk/events",
+        "method": "POST",
+        "category": "Calendar",
+        "priority": "LOW",
+        "description": "Bulk calendar operations",
+        "ui_component_needed": "CalendarBulkOps"
+      },
+      {
+        "path": "/api/reports/mcp/weekly",
+        "method": "POST",
+        "category": "Reports",
+        "priority": "LOW",
+        "description": "MCP weekly report generation",
+        "ui_component_needed": "MCPReportGenerator"
+      },
+      {
+        "path": "/api/admin/firestore/collections",
+        "method": "GET",
+        "category": "Admin",
+        "priority": "LOW",
+        "description": "Firestore collections management",
+        "ui_component_needed": "FirestoreManager"
+      },
+      {
+        "path": "/api/integrations/asana/status",
+        "method": "GET",
+        "category": "Integrations",
+        "priority": "LOW",
+        "description": "Asana integration status",
+        "ui_component_needed": "AsanaStatusWidget"
+      }
+    ],
+    "active_and_exposed": [
+      "/api/admin/clients",
+      "/api/auth/login",
+      "/api/auth/me",
+      "/api/calendar/events",
+      "/api/goals",
+      "/api/mcp/status",
+      "/api/admin/users",
+      "/api/admin/environment",
+      "/api/admin/packages",
+      "/api/ai-models",
+      "/api/slack/test"
+    ],
+    "dead_or_deprecated": [
+      {
+        "path": "/api/admin/diagnostics/summary",
+        "reason": "Connection timeout - needs investigation",
+        "action": "FIX_OR_REMOVE"
+      },
+      {
+        "path": "/api/performance/comparison",
+        "reason": "422 Validation Error - missing required params",
+        "action": "FIX_PARAMS"
+      },
+      {
+        "path": "/api/calendar/stats",
+        "reason": "422 Validation Error",
+        "action": "FIX_VALIDATION"
+      },
+      {
+        "path": "/api/tools/status",
+        "reason": "403 Forbidden - auth required",
+        "action": "ADD_AUTH"
+      }
+    ]
+  },
+  "ui_components_to_create": {
+    "high_priority": [
+      "AdminHealthPanel",
+      "MCPHealthIndicator",
+      "AIStatsWidget",
+      "AgentPerformancePanel",
+      "AIModelHealthDashboard",
+      "QuickStatsWidget"
+    ],
+    "medium_priority": [
+      "GoalsDataStatusPanel",
+      "ServiceCatalogPanel",
+      "NotificationsCenter",
+      "AgentConfigManager",
+      "ProxyHealthWidget"
+    ],
+    "low_priority": [
+      "CalendarBulkOps",
+      "MCPReportGenerator",
+      "FirestoreManager",
+      "AsanaStatusWidget"
+    ]
+  },
+  "regression_protection": {
+    "test_script": "test_endpoint_ui_parity.py",
+    "ci_check": "endpoint_coverage_check.yml",
+    "minimum_coverage": 80,
+    "alert_on_new_endpoints": true
+  }
+}

@@ -1,0 +1,261 @@
+[
+  {
+    "name": "emailpilot-backend-api",
+    "path": "main_firestore.py",
+    "type": "api",
+    "summary": "Primary FastAPI backend serving EmailPilot APIs (calendar, MCP, performance, admin) with Firestore integration.",
+    "entrypoints": [
+      {"kind": "uvicorn", "command": "uvicorn main_firestore:app --host 0.0.0.0 --port 8000", "port": 8000}
+    ],
+    "routes": [
+      {"method":"GET","path":"/health","summary":"health check"},
+      {"method":"GET","path":"/api/","summary":"API root health/status"},
+      {"method":"POST","path":"/api/performance/orders/monitor-all","summary":"bulk order monitor"},
+      {"method":"GET","path":"/api/mcp/health","summary":"MCP local health (mock)"},
+      {"method":"GET","path":"/api/tools/","summary":"list available external tools"},
+      {"method":"POST","path":"/api/tools/run/{tool_id}","summary":"run selected external tool"}
+    ],
+    "data_io": {
+      "reads_from": ["Firestore: clients, goals, performance, various app collections"],
+      "writes_to": ["Firestore: performance, admin notifications", "logs"],
+      "env_vars": ["GOOGLE_CLOUD_PROJECT", "CORS_ORIGINS", "LOG_FORMAT", "ENVIRONMENT"]
+    },
+    "dependencies_internal": ["app/api/*", "app/services/*"],
+    "dependencies_external": ["fastapi", "google-cloud-firestore", "httpx"],
+    "healthcheck": {"path": "/health", "notes": "Returns {status: ok}; startup probes validate Firestore and Secret Manager access."},
+    "alerts": ["Exposes performance monitor endpoint; alerts created by OrderMonitorService via admin notifications when zero-revenue days detected."],
+    "status": "active",
+    "notes": "Routers are assembled in main_firestore.py; serves SPA under /static and catch-all routes."
+  },
+  {
+    "name": "klaviyo-api-test",
+    "path": "services/klaviyo_api/main.py",
+    "type": "api",
+    "summary": "Standalone FastAPI service providing Klaviyo email-attributed revenue via values reports (campaign + flow) and MCP tooling.",
+    "entrypoints": [
+      {"kind": "uvicorn", "command": "uvicorn services.klaviyo_api.main:app --host 127.0.0.1 --port 9090", "port": 9090},
+      {"kind": "make", "command": "make quick-check-revenue", "port": 9090}
+    ],
+    "routes": [
+      {"method":"GET","path":"/healthz","summary":"health check"},
+      {"method":"GET","path":"/clients/{client_id}/revenue/last7","summary":"sum campaign+flow revenue for client"},
+      {"method":"GET","path":"/clients/by-slug/{slug}/revenue/last7","summary":"sum revenue by slug"},
+      {"method":"GET","path":"/clients/{client_id}/weekly/metrics","summary":"weekly totals and orders"},
+      {"method":"GET","path":"/clients/by-slug/{slug}/weekly/metrics","summary":"weekly totals by slug"},
+      {"method":"GET","path":"/clients/{client_id}/weekly/full","summary":"weekly full metrics bundle"},
+      {"method":"GET","path":"/clients/by-slug/{slug}/weekly/full","summary":"weekly full by slug"},
+      {"method":"POST","path":"/admin/cache/clear","summary":"evict revenue cache for client"},
+      {"method":"POST","path":"/admin/metric/detect","summary":"auto-detect Placed Order metric id"},
+      {"method":"POST","path":"/admin/metric/lock","summary":"persist detected metric id to Firestore"},
+      {"method":"GET","path":"/admin/prompts","summary":"list MCP prompts (Firestore mcp_prompts)"},
+      {"method":"GET","path":"/admin/prompts/{name}","summary":"get prompt"},
+      {"method":"POST","path":"/admin/prompts","summary":"upsert prompt"},
+      {"method":"DELETE","path":"/admin/prompts/{name}","summary":"delete prompt"},
+      {"method":"POST","path":"/admin/prompts/{name}/test","summary":"render and run revenue tool for prompt"},
+      {"method":"GET","path":"/admin/mcp/status","summary":"list managed MCP process statuses"},
+      {"method":"POST","path":"/admin/mcp/start","summary":"start MCP process (kind)"},
+      {"method":"POST","path":"/admin/mcp/stop","summary":"stop MCP process (kind)"},
+      {"method":"POST","path":"/admin/mcp/call","summary":"raw MCP JSON-RPC call"},
+      {"method":"POST","path":"/admin/mcp/tools/call","summary":"call named MCP tool"},
+      {"method":"POST","path":"/admin/mcp/tools/smart_call","summary":"route tool call across backends"}
+    ],
+    "data_io": {
+      "reads_from": ["Firestore: clients, mcp_prompts", "Google Secret Manager", "Klaviyo values-reports endpoints"],
+      "writes_to": ["Firestore: clients.placed_order_metric_id", "in-memory cache", "logs"],
+      "env_vars": ["GOOGLE_CLOUD_PROJECT", "REVENUE_CACHE_TTL", "KLAVIYO_CACHE_TTL", "PERFORMANCE_API_BASE", "AI_MODELS_API_BASE", "FIREBASE_MCP_CMD"]
+    },
+    "dependencies_internal": ["app/utils/logging_utils"],
+    "dependencies_external": ["fastapi", "httpx", "google-cloud-firestore", "google-cloud-secret-manager"],
+    "healthcheck": {"path": "/healthz", "notes": "Returns status ok and project id; service makes outbound calls to Klaviyo."},
+    "alerts": [],
+    "status": "active",
+    "notes": "Supersedes older revenue_api; provides MCP OpenAPI wrappers for revenue, performance, and ai_models." 
+  },
+  {
+    "name": "emailpilot-legacy-app",
+    "path": "app/main.py",
+    "type": "api",
+    "summary": "Minimal FastAPI used during early development; exposes a health route and simple goals read.",
+    "entrypoints": [
+      {"kind": "uvicorn", "command": "uvicorn app.main:app --reload --port 8000", "port": 8000}
+    ],
+    "routes": [
+      {"method":"GET","path":"/health","summary":"health check"},
+      {"method":"GET","path":"/goals/{user_id}","summary":"list goals for user from Firestore"}
+    ],
+    "data_io": {"reads_from": ["Firestore: goals"], "writes_to": [], "env_vars": ["GOOGLE_CLOUD_PROJECT"]},
+    "dependencies_internal": [],
+    "dependencies_external": ["fastapi", "google-cloud-firestore"],
+    "healthcheck": {"path": "/health", "notes": "Simple JSON ok."},
+    "alerts": [],
+    "status": "legacy",
+    "notes": "Superseded by main_firestore.py; keep for reference/testing."
+  },
+  {
+    "name": "performance-api",
+    "path": "services/performance_api/main.py",
+    "type": "api",
+    "summary": "Test API to compute and persist weekly/monthly performance vs goals by calling the Klaviyo API service and Firestore.",
+    "entrypoints": [
+      {"kind": "uvicorn", "command": "uvicorn services.performance_api.main:app --host 127.0.0.1 --port 9091", "port": 9091}
+    ],
+    "routes": [
+      {"method":"GET","path":"/healthz","summary":"health check"},
+      {"method":"POST","path":"/jobs/weekly","summary":"compute and store weekly metrics"},
+      {"method":"POST","path":"/jobs/monthly","summary":"compute and store monthly metrics with goal progress"}
+    ],
+    "data_io": {
+      "reads_from": ["Firestore: clients and goals", "Klaviyo API service: /clients/*/revenue/last7"],
+      "writes_to": ["Firestore: clients/{id}/performance"],
+      "env_vars": ["GOOGLE_CLOUD_PROJECT", "REVENUE_API_BASE", "KLAVIYO_API_BASE"]
+    },
+    "dependencies_internal": [],
+    "dependencies_external": ["fastapi", "google-cloud-firestore", "httpx"],
+    "healthcheck": {"path": "/healthz", "notes": "Returns ok with project and configured revenue base URL."},
+    "alerts": [],
+    "status": "active",
+    "notes": "Designed to be wrapped as an MCP OpenAPI tool for jobs endpoints."
+  },
+  {
+    "name": "anthropic-mapper",
+    "path": "anthropic_mapper.py",
+    "type": "api",
+    "summary": "Small FastAPI proxy that rewrites model aliases and forwards requests to Anthropic’s /v1/messages and /v1/models.",
+    "entrypoints": [
+      {"kind": "uvicorn", "command": "uvicorn anthropic_mapper:app", "port": 8000}
+    ],
+    "routes": [
+      {"method":"GET","path":"/health","summary":"health check"},
+      {"method":"GET","path":"/v1/models","summary":"list model ids including aliases"},
+      {"method":"POST","path":"/v1/messages","summary":"forward messages to Anthropic with optional streaming"}
+    ],
+    "data_io": {
+      "reads_from": ["Anthropic upstream API via HTTP"],
+      "writes_to": ["HTTP streaming response"],
+      "env_vars": ["ANTHROPIC_UPSTREAM", "ANTHROPIC_VERSION", "ANTHROPIC_API_KEY"]
+    },
+    "dependencies_internal": [],
+    "dependencies_external": ["fastapi", "httpx"],
+    "healthcheck": {"path": "/health", "notes": "Returns ok."},
+    "alerts": [],
+    "status": "experimental",
+    "notes": "Runs on default uvicorn port unless overridden; choose a non-8000 port when main API is running."
+  },
+  {
+    "name": "revenue-api-legacy",
+    "path": "services/revenue_api",
+    "type": "api",
+    "summary": "Legacy revenue aggregation service directory retained for docs/spec; implementation moved to services/klaviyo_api.",
+    "entrypoints": [],
+    "routes": [],
+    "data_io": {"reads_from": [], "writes_to": [], "env_vars": []},
+    "dependencies_internal": [],
+    "dependencies_external": [],
+    "healthcheck": {"path": "", "notes": "No active server file present."},
+    "alerts": [],
+    "status": "legacy",
+    "notes": "Replace with klaviyo-api-test service (services/klaviyo_api/main.py)."
+  },
+  {
+    "name": "mcp-openapi-revenue",
+    "path": "services/klaviyo_api/openapi.yaml",
+    "type": "mcp",
+    "summary": "OpenAPI MCP wrapper for the Klaviyo API service exposing revenue and weekly metrics tools over JSON-RPC.",
+    "entrypoints": [
+      {"kind": "cli", "command": "npx @modelcontextprotocol/openapi --spec services/klaviyo_api/openapi.yaml --server.url http://localhost:9090", "port": null}
+    ],
+    "routes": [],
+    "data_io": {"reads_from": ["services/klaviyo_api openapi"], "writes_to": [], "env_vars": ["REVENUE_API_BASE"]},
+    "dependencies_internal": [],
+    "dependencies_external": ["@modelcontextprotocol/openapi"],
+    "healthcheck": {"path": "", "notes": "MCP over stdio; status managed via admin MCP endpoints in klaviyo_api."},
+    "alerts": [],
+    "status": "active",
+    "notes": "Managed by /admin/mcp/* endpoints in klaviyo_api service."
+  },
+  {
+    "name": "mcp-openapi-performance",
+    "path": "services/performance_api/openapi.yaml",
+    "type": "mcp",
+    "summary": "OpenAPI MCP wrapper exposing performance jobs (/jobs/weekly, /jobs/monthly) as tools.",
+    "entrypoints": [
+      {"kind": "cli", "command": "npx @modelcontextprotocol/openapi --spec services/performance_api/openapi.yaml --server.url http://localhost:9091", "port": null}
+    ],
+    "routes": [],
+    "data_io": {"reads_from": ["services/performance_api openapi"], "writes_to": [], "env_vars": ["PERFORMANCE_API_BASE"]},
+    "dependencies_internal": [],
+    "dependencies_external": ["@modelcontextprotocol/openapi"],
+    "healthcheck": {"path": "", "notes": "MCP over stdio; status managed in klaviyo_api /admin/mcp endpoints."},
+    "alerts": [],
+    "status": "active",
+    "notes": "Used by klaviyo_api MCPProcess management."
+  },
+  {
+    "name": "mcp-openapi-ai-models",
+    "path": "services/ai_models_api/openapi.yaml",
+    "type": "mcp",
+    "summary": "OpenAPI MCP wrapper for AI Models management endpoints (prompts, prompt-designer).",
+    "entrypoints": [
+      {"kind": "cli", "command": "npx @modelcontextprotocol/openapi --spec services/ai_models_api/openapi.yaml --server.url http://localhost:8000", "port": null}
+    ],
+    "routes": [],
+    "data_io": {"reads_from": ["services/ai_models_api openapi"], "writes_to": [], "env_vars": ["AI_MODELS_API_BASE"]},
+    "dependencies_internal": [],
+    "dependencies_external": ["@modelcontextprotocol/openapi"],
+    "healthcheck": {"path": "", "notes": "MCP over stdio; tool list via MCP tools/list."},
+    "alerts": [],
+    "status": "experimental",
+    "notes": "Spec only; actual API endpoints may be provided by main backend."
+  }
+  ,
+  {
+    "name": "order-monitor",
+    "path": "app/services/order_monitor.py",
+    "type": "library",
+    "summary": "Library service to fetch last-5-days revenue via Klaviyo API service and create admin alerts for zero-revenue days.",
+    "entrypoints": [],
+    "routes": [],
+    "data_io": {
+      "reads_from": ["HTTP: services/klaviyo_api /healthz and /clients/*/revenue/last7", "Firestore: clients"],
+      "writes_to": ["Firestore: clients/{id}/performance/revenue", "admin notifications"],
+      "env_vars": []
+    },
+    "dependencies_internal": ["app/services/admin_notifications"],
+    "dependencies_external": ["httpx", "google-cloud-firestore"],
+    "healthcheck": {"path": "", "notes": "Uses upstream /healthz to verify revenue service."},
+    "alerts": ["When zero-revenue days detected (up to last 5), create admin notification."],
+    "status": "active",
+    "notes": "Invoked by /api/performance/orders/monitor-all endpoint."
+  },
+  {"name":"admin-notifications","path":"app/services/admin_notifications.py","type":"library","summary":"Manage admin notifications and alerts stored in Firestore.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore: admin_notifications"],"writes_to":["Firestore: admin_notifications"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":"Used by OrderMonitorService."},
+  {"name":"agent-service","path":"app/services/agent_service.py","type":"library","summary":"Base multi-agent orchestration helper for Email/SMS agents.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"agent-service-enhanced","path":"app/services/agent_service_enhanced.py","type":"library","summary":"Enhanced agent orchestration utilities and helpers.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"ai-models-service","path":"app/services/ai_models_service.py","type":"library","summary":"Manage AI model configurations, prompts, and related operations.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"asana-client","path":"app/services/asana_client.py","type":"library","summary":"Asana API client helpers for project/task access.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Asana API"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"asana-event-processor","path":"app/services/asana_event_processor.py","type":"library","summary":"Process and normalize incoming Asana webhook events.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"asana-oauth","path":"app/services/asana_oauth.py","type":"library","summary":"Support Asana OAuth linking flows for users/clients.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"auth-service","path":"app/services/auth.py","type":"library","summary":"Authentication helpers used by API routes (tokens/sessions).","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"calendar-planning-prompts","path":"app/services/calendar_planning_prompts.py","type":"library","summary":"Reusable prompt templates for AI calendar planning flows.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"calendar-service","path":"app/services/calendar_service.py","type":"library","summary":"Calendar CRUD and helper routines backing calendar APIs.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore: calendar-related collections"],"writes_to":["Firestore: calendar-related collections"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"client-key-resolver","path":"app/services/client_key_resolver.py","type":"library","summary":"Resolve per-client API keys/secrets from Secret Manager/Firestore.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore", "Secret Manager"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore","google-cloud-secret-manager"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"client-linking","path":"app/services/client_linking.py","type":"library","summary":"Link user accounts to client resources (Klaviyo/Asana) with status checks.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore"],"writes_to":["Firestore"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"env-manager","path":"app/services/env_manager.py","type":"library","summary":"Environment configuration and convenience helpers for settings.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"firestore-service","path":"app/services/firestore.py","type":"library","summary":"Firestore access helpers and utility functions.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore"],"writes_to":["Firestore"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"firestore-optimized","path":"app/services/firestore_optimized.py","type":"library","summary":"Optimized Firestore query patterns and batching utilities.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore"],"writes_to":["Firestore"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"gemini-service","path":"app/services/gemini_service.py","type":"library","summary":"Google Gemini client wrappers and goal-aware prompt execution.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-generativeai"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"goal-generator","path":"app/services/goal_generator.py","type":"library","summary":"Generate goals and recommendations for campaign planning.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"experimental","notes":""},
+  {"name":"goal-manager","path":"app/services/goal_manager.py","type":"library","summary":"Create, update, and track goals in Firestore for clients.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore: goals"],"writes_to":["Firestore: goals"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"goals-aware-gemini-service","path":"app/services/goals_aware_gemini_service.py","type":"library","summary":"Gemini prompts that incorporate goals context for better suggestions.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-generativeai"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"google-service","path":"app/services/google_service.py","type":"library","summary":"Google API helpers (auth, sheets/drive placeholders).","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"experimental","notes":""},
+  {"name":"klaviyo-client","path":"app/services/klaviyo_client.py","type":"library","summary":"HTTP client for Klaviyo endpoints used by performance and monitoring flows.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Klaviyo API"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"klaviyo-data-service","path":"app/services/klaviyo_data_service.py","type":"library","summary":"Klaviyo data access utilities and aggregations.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Klaviyo API"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"klaviyo-direct-service","path":"app/services/klaviyo_direct.py","type":"library","summary":"Direct Klaviyo API access helpers (low-level).","entrypoints":[],"routes":[],"data_io":{"reads_from":["Klaviyo API"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"klaviyo-discovery-service","path":"app/services/klaviyo_discovery.py","type":"library","summary":"Discover Klaviyo account metadata and available resources.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Klaviyo API", "Firestore"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx","google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"mcp-client","path":"app/services/mcp_client.py","type":"library","summary":"Client-side helpers/models for MCP interactions.","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":[],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"mcp-firestore-sync","path":"app/services/mcp_firestore_sync.py","type":"library","summary":"Sync MCP artifacts and usage into Firestore collections.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore"],"writes_to":["Firestore"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"mcp-service","path":"app/services/mcp_service.py","type":"library","summary":"Provider-agnostic MCP manager to execute tools via Claude/OpenAI/Gemini.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Secret Manager", "Firestore"],"writes_to":["Firestore: usage"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["openai","anthropic","google-generativeai","httpx","google-cloud-firestore","google-cloud-secret-manager"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":"Used by /api/mcp* routes."},
+  {"name":"performance-monitor","path":"app/services/performance_monitor.py","type":"library","summary":"Compute performance KPIs and trends for dashboards using stored data.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"report-generator","path":"app/services/report_generator.py","type":"library","summary":"Generate weekly/monthly reports and insights from metrics.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Firestore", "Klaviyo API (via clients)"],"writes_to":[],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["google-cloud-firestore","httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"secrets-service","path":"app/services/secrets.py","type":"library","summary":"Wrapper around Google Secret Manager to fetch/store project and client secrets.","entrypoints":[],"routes":[],"data_io":{"reads_from":["Google Secret Manager"],"writes_to":[],"env_vars":["GOOGLE_CLOUD_PROJECT"]},"dependencies_internal":[],"dependencies_external":["google-cloud-secret-manager"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"active","notes":""},
+  {"name":"slack-alerts","path":"app/services/slack_alerts.py","type":"library","summary":"Slack alerting (currently disabled in favor of admin notifications).","entrypoints":[],"routes":[],"data_io":{"reads_from":[],"writes_to":["Slack webhook"],"env_vars":[]},"dependencies_internal":[],"dependencies_external":["httpx"],"healthcheck":{"path":"","notes":""},"alerts":[],"status":"legacy","notes":"Replaced by AdminNotificationService alerts."}
+]

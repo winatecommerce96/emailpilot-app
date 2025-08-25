@@ -2,13 +2,16 @@
 EmailPilot FastAPI Application with Google Cloud Firestore Integration
 
 This version uses Google Cloud Firestore for all data storage.
-Replaces SQLite with cloud-native database for better scalability.
+Cloud-native database for better scalability and reliability.
 """
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 import os
 import json
 from datetime import datetime
@@ -23,6 +26,13 @@ load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
+try:
+    # Attach a rotating file handler for app logs (safe in local/dev)
+    from app.utils.logging_utils import setup_rotating_file_logging
+    setup_rotating_file_logging("emailpilot_app", logfile=os.path.join("logs", "emailpilot_app.log"))
+except Exception:
+    # Best-effort; continue if helper unavailable
+    pass
 logger = logging.getLogger(__name__)
 
 # IMPORTANT: Ensure we're running the correct implementation
@@ -42,17 +52,33 @@ if 'calendar-project' in sys.path or 'calendar_project' in str(Path.cwd()):
 
 # Import API routers
 from app.api.admin import router as admin_router
+from app.api.admin_users import router as admin_users_router
 
+from app.api.calendar import router as calendar_router
+from app.api.calendar_enhanced import router as calendar_enhanced_router
+from app.api.calendar_planning import router as calendar_planning_router
+from app.api.calendar_planning_ai import router as calendar_planning_ai_router
+from app.api.calendar_planning_templates import router as calendar_planning_templates_router
+from app.api.firebase_calendar import router as firebase_calendar_router
+
+# Import LangSmith-traced calendar router
 try:
-    from app.api.calendar import router as calendar_router
-except ImportError:
-    calendar_router = None
-    logger.warning("Calendar router not available")
+    from app.api.calendar_langsmith import router as calendar_langsmith_router
+    CALENDAR_LANGSMITH_AVAILABLE = True
+    logger.info("✅ Calendar LangSmith integration loaded successfully")
+except ImportError as e:
+    calendar_langsmith_router = None
+    CALENDAR_LANGSMITH_AVAILABLE = False
+    logger.warning(f"Calendar LangSmith integration not available: {e}")
     
 from app.api.mcp_local import router as mcp_router
+from app.api.mcp_chat import router as mcp_chat_router
 
 # Import MCP Klaviyo router 
 from app.api.mcp_klaviyo import router as mcp_klaviyo_router
+
+# Import Klaviyo Discovery router
+from app.api.klaviyo_discovery import router as klaviyo_discovery_router
 
 # Import admin client management router
 from app.api.admin_clients import router as admin_clients_router
@@ -60,31 +86,134 @@ from app.api.admin_clients import router as admin_clients_router
 # Import admin firestore router
 from app.api.admin_firestore import router as admin_firestore_router
 
+# Import admin secret manager router
+from app.api.admin_secret_manager import router as admin_secret_manager_router
+from app.api.admin_services import router as admin_services_router
+
+# Import admin notifications router
+from app.api.admin_notifications import router as admin_notifications_router
+
+# Import proxy router for CORS-safe image loading
+try:
+    from app.api.proxy import router as proxy_router
+    PROXY_AVAILABLE = True
+except ImportError:
+    proxy_router = None
+    PROXY_AVAILABLE = False
+    logger.info("Proxy router not available")
+
+# Import LangChain admin router
+try:
+    import sys
+    sys.path.insert(0, "multi-agent")
+    from integrations.langchain_core.admin.api import router as langchain_admin_router
+    LANGCHAIN_ADMIN_AVAILABLE = True
+    logger.info("LangChain admin API available")
+except ImportError as e:
+    langchain_admin_router = None
+    LANGCHAIN_ADMIN_AVAILABLE = False
+    logger.info(f"LangChain admin API not available: {e}")
+
 # Import auth router
 from app.api.auth import router as auth_router
 
-# Import Google auth router
-from app.api.auth_google import router as google_auth_router
+# Import service OAuth router (for Asana/Klaviyo integration)
+try:
+    from app.api.service_oauth import router as service_oauth_router
+    logger.info("Service OAuth module available (Asana/Klaviyo)")
+except ImportError:
+    service_oauth_router = None
+    logger.info("Service OAuth module not available")
+
+# Import Klaviyo OAuth router (for new OAuth integration)
+try:
+    from app.api.integrations.klaviyo_oauth import router as klaviyo_oauth_router
+    logger.info("✅ Klaviyo OAuth integration module loaded successfully")
+except ImportError as e:
+    klaviyo_oauth_router = None
+    logger.error(f"❌ Klaviyo OAuth integration module not available: {e}")
+
+# Import Google auth router (legacy)
+try:
+    from app.api.auth_google import router as google_auth_router
+except ImportError:
+    google_auth_router = None
 
 # Import goals router - Now using Firestore
 from app.api.goals import router as goals_router
+from app.api.goals2 import router as goals2_router
 
 # Import performance router - Now simplified  
 from app.api.performance import router as performance_router
 
 # Import reports router - Now simplified
 from app.api.reports import router as reports_router
+from app.api.reports_mcp import router as reports_mcp_router
+from app.api.reports_mcp_v2 import router as reports_mcp_v2_router
+from app.api.asana import router as asana_router
+from app.api.admin_asana import router as admin_asana_router
+from app.api.asana_oauth import router as asana_oauth_router
 
 # Import dashboard router - Now uses Firestore
 from app.api.dashboard import router as dashboard_router
 
-# Check if agent routers are available (optional)
+# Import agents router (legacy)
+from app.api.agents import router as agents_router
+
+# Import unified agents router (NEW - Single Source of Truth)
 try:
-    import app.api.email_sms_agents as email_sms_agents
-    AGENT_ROUTERS_AVAILABLE = True
+    from app.api.agents_unified import router as agents_unified_router
+    AGENTS_UNIFIED_AVAILABLE = True
 except ImportError:
-    AGENT_ROUTERS_AVAILABLE = False
-    logger.info("Agent routers not available (optional feature)")
+    agents_unified_router = None
+    AGENTS_UNIFIED_AVAILABLE = False
+    logger.info("Unified agents router not available")
+
+# Import AI Orchestrator - DISABLED IN FAVOR OF LANGCHAIN
+# from app.api.ai_orchestrator import router as ai_orchestrator_router
+ai_orchestrator_router = None
+
+# Import LangChain Admin API (alternative implementation with dependency issues)
+# NOTE: Disabled due to missing get_config() function and other dependencies
+# Try alternative LangChain Admin API if multi-agent version failed
+if not LANGCHAIN_ADMIN_AVAILABLE:
+    try:
+        from app.api.langchain_admin_full import router as langchain_admin_router_alt
+        langchain_admin_router = langchain_admin_router_alt
+        LANGCHAIN_ADMIN_AVAILABLE = True
+        logger.info("✅ Alternative LangChain Admin API loaded successfully")
+    except ImportError as e:
+        logger.warning(f"Alternative LangChain Admin API not available: {e}")
+
+# Import AI models management router (LEGACY - use orchestrator instead)
+try:
+    from app.api.ai_models import router as ai_models_router
+    AI_MODELS_AVAILABLE = True
+except ImportError:
+    ai_models_router = None
+    AI_MODELS_AVAILABLE = False
+    logger.info("AI models management router not available")
+
+# Import agent configuration router
+try:
+    from app.api.agent_config import router as agent_config_router
+    AGENT_CONFIG_AVAILABLE = True
+except ImportError:
+    agent_config_router = None
+    AGENT_CONFIG_AVAILABLE = False
+
+# Import tools router for external Klaviyo tools integration
+try:
+    from app.api.tools import router as tools_router
+    TOOLS_AVAILABLE = True
+except ImportError:
+    tools_router = None
+    TOOLS_AVAILABLE = False
+    logger.info("Tools router not available")
+
+# Email/SMS MCP agents removed - using LangChain multi-agent system instead
+AGENT_ROUTERS_AVAILABLE = False
+logger.info("Agent routers not available (optional feature)")
 
 # Check if admin agents router is available
 try:
@@ -97,23 +226,20 @@ except ImportError:
 import signal
 import requests
 
-# Import enhanced environment manager
-from app.services.env_manager import get_env_manager
+# Import the new SecretManagerService
+from app.services.secrets import SecretManagerService, SecretError, SecretNotFoundError, SecretPermissionError
 
 # Import settings for configuration
-from app.core.config import settings
+from app.core.settings import get_settings
 
 # Google Cloud Firestore
 try:
     from google.cloud import firestore
-    from app.services.firestore_client import get_firestore_client
+    from app.deps.firestore import get_db
 except ImportError:
     raise ImportError("google-cloud-firestore not installed. Run: pip install google-cloud-firestore")
 
-# Get authenticated Firestore client
-def get_db():
-    """Get Firestore database client"""
-    return get_firestore_client()
+
 
 # Approved email addresses - Add your team members here
 APPROVED_EMAILS = [
@@ -128,80 +254,112 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Load environment variables at startup
+# Templates (MPA) setup
+templates = Jinja2Templates(directory="templates")
 try:
-    env_manager = get_env_manager()
-    loaded_vars = env_manager.load_all_vars()
-    logger.info(f"Environment manager loaded with {len(loaded_vars)} variables")
+    from app.utils.assets import vite_assets
+    # Make helper available in templates
+    templates.env.globals["vite_assets"] = vite_assets
 except Exception as e:
-    logger.error(f"Error loading environment variables at startup: {e}")
+    logger.warning(f"Vite manifest helper unavailable: {e}")
 
-# Startup probe - validate secrets and Firestore connectivity
+from app.deps import get_secret_manager_service
+from app.middleware.security import RequestIDMiddleware, LoggingMiddleware, SecurityHeadersMiddleware
+from app.middleware.ratelimit import RateLimitMiddleware
+from app.utils.logging_utils import setup_json_console_logging
+
 @app.on_event("startup")
 async def startup_probe():
-    """Validate critical configuration at startup - fail fast if secrets or Firestore are unavailable"""
+    """Validate critical configuration at startup."""
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    logger.info(f"🚀 Starting up with Google Cloud Project ID: {project_id}")
     try:
-        # Touch the critical values so any failure happens immediately and loudly
-        _ = (settings.project, settings.secret_key)
-        
-        logger.info("✅ Startup probe passed: Critical secrets loaded from Secret Manager")
-        logger.info(f"  Transport: {os.getenv('SECRET_MANAGER_TRANSPORT', 'rest')}")
-        logger.info(f"  Project: {settings.project}")
-        logger.info(f"  Environment: {settings.environment}")
-        logger.info("✅ Using Firestore as the exclusive database")
-        
-        # Check secret key strength
-        if len(settings.secret_key) < 32:
-            logger.warning("⚠️  WARNING: SECRET_KEY is shorter than recommended (32+ chars)")
-        else:
-            logger.info("✅ SECRET_KEY has sufficient length")
-        
-        # Verify Firestore connectivity with a health check
-        from app.services.firestore import ping
-        from app.core.config import get_firestore_client
-        
+        # Check if GOOGLE_CLOUD_PROJECT is set
+        if not project_id:
+            raise RuntimeError("GOOGLE_CLOUD_PROJECT environment variable not set.")
+
+        # Test Secret Manager connection
+        secret_manager = get_secret_manager_service()
+        # Try to get a non-existent secret to check permissions
         try:
-            ping(get_firestore_client())
+            secret_manager.get_secret("this-secret-should-not-exist")
+        except SecretNotFoundError:
+            logger.info("✅ Secret Manager health check passed (test secret not found as expected).")
+        except SecretPermissionError:
+            logger.error("❌ STARTUP PROBE FAILED: Insufficient permissions for Secret Manager.")
+            raise
+        except SecretError as e:
+            logger.error(f"❌ STARTUP PROBE FAILED: Secret Manager error: {e}")
+            raise
+
+        # Test Firestore connection
+        from app.services.firestore import ping
+
+        try:
+            ping(get_db())
             logger.info("✅ Firestore health check passed")
         except Exception as e:
             logger.warning(f"⚠️  Firestore health check had issues but continuing: {e}")
-            
+
     except Exception as e:
         logger.error(f"❌ STARTUP PROBE FAILED: {e}")
-        logger.error("Cannot start application without required configuration")
-        logger.error("Check that:")
-        logger.error("  1. GOOGLE_CLOUD_PROJECT is set or ADC is configured")
-        logger.error("  2. Secret Manager has required secrets:")
-        logger.error("     - emailpilot-secret-key")
-        logger.error("     - emailpilot-google-credentials (Service Account JSON)")
-        logger.error("  3. Service Account has necessary permissions:")
-        logger.error("     - roles/secretmanager.secretAccessor")
-        logger.error("     - roles/datastore.user")
         # Re-raise to prevent app from starting with missing configuration
         raise
 
+# Optional JSON logging for Cloud Run
+if os.getenv("LOG_FORMAT", "text").lower() == "json":
+    setup_json_console_logging(level=logging.INFO)
+
 # Add session middleware for OAuth
-session_secret = getattr(settings, 'secret_key', None) or os.getenv('SECRET_KEY', 'fallback-secret-key-change-this-in-production')
+session_secret = get_settings().secret_key
 app.add_middleware(SessionMiddleware, secret_key=session_secret)
 
+# Compression for responses
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# Request ID + request logging
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(LoggingMiddleware)
+
+# Trusted hosts (optional)
+trusted_hosts = [h.strip() for h in os.getenv("TRUSTED_HOSTS", "").split(",") if h.strip()]
+if trusted_hosts:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+
+# Security headers (disable in local dev)
+security_enabled = os.getenv("ENVIRONMENT", "development").lower() != "development"
+app.add_middleware(SecurityHeadersMiddleware, enabled=security_enabled)
+
+# Rate limiting: default 120 req/min per IP/path; stricter on auth endpoints
+rl_default_max = int(os.getenv("RL_DEFAULT_MAX", "120"))
+rl_default_window = int(os.getenv("RL_DEFAULT_WINDOW", "60"))
+rl_auth_max = int(os.getenv("RL_AUTH_MAX", "20"))
+rl_auth_window = int(os.getenv("RL_AUTH_WINDOW", "60"))
+path_limits = {
+    "/api/auth/login": (rl_auth_max, rl_auth_window),
+    "/api/auth/google/login": (rl_auth_max, rl_auth_window),
+}
+app.add_middleware(RateLimitMiddleware, default_max=rl_default_max, default_window=rl_default_window, path_limits=path_limits)
+
 # Configure CORS with comprehensive origins and headers
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
+cors_origins_env = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+default_origins = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "http://localhost:3000", 
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
-        "http://localhost:5173",  # Vite dev server
+        "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://emailpilot.ai",
         "https://www.emailpilot.ai",
-        "https://*.emailpilot.ai",  # Allow all subdomains
-        "https://*.vercel.app",     # Vercel deployments
-        "https://*.netlify.app"     # Netlify deployments
-    ],
+]
+cors_origins = cors_origins_env or default_origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if allow_all else cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=[
@@ -220,6 +378,11 @@ app.add_middleware(
         "Link"
     ]
 )
+
+# Basic health endpoint for Cloud Run and load balancers
+@app.get("/health")
+async def health_root():
+    return {"status": "ok"}
 
 # Firestore helper functions
 def doc_to_dict(doc) -> Dict[str, Any]:
@@ -283,6 +446,69 @@ async def get_clients_legacy():
         logger.error(f"Error fetching clients: {e}")
         return []
 
+# Stub endpoints for admin dashboard compatibility
+@app.get("/api/admin")
+async def admin_dashboard_root():
+    """Admin dashboard root endpoint"""
+    return {
+        "status": "operational",
+        "service": "EmailPilot Admin API",
+        "version": "2.0.0",
+        "message": "Admin API is operational"
+    }
+
+@app.get("/api/calendar")
+async def calendar_dashboard_root():
+    """Calendar dashboard root endpoint"""
+    return {
+        "status": "operational", 
+        "service": "EmailPilot Calendar API",
+        "version": "2.0.0",
+        "message": "Calendar API is operational"
+    }
+
+@app.get("/api/goals")
+async def goals_dashboard_root():
+    """Goals dashboard root endpoint"""
+    return {
+        "status": "operational",
+        "service": "EmailPilot Goals API", 
+        "version": "2.0.0",
+        "message": "Goals API is operational"
+    }
+
+@app.get("/api/mcp")
+async def mcp_dashboard_root():
+    """MCP dashboard root endpoint"""
+    return {
+        "status": "operational",
+        "service": "EmailPilot MCP API",
+        "version": "2.0.0", 
+        "message": "MCP API is operational"
+    }
+
+@app.get("/api/agents")
+async def agents_dashboard_root():
+    """Agents dashboard root endpoint"""
+    return {
+        "status": "operational",
+        "service": "EmailPilot Agents API",
+        "version": "2.0.0",
+        "message": "Agents API is operational"
+    }
+
+@app.post("/api/dev/telemetry")
+async def dev_telemetry(request: Request):
+    """Debug telemetry endpoint for client-side error reporting"""
+    try:
+        data = await request.json()
+        # Log with clear prefix for CLI tailing
+        logger.info(f"DEV_TELEMETRY: {json.dumps(data)}")
+        return {"status": "received"}
+    except Exception as e:
+        logger.error(f"DEV_TELEMETRY_ERROR: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 
 # Static file routes - Legacy support for direct paths
 @app.get("/app.js")
@@ -308,22 +534,9 @@ async def get_dist_component(filename: str):
     """Serve compiled components from dist directory"""
     return FileResponse(f'frontend/public/dist/{filename}', media_type='application/javascript')
 
-# Serve frontend
-@app.get("/")
-async def get_frontend():
-    return FileResponse('frontend/public/index.html')
+# (Legacy SPA index removed; MPA route defined later.)
 
-@app.get("/admin")
-async def get_admin_panel():
-    return FileResponse('frontend/public/admin.html')
 
-@app.get("/admin-oauth.html")
-async def get_oauth_admin():
-    return FileResponse('frontend/public/admin-oauth.html')
-
-@app.get("/admin-agents.html")
-async def get_agents_admin():
-    return FileResponse('frontend/public/admin-agents.html')
 
 @app.get("/test_oauth_frontend.html")
 async def get_oauth_test():
@@ -340,6 +553,33 @@ async def get_goals_dashboard_test():
 @app.get("/test-goals-final.html")
 async def get_goals_final_test():
     return FileResponse('test-goals-final.html')
+
+@app.get("/test_navigation.html")
+async def get_navigation_test():
+    return FileResponse('test_navigation.html')
+
+@app.get("/user-management")
+async def get_user_management_page():
+    return FileResponse('frontend/public/user-management.html')
+
+@app.get("/admin-dashboard")
+async def get_admin_dashboard():
+    return FileResponse('frontend/public/admin-dashboard.html')
+
+@app.get("/calendar-legacy")
+async def get_calendar_legacy():
+    """Serve production calendar page"""
+    return FileResponse('frontend/public/calendar.html')
+
+@app.get("/calendar.html")
+async def get_calendar_html():
+    """Redirect to isolated static calendar under /static/standalone-calendar"""
+    return RedirectResponse(url="/static/standalone-calendar/index.html")
+
+@app.get("/calendar-debug")
+async def get_calendar_debug():
+    """Serve calendar debug harness - exact production clone with optional debug overlay"""
+    return FileResponse('frontend/public/calendar_debug.html')
 
 @app.get("/health-detailed")
 async def health_check():
@@ -360,16 +600,70 @@ async def health_check():
 
 # Include API routers with proper prefixes
 app.include_router(admin_router, prefix="/api/admin", tags=["Administration"])
+app.include_router(admin_users_router, tags=["Admin Users"])
 
-# Include all routers with appropriate prefixes
-if calendar_router:
-    app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
+# Include calendar routers with appropriate prefixes
+app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
+app.include_router(calendar_enhanced_router, prefix="/api/calendar", tags=["Calendar Enhanced"])
+app.include_router(calendar_planning_router, tags=["AI Calendar Planning"])
+app.include_router(calendar_planning_ai_router, tags=["Calendar Planning AI with MCP"])
+app.include_router(calendar_planning_templates_router, tags=["Calendar Planning Templates"])
+app.include_router(firebase_calendar_router, prefix="/api/firebase-calendar", tags=["Firebase Calendar"])
+
+# Include LangSmith-traced calendar router if available
+if CALENDAR_LANGSMITH_AVAILABLE:
+    app.include_router(calendar_langsmith_router, tags=["Calendar LangSmith"])
+    logger.info("✅ Calendar LangSmith routes registered")
+
+# Calendar Orchestrator - LangChain-powered automation
+try:
+    from app.api.calendar_orchestrator import router as calendar_orchestrator_router
+    app.include_router(calendar_orchestrator_router, prefix="/api/calendar", tags=["Calendar Orchestrator"])
+    logger.info("✅ Calendar Orchestrator router loaded successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to load Calendar Orchestrator router: {e}")
 
 # MCP Management routers
 app.include_router(mcp_router, prefix="/api/mcp", tags=["MCP Management"])
+app.include_router(mcp_chat_router, tags=["MCP Chat"])
+
+# Direct Klaviyo API integration for MCP Chat
+try:
+    from app.api.mcp_chat_direct import router as mcp_chat_direct_router
+    app.include_router(mcp_chat_direct_router, tags=["MCP Direct"])
+    logger.info("✅ MCP Direct Klaviyo API integration enabled")
+except Exception as e:
+    logger.warning(f"MCP Direct integration not available: {e}")
+
+# LangChain Natural Language Interface for Klaviyo
+try:
+    from app.api.langchain_klaviyo import router as langchain_klaviyo_router
+    app.include_router(langchain_klaviyo_router, tags=["LangChain Klaviyo"])
+    logger.info("✅ LangChain Natural Language interface for Klaviyo enabled")
+except Exception as e:
+    logger.warning(f"LangChain Klaviyo integration not available: {e}")
+
+# LangChain Debug Interface
+try:
+    from app.api.langchain_debug import router as langchain_debug_router
+    app.include_router(langchain_debug_router, tags=["LangChain Debug"])
+    logger.info("✅ LangChain Debug interface enabled")
+except Exception as e:
+    logger.warning(f"LangChain Debug interface not available: {e}")
+
+# Klaviyo Feedback and Validation System
+try:
+    from app.api.klaviyo_feedback import router as klaviyo_feedback_router
+    app.include_router(klaviyo_feedback_router, tags=["Klaviyo Feedback"])
+    logger.info("✅ Klaviyo Feedback and Validation system enabled")
+except Exception as e:
+    logger.warning(f"Klaviyo Feedback system not available: {e}")
 
 # MCP Klaviyo Management
 app.include_router(mcp_klaviyo_router, prefix="/api/mcp/klaviyo", tags=["MCP Klaviyo Management"])
+
+# Klaviyo Account Discovery
+app.include_router(klaviyo_discovery_router, prefix="/api/klaviyo", tags=["Klaviyo Account Discovery"])
 
 # Admin client management router - already has /api/admin/clients prefix internally
 app.include_router(admin_clients_router, tags=["Admin Client Management"])
@@ -377,27 +671,140 @@ app.include_router(admin_clients_router, tags=["Admin Client Management"])
 # Admin Firestore router
 app.include_router(admin_firestore_router, prefix="/api/admin/firestore", tags=["Admin Firestore Configuration"])
 
-# Authentication router  
-app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+# Admin Secret Manager router
+app.include_router(admin_secret_manager_router, tags=["Admin Secret Manager"])
 
-# Google Authentication router - with different prefix to avoid conflicts
-app.include_router(google_auth_router, prefix="/api/auth/google", tags=["Google Authentication"])
+# Admin Services Catalog router
+app.include_router(admin_services_router, tags=["Admin Services"])
+
+# Admin Notifications router
+app.include_router(admin_notifications_router, tags=["Admin Notifications"])
+
+# Proxy router for CORS-safe image loading
+if PROXY_AVAILABLE and proxy_router:
+    app.include_router(proxy_router, tags=["Proxy"])
+    logger.info("✅ Image proxy router enabled for CORS-safe avatar loading")
+
+# Authentication routers
+# Always use Google auth router which has both JWT and session support
+if google_auth_router:
+    app.include_router(google_auth_router, prefix="/api/auth/google", tags=["Google Authentication"])
+    logger.info("✅ Authentication enabled with Google OAuth, Email/Password, and Guest access")
+    
+    # Compatibility shim to expose /api/auth/me and /api/auth/login
+    try:
+        from app.api.auth_compat import router as auth_compat_router
+        app.include_router(auth_compat_router, prefix="/api/auth", tags=["Authentication Compatibility"])
+        logger.info("🔗 Auth compatibility shim enabled under /api/auth")
+    except Exception as e:
+        logger.warning(f"Auth compatibility shim unavailable: {e}")
+else:
+    app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+    logger.info("🔒 Using basic authentication")
+    
+    # Legacy Google Authentication router - only if available
+    if google_auth_router:
+        app.include_router(google_auth_router, prefix="/api/auth/google", tags=["Google Authentication"])
+
+# Service OAuth router for Asana/Klaviyo integrations (separate from user auth)
+if service_oauth_router:
+    app.include_router(service_oauth_router, prefix="/api/integrations", tags=["Service Integrations"])
+    logger.info("✅ Service integrations enabled (Asana/Klaviyo OAuth)")
+
+# Klaviyo OAuth router for new OAuth integration with auto-client creation
+if klaviyo_oauth_router:
+    app.include_router(klaviyo_oauth_router, prefix="/api/integrations/klaviyo", tags=["Klaviyo OAuth"])
+    logger.info("✅ Klaviyo OAuth integration enabled with auto-client creation at /api/integrations/klaviyo")
 
 # Goals router - Now using Firestore
-app.include_router(goals_router, tags=["Goals Management"])
+app.include_router(goals_router, prefix="/api/goals", tags=["Goals Management"])
+app.include_router(goals2_router, prefix="/api/goals2", tags=["Goals Management 2"])
 
 # Performance router - Now simplified
 app.include_router(performance_router, tags=["Performance Metrics"])
 
 # Reports router - Now simplified
 app.include_router(reports_router, tags=["Reports"])
+app.include_router(reports_mcp_router, tags=["MCP Reports"])
+app.include_router(reports_mcp_v2_router, tags=["MCP Reports V2"])
 
 # Dashboard router - Now uses Firestore
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
 
-# Conditionally include agent routers
-if AGENT_ROUTERS_AVAILABLE:
-    app.include_router(email_sms_agents.router, prefix="/api/agents/campaigns", tags=["Email/SMS Multi-Agent System"])
+# Agents router (legacy)
+app.include_router(agents_router, prefix="/api/agents", tags=["Agents (Legacy)"])
+# Unified Agents router - SINGLE SOURCE OF TRUTH (use this!)
+if AGENTS_UNIFIED_AVAILABLE and agents_unified_router:
+    app.include_router(agents_unified_router, tags=["Unified Agents - SSOT"])
+    logger.info("✅ Unified Agents router enabled - Single Source of Truth for all agents")
+
+# AI Orchestrator router - PRIMARY AI INTERFACE (use this!)
+# app.include_router(ai_orchestrator_router, tags=["AI Orchestrator"])  # DISABLED - Using LangChain
+
+# Include LangChain Admin API
+if LANGCHAIN_ADMIN_AVAILABLE:
+    app.include_router(langchain_admin_router, tags=["LangChain Admin"])
+logger.info("✅ LangChain enabled - Primary AI interface")
+
+# Include LangChain Orchestration API
+try:
+    from app.api.langchain_orchestration import router as orchestration_router
+    app.include_router(orchestration_router, tags=["LangChain Orchestration"])
+    logger.info("✅ LangChain Orchestration API enabled - Variable discovery & MCP coordination")
+except ImportError as e:
+    logger.warning(f"LangChain Orchestration API not available: {e}")
+
+# AI Models Management router - LEGACY (disabled in favor of LangChain)
+# if AI_MODELS_AVAILABLE and ai_models_router:
+#     app.include_router(ai_models_router, tags=["AI Models Management (Legacy)"])
+#     logger.info("⚠️  AI Models Management router enabled (LEGACY - use Orchestrator instead)")
+
+# Agent Configuration router - manages agent-to-prompt mappings
+if AGENT_CONFIG_AVAILABLE and agent_config_router:
+    app.include_router(agent_config_router, tags=["Agent Configuration"])
+    logger.info("✅ Agent Configuration router enabled")
+
+# Tools router - integrates external Klaviyo audit and management tools
+if TOOLS_AVAILABLE and tools_router:
+    app.include_router(tools_router, prefix="/api/tools", tags=["External Tools"])
+    logger.info("✅ External Tools router enabled")
+
+# Asana integration router
+app.include_router(asana_router)
+app.include_router(admin_asana_router)
+app.include_router(asana_oauth_router)
+
+# Workflow API for LangGraph visual editor (using fixed version)
+try:
+    from app.api.workflow_fixed import router as workflow_router
+    app.include_router(workflow_router, tags=["Workflow"])
+    logger.info("✅ Workflow API enabled for LangGraph editor (fixed)")
+except ImportError as e:
+    # Fallback to original if fixed not available
+    try:
+        from app.api.workflow import router as workflow_router
+        app.include_router(workflow_router, tags=["Workflow"])
+        logger.info("✅ Workflow API enabled for LangGraph editor")
+    except ImportError:
+        logger.info(f"ℹ️ Workflow API not available: {e}")
+
+# Variables API for agent development (independent of workflow) - Updated
+try:
+    from app.api.variables import router as variables_router
+    app.include_router(variables_router, tags=["Variables"])
+    logger.info("✅ Variables API enabled for agent development")
+except ImportError as e:
+    logger.warning(f"Variables API not available: {e}")
+
+# Hub Dashboard API for LangGraph integration
+try:
+    from app.api.hub import router as hub_router
+    app.include_router(hub_router, tags=["Hub Dashboard"])
+    logger.info("✅ Hub Dashboard API enabled for LangGraph integration")
+except ImportError as e:
+    logger.warning(f"Hub Dashboard API not available: {e}")
+
+# Email/SMS MCP agent routers removed - replaced by LangChain system
 
 # Conditionally include admin agent routers  
 if ADMIN_AGENT_ROUTERS_AVAILABLE:
@@ -410,7 +817,79 @@ if ADMIN_AGENT_ROUTERS_AVAILABLE:
 # Admin endpoints are now handled by the admin router included above
 
 # File serving for static assets
-app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
+from pathlib import Path as _Path
+_BASE_DIR = _Path(__file__).resolve().parent
+# Serve the Vite-built frontend as the primary static directory
+app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
+
+# Explicit route for test HTML files
+@app.get("/test-endpoints.html")
+async def serve_test_endpoints():
+    """Serve the test endpoints HTML page"""
+    return FileResponse('frontend/public/test-endpoints.html')
+
+@app.get("/hub/")
+async def serve_hub_dashboard():
+    """Serve the Hub Dashboard for LangGraph integration"""
+    return FileResponse('frontend/public/hub/index.html')
+
+@app.get("/test_hidden_endpoints.html")
+async def serve_test_hidden_endpoints():
+    """Serve the test hidden endpoints HTML page"""
+    import os
+    if os.path.exists('test_hidden_endpoints.html'):
+        return FileResponse('test_hidden_endpoints.html')
+    elif os.path.exists('frontend/public/test_hidden_endpoints.html'):
+        return FileResponse('frontend/public/test_hidden_endpoints.html')
+    else:
+        raise HTTPException(status_code=404, detail="Test file not found")
+
+# ============ MPA Routes (Server-rendered) ============
+@app.get("/")
+async def root_spa(request: Request):
+    """Serves the main index.html file for the React SPA."""
+    return FileResponse('dist/index.html')
+
+
+@app.get("/clients")
+async def mpa_clients(request: Request):
+    return templates.TemplateResponse("clients.html", {"request": request, "active": "clients", "entry_name": "clients"})
+
+
+@app.get("/calendar")
+async def mpa_calendar(request: Request):
+    return templates.TemplateResponse("calendar.html", {"request": request, "active": "calendar", "entry_name": "calendar"})
+
+
+@app.get("/reports")
+async def mpa_reports(request: Request):
+    return templates.TemplateResponse("reports.html", {"request": request, "active": "reports", "entry_name": "reports"})
+
+
+@app.get("/settings")
+async def mpa_settings(request: Request):
+    return templates.TemplateResponse("settings.html", {"request": request, "active": "settings", "entry_name": "settings"})
+
+
+@app.get("/admin")
+async def mpa_admin(request: Request):
+    return templates.TemplateResponse("admin/index.html", {"request": request, "active": "admin", "entry_name": "admin"})
+
+@app.get("/admin/{path:path}")
+async def mpa_admin_catchall(request: Request, path: str):
+    return templates.TemplateResponse("admin/index.html", {"request": request, "active": "admin", "entry_name": "admin", "subpath": path})
+
+
+# ============ Developer Telemetry ============
+@app.post("/api/dev/telemetry")
+async def dev_telemetry(payload: dict, request: Request):
+    try:
+        client_ip = request.client.host if request.client else "?"
+        logger.info(f"DEV_TELEMETRY: ip={client_ip} {payload}")
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"DEV_TELEMETRY_ERROR: {e}")
+        return JSONResponse(status_code=500, content={"ok": False})
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -421,6 +900,19 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error"}
     )
 
+# (Legacy SPA handlers removed; MPA routes are defined above.)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main_firestore:app", host="0.0.0.0", port=8000, reload=True)
+# Log asset 404s for /static/dist to aid debugging and CI visibility
+@app.middleware("http")
+async def asset_404_telemetry(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        path = request.url.path
+        if response.status_code == 404 and (path.startswith('/static/dist/') or path.startswith('/static/') or path.startswith('/frontend/dist/')):
+            logger.info(f"DEV_TELEMETRY: asset_404 path={path} status=404")
+    except Exception:
+        pass
+    return response

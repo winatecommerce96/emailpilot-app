@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Integration Status - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">🔗 My Integrations</h1>
+            <p class="text-gray-600">View and manage your connected services</p>
+        </div>
+
+        <!-- User Info -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Account Information</h2>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between py-2 border-b">
+                    <span class="text-gray-600">Status:</span>
+                    <span id="authStatus" class="font-medium">Checking...</span>
+                </div>
+                <div class="flex items-center justify-between py-2 border-b">
+                    <span class="text-gray-600">User:</span>
+                    <span id="userEmail" class="font-medium">-</span>
+                </div>
+                <div class="flex items-center justify-between py-2">
+                    <span class="text-gray-600">Session:</span>
+                    <span id="sessionInfo" class="text-sm text-gray-500">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integrations -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Connected Services</h2>
+            
+            <!-- Klaviyo -->
+            <div class="border rounded-lg p-4 mb-4 bg-green-50 border-green-200">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-green-900">Klaviyo</h3>
+                            <p class="text-sm text-green-700">Email Marketing Platform</p>
+                        </div>
+                    </div>
+                    <div id="klaviyoStatus" class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                        Checking...
+                    </div>
+                </div>
+                <div id="klaviyoDetails" class="text-sm space-y-1"></div>
+                <div class="mt-3 flex gap-2">
+                    <button onclick="checkKlaviyoStatus()" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                        Refresh Status
+                    </button>
+                    <button onclick="disconnectKlaviyo()" id="klaviyoDisconnect" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 hidden">
+                        Disconnect
+                    </button>
+                    <button onclick="connectKlaviyo()" id="klaviyoConnect" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 hidden">
+                        Connect
+                    </button>
+                </div>
+            </div>
+
+            <!-- Asana -->
+            <div class="border rounded-lg p-4 bg-purple-50 border-purple-200">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
+                            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 12.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7zm-6.5 4a3.5 3.5 0 100-7 3.5 3.5 0 000 7zm13 0a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-purple-900">Asana</h3>
+                            <p class="text-sm text-purple-700">Project Management</p>
+                        </div>
+                    </div>
+                    <div id="asanaStatus" class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                        Checking...
+                    </div>
+                </div>
+                <div id="asanaDetails" class="text-sm space-y-1"></div>
+                <div class="mt-3 flex gap-2">
+                    <button onclick="checkAsanaStatus()" class="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">
+                        Refresh Status
+                    </button>
+                    <button onclick="disconnectAsana()" id="asanaDisconnect" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 hidden">
+                        Disconnect
+                    </button>
+                    <button onclick="connectAsana()" id="asanaConnect" class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 hidden">
+                        Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-lg font-semibold mb-4">Quick Actions</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="openLinkServiceModal()" class="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                    🔗 Manage Integrations
+                </button>
+                <button onclick="checkAllStatuses()" class="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium">
+                    🔄 Refresh All
+                </button>
+            </div>
+        </div>
+
+        <!-- Debug Info -->
+        <div class="mt-6 bg-gray-900 rounded-lg p-4">
+            <h3 class="text-green-400 font-mono text-sm mb-2">Debug Log</h3>
+            <pre id="debugLog" class="text-green-400 text-xs font-mono max-h-32 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <!-- Link Service Modal Container -->
+    <div id="modalContainer"></div>
+
+    <script>
+        window.API_BASE_URL = 'http://localhost:8000';
+        
+        const log = (msg) => {
+            const debug = document.getElementById('debugLog');
+            const time = new Date().toLocaleTimeString();
+            debug.textContent += `[${time}] ${msg}\n`;
+            debug.scrollTop = debug.scrollHeight;
+        };
+
+        // Check authentication
+        async function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                document.getElementById('authStatus').innerHTML = '<span class="text-red-600">Not authenticated</span>';
+                document.getElementById('userEmail').textContent = 'Please login';
+                log('No authentication token found');
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('authStatus').innerHTML = '<span class="text-green-600">✅ Authenticated</span>';
+                    document.getElementById('userEmail').textContent = user.email;
+                    document.getElementById('sessionInfo').textContent = `Token valid`;
+                    log(`Authenticated as ${user.email}`);
+                    return true;
+                } else {
+                    document.getElementById('authStatus').innerHTML = '<span class="text-red-600">Invalid token</span>';
+                    log('Token validation failed');
+                    return false;
+                }
+            } catch (error) {
+                log(`Auth error: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Check Klaviyo status
+        async function checkKlaviyoStatus() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            try {
+                log('Checking Klaviyo status...');
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/klaviyo/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const statusEl = document.getElementById('klaviyoStatus');
+                    const detailsEl = document.getElementById('klaviyoDetails');
+                    const disconnectBtn = document.getElementById('klaviyoDisconnect');
+                    const connectBtn = document.getElementById('klaviyoConnect');
+
+                    if (data.connected) {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800';
+                        statusEl.textContent = '✅ Connected';
+                        
+                        let details = '<div class="text-green-700">';
+                        if (data.connected_at) {
+                            const date = new Date(data.connected_at);
+                            details += `<p>Connected: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}</p>`;
+                        }
+                        if (data.scope) {
+                            const scopes = data.scope.split(' ');
+                            details += `<p>Permissions: ${scopes.length} scopes granted</p>`;
+                            details += `<details class="mt-1"><summary class="cursor-pointer text-xs">View scopes</summary>`;
+                            details += `<ul class="mt-1 ml-4 text-xs">`;
+                            scopes.forEach(s => {
+                                details += `<li>• ${s}</li>`;
+                            });
+                            details += `</ul></details>`;
+                        }
+                        details += '</div>';
+                        detailsEl.innerHTML = details;
+                        
+                        disconnectBtn.classList.remove('hidden');
+                        connectBtn.classList.add('hidden');
+                        
+                        log('Klaviyo is connected');
+                    } else {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600';
+                        statusEl.textContent = '⚪ Not Connected';
+                        detailsEl.innerHTML = '<p class="text-gray-500">No active connection</p>';
+                        
+                        disconnectBtn.classList.add('hidden');
+                        connectBtn.classList.remove('hidden');
+                        
+                        log('Klaviyo is not connected');
+                    }
+                }
+            } catch (error) {
+                log(`Klaviyo status error: ${error.message}`);
+            }
+        }
+
+        // Check Asana status
+        async function checkAsanaStatus() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            try {
+                log('Checking Asana status...');
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/asana/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const statusEl = document.getElementById('asanaStatus');
+                    const detailsEl = document.getElementById('asanaDetails');
+                    const disconnectBtn = document.getElementById('asanaDisconnect');
+                    const connectBtn = document.getElementById('asanaConnect');
+
+                    if (data.connected) {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800';
+                        statusEl.textContent = '✅ Connected';
+                        
+                        let details = '<div class="text-purple-700">';
+                        if (data.connected_at) {
+                            const date = new Date(data.connected_at);
+                            details += `<p>Connected: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}</p>`;
+                        }
+                        if (data.user_name) {
+                            details += `<p>Account: ${data.user_name}</p>`;
+                        }
+                        if (data.user_email) {
+                            details += `<p>Email: ${data.user_email}</p>`;
+                        }
+                        details += '</div>';
+                        detailsEl.innerHTML = details;
+                        
+                        disconnectBtn.classList.remove('hidden');
+                        connectBtn.classList.add('hidden');
+                        
+                        log('Asana is connected');
+                    } else {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600';
+                        statusEl.textContent = '⚪ Not Connected';
+                        detailsEl.innerHTML = '<p class="text-gray-500">No active connection</p>';
+                        
+                        disconnectBtn.classList.add('hidden');
+                        connectBtn.classList.remove('hidden');
+                        
+                        log('Asana is not connected');
+                    }
+                }
+            } catch (error) {
+                log(`Asana status error: ${error.message}`);
+            }
+        }
+
+        // Connect/Disconnect functions
+        async function connectKlaviyo() {
+            log('Opening Klaviyo OAuth...');
+            // Load and open LinkServiceModal
+            openLinkServiceModal();
+        }
+
+        async function disconnectKlaviyo() {
+            if (!confirm('Are you sure you want to disconnect Klaviyo?')) return;
+            
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/klaviyo/disconnect`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    log('Klaviyo disconnected');
+                    checkKlaviyoStatus();
+                }
+            } catch (error) {
+                log(`Disconnect error: ${error.message}`);
+            }
+        }
+
+        async function connectAsana() {
+            log('Opening Asana OAuth...');
+            openLinkServiceModal();
+        }
+
+        async function disconnectAsana() {
+            if (!confirm('Are you sure you want to disconnect Asana?')) return;
+            
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/asana/disconnect`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    log('Asana disconnected');
+                    checkAsanaStatus();
+                }
+            } catch (error) {
+                log(`Disconnect error: ${error.message}`);
+            }
+        }
+
+        // Check all statuses
+        async function checkAllStatuses() {
+            log('Refreshing all statuses...');
+            await checkAuth();
+            await checkKlaviyoStatus();
+            await checkAsanaStatus();
+        }
+
+        // Open LinkServiceModal
+        function openLinkServiceModal() {
+            log('Opening Link Service Modal...');
+            
+            // Load the modal script if not already loaded
+            if (!window.LinkServiceModal) {
+                const script = document.createElement('script');
+                script.src = '/static/dist/LinkServiceModal.js';
+                script.onload = () => {
+                    renderModal();
+                };
+                document.head.appendChild(script);
+            } else {
+                renderModal();
+            }
+        }
+
+        function renderModal() {
+            const container = document.getElementById('modalContainer');
+            const user = document.getElementById('userEmail').textContent;
+            
+            if (!user || user === 'Please login' || user === '-') {
+                alert('Please login first');
+                return;
+            }
+
+            // Get current connections
+            const klaviyoConnected = document.getElementById('klaviyoStatus').textContent.includes('Connected');
+            const asanaConnected = document.getElementById('asanaStatus').textContent.includes('Connected');
+
+            const modal = React.createElement(window.LinkServiceModal, {
+                userId: user,
+                currentConnections: {
+                    klaviyo: klaviyoConnected,
+                    asana: asanaConnected
+                },
+                onClose: () => {
+                    ReactDOM.unmountComponentAtNode(container);
+                    checkAllStatuses();
+                },
+                onConnectionUpdate: (connections) => {
+                    console.log('Connections updated:', connections);
+                    setTimeout(checkAllStatuses, 1000);
+                }
+            });
+
+            ReactDOM.render(modal, container);
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            log('Page loaded, checking statuses...');
+            checkAllStatuses();
+        });
+    </script>
+</body>
+</html>

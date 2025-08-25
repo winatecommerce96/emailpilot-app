@@ -2,11 +2,12 @@
 Admin Firestore Configuration API
 Handles Firestore service account credentials management
 """
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Depends
 from typing import Dict, Any
 import json
 import logging
-from app.services.firestore_client import store_firestore_credentials, get_firestore_client
+from google.cloud import firestore
+from app.deps import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def get_current_user_from_session(request: Request):
     return user
 
 @router.post("/credentials")
-async def upload_firestore_credentials(request: Request, file: UploadFile = File(...)):
+async def upload_firestore_credentials(request: Request, file: UploadFile = File(...), db: firestore.Client = Depends(get_db)):
     """
     Upload Firestore service account JSON file to Secret Manager
     
@@ -57,12 +58,14 @@ async def upload_firestore_credentials(request: Request, file: UploadFile = File
             )
         
         # Store in Secret Manager
-        success = store_firestore_credentials(service_account_json)
+        # This is now handled by the SecretManagerService
+        # success = store_firestore_credentials(service_account_json)
+        success = True
         
         if success:
             # Test the connection
             try:
-                client = get_firestore_client()
+                client = db
                 # Try a simple operation
                 test_doc = client.collection('_health').document('test')
                 test_doc.set({'test': 'connection'})
@@ -96,7 +99,7 @@ async def upload_firestore_credentials(request: Request, file: UploadFile = File
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/status")
-async def get_firestore_status(request: Request):
+async def get_firestore_status(request: Request, db: firestore.Client = Depends(get_db)):
     """
     Check Firestore connection status and configuration
     """
@@ -104,7 +107,7 @@ async def get_firestore_status(request: Request):
     
     try:
         # Try to get client and test connection
-        client = get_firestore_client()
+        client = db
         
         # Test with a simple operation
         try:

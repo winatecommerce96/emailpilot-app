@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Flow Test - Complete Workflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        window.API_BASE_URL = 'http://localhost:8000';
+    </script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <h1 class="text-3xl font-bold text-gray-900">OAuth Integration Test Flow</h1>
+        
+        <!-- Step 1: Login -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Step 1: Login to EmailPilot</h2>
+            <p class="text-gray-600 mb-4">First, you need to be logged in to EmailPilot to link services.</p>
+            
+            <div class="space-y-3">
+                <button onclick="loginAsGuest()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Login as Guest (Test)
+                </button>
+                <button onclick="loginWithGoogle()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                    Login with Google
+                </button>
+            </div>
+            
+            <div id="loginStatus" class="mt-4 p-3 bg-gray-50 rounded text-sm"></div>
+        </div>
+        
+        <!-- Step 2: Link Services -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Step 2: Link Services</h2>
+            <p class="text-gray-600 mb-4">Once logged in, you can link your Asana and Klaviyo accounts.</p>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Asana Card -->
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-purple-600 mb-2">Asana</h3>
+                    <p class="text-sm text-gray-600 mb-3">Project management and collaboration</p>
+                    <button 
+                        onclick="linkService('asana')" 
+                        id="asanaBtn"
+                        class="w-full px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+                        disabled
+                    >
+                        Connect Asana
+                    </button>
+                    <div id="asanaStatus" class="mt-2 text-sm"></div>
+                </div>
+                
+                <!-- Klaviyo Card -->
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-green-600 mb-2">Klaviyo</h3>
+                    <p class="text-sm text-gray-600 mb-3">Email marketing platform</p>
+                    <button 
+                        onclick="linkService('klaviyo')" 
+                        id="klaviyoBtn"
+                        class="w-full px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                        disabled
+                    >
+                        Connect Klaviyo
+                    </button>
+                    <div id="klaviyoStatus" class="mt-2 text-sm"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Console Output -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Debug Console</h2>
+            <pre id="console" class="bg-gray-900 text-green-400 p-4 rounded text-xs font-mono h-64 overflow-y-auto"></pre>
+        </div>
+    </div>
+    
+    <script>
+        // Logging helper
+        const log = (message, type = 'info') => {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '🔴' : type === 'success' ? '🟢' : '🔵';
+            console.textContent += `${color} [${timestamp}] ${message}\n`;
+            console.scrollTop = console.scrollHeight;
+        };
+        
+        // Check login status on load
+        window.addEventListener('load', async () => {
+            log('Page loaded, checking authentication status...');
+            await checkAuth();
+        });
+        
+        // Check authentication
+        async function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            const loginStatus = document.getElementById('loginStatus');
+            
+            if (!token) {
+                loginStatus.innerHTML = '❌ Not logged in';
+                log('No access token found');
+                return false;
+            }
+            
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    loginStatus.innerHTML = `✅ Logged in as: ${user.email}`;
+                    log(`Authenticated as: ${user.email}`, 'success');
+                    
+                    // Enable OAuth buttons
+                    document.getElementById('asanaBtn').disabled = false;
+                    document.getElementById('klaviyoBtn').disabled = false;
+                    
+                    // Check service connections
+                    await checkServiceStatus('asana');
+                    await checkServiceStatus('klaviyo');
+                    
+                    return true;
+                } else {
+                    loginStatus.innerHTML = '❌ Invalid token';
+                    log('Token is invalid or expired', 'error');
+                    localStorage.removeItem('access_token');
+                    return false;
+                }
+            } catch (error) {
+                loginStatus.innerHTML = '❌ Authentication check failed';
+                log(`Auth check error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // Login as guest
+        async function loginAsGuest() {
+            log('Attempting guest login...');
+            
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/guest`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    log('Guest login successful!', 'success');
+                    await checkAuth();
+                } else {
+                    const error = await response.json();
+                    log(`Guest login failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Guest login error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Login with Google (placeholder)
+        function loginWithGoogle() {
+            log('Google login would redirect to OAuth flow...');
+            window.location.href = `${window.API_BASE_URL}/api/auth/google/login`;
+        }
+        
+        // Check service connection status
+        async function checkServiceStatus(service) {
+            const token = localStorage.getItem('access_token');
+            
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/${service}/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const statusDiv = document.getElementById(`${service}Status`);
+                    
+                    if (data.connected) {
+                        statusDiv.innerHTML = `✅ Connected`;
+                        document.getElementById(`${service}Btn`).textContent = `Disconnect ${service}`;
+                        log(`${service} is connected`, 'success');
+                    } else {
+                        statusDiv.innerHTML = `⚪ Not connected`;
+                        log(`${service} is not connected`);
+                    }
+                }
+            } catch (error) {
+                log(`Error checking ${service} status: ${error.message}`, 'error');
+            }
+        }
+        
+        // Link service (OAuth flow)
+        async function linkService(service) {
+            const token = localStorage.getItem('access_token');
+            const statusDiv = document.getElementById(`${service}Status`);
+            
+            log(`Starting OAuth flow for ${service}...`);
+            
+            try {
+                // Get authorization URL
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/${service}/auth`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to get authorization URL');
+                }
+                
+                const data = await response.json();
+                log(`Got authorization URL for ${service}`, 'success');
+                
+                // Open OAuth popup
+                const popup = window.open(
+                    data.authorization_url,
+                    `${service}OAuth`,
+                    'width=600,height=700,scrollbars=yes,resizable=yes'
+                );
+                
+                if (!popup) {
+                    throw new Error('Popup blocked! Please allow popups and try again.');
+                }
+                
+                log(`OAuth popup opened for ${service}`);
+                statusDiv.innerHTML = '⏳ Authorizing...';
+                
+                // Listen for OAuth callback
+                const handleMessage = (event) => {
+                    if (event.data.service === service) {
+                        if (event.data.success) {
+                            log(`${service} connected successfully!`, 'success');
+                            statusDiv.innerHTML = '✅ Connected';
+                            document.getElementById(`${service}Btn`).textContent = `Disconnect ${service}`;
+                        } else {
+                            log(`${service} connection failed: ${event.data.error}`, 'error');
+                            statusDiv.innerHTML = '❌ Connection failed';
+                        }
+                        window.removeEventListener('message', handleMessage);
+                    }
+                };
+                
+                window.addEventListener('message', handleMessage);
+                
+                // Check if popup closed
+                const checkClosed = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkClosed);
+                        log(`${service} OAuth popup closed`);
+                        checkServiceStatus(service);
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                log(`${service} OAuth error: ${error.message}`, 'error');
+                statusDiv.innerHTML = '❌ Error';
+            }
+        }
+    </script>
+</body>
+</html>

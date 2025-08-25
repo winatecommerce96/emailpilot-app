@@ -1,0 +1,44 @@
+[
+  {
+    "content": "Test connection and find 'Placed Order' metric using get_metrics()",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Extract revenue data for July 2025",
+    "status": "pending",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Extract revenue data for July 2024",
+    "status": "pending",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Count campaigns for July 2025",
+    "status": "pending",
+    "priority": "medium",
+    "id": "4"
+  },
+  {
+    "content": "Count campaigns for July 2024",
+    "status": "pending",
+    "priority": "medium",
+    "id": "5"
+  },
+  {
+    "content": "Count active flows",
+    "status": "pending",
+    "priority": "medium",
+    "id": "6"
+  },
+  {
+    "content": "Generate summary report",
+    "status": "pending",
+    "priority": "high",
+    "id": "7"
+  }
+]

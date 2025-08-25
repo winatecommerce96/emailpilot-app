@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Analyze current .env usage and identify all sensitive variables",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Update config.py to prioritize Secret Manager over .env files",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Modify admin.py to store secrets in Secret Manager instead of .env",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Update deployment scripts to use Cloud Run secret integration",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test Secret Manager integration locally",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Deploy updated configuration to Cloud Run",
+    "status": "completed",
+    "id": "6"
+  }
+]

@@ -8,14 +8,14 @@ import hmac
 import hashlib
 import time
 
-from app.core.database import get_db
-from app.core.config import settings
+from app.deps import get_db
+from app.core.settings import get_settings, Settings
 from app.services.report_generator import ReportGeneratorService
 
 router = APIRouter()
 
 @router.post("/webhook/test")
-async def test_slack_webhook():
+async def test_slack_webhook(settings: Settings = Depends(get_settings)):
     """Test Slack webhook connection"""
     try:
         import requests
@@ -45,6 +45,7 @@ async def test_slack_webhook():
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Slack test failed: {str(e)}")
+
 
 @router.post("/commands/weekly-report")
 async def slack_weekly_command(request: Request, db: Session = Depends(get_db)):

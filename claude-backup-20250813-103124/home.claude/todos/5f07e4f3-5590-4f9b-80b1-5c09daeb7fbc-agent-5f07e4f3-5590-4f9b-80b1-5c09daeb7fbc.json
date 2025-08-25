@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Add metric value assessment for flows and campaigns",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Implement zero-value detection and halt mechanism",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Add flow-specific metric evaluation",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Add campaign-specific metric evaluation",
+    "status": "completed",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Test enhanced value assessment",
+    "status": "completed",
+    "priority": "medium",
+    "id": "5"
+  }
+]

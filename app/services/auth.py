@@ -2,42 +2,42 @@
 JWT Authentication Service for EmailPilot
 Handles JWT token creation, verification, and admin role management
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.services.secret_manager import get_secret_manager
+from app.core.settings import Settings, get_settings
 from app.deps.firestore import get_db
 import logging
 
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
-secret_manager = get_secret_manager()
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: Dict[str, Any], settings: Settings, expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token with user data
     
     Args:
         data: Dictionary containing user data (email, role, etc.)
+        settings: The application settings object.
         expires_delta: Optional expiration time delta
         
     Returns:
         Encoded JWT token string
     """
     try:
-        secret_key = secret_manager.get_secret("jwt-secret-key") or "your-default-secret-key"
+        secret_key = settings.secret_key
         to_encode = data.copy()
         
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(hours=24)
+            expire = datetime.utcnow() + timedelta(days=30)  # 30 days default
             
         to_encode.update({"exp": expire, "iat": datetime.utcnow()})
-        encoded_jwt = jwt.encode(to_encode, secret_key, algorithm="HS256")
+        encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=settings.algorithm)
         
         logger.info(f"Created access token for user: {data.get('sub', 'unknown')}")
         return encoded_jwt
@@ -49,12 +49,13 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
             detail="Failed to create access token"
         )
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security), settings: Settings = Depends(get_settings)) -> Dict[str, Any]:
     """
     Verify and decode a JWT token
     
     Args:
         credentials: HTTP Bearer token credentials
+        settings: The application settings object.
         
     Returns:
         Decoded token payload
@@ -64,9 +65,9 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
     """
     try:
         token = credentials.credentials
-        secret_key = secret_manager.get_secret("jwt-secret-key") or "your-default-secret-key"
+        secret_key = settings.secret_key
         
-        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        payload = jwt.decode(token, secret_key, algorithms=[settings.algorithm])
         
         # Check if token has required fields
         if not payload.get("sub"):
@@ -84,7 +85,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             detail="Token expired",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    except jwt.JWTError as e:
+    except jwt.PyJWTError as e:
         logger.warning(f"JWT validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -115,6 +116,54 @@ async def get_current_user(current_user: Dict[str, Any] = Depends(verify_token))
         "authenticated": True,
         "expires_at": current_user.get("exp")
     }
+
+async def verify_admin_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    settings: Settings = Depends(get_settings)
+) -> Dict[str, Any]:
+    """
+    Verify JWT token and ensure user has admin privileges
+    
+    Args:
+        credentials: HTTP Bearer token credentials
+        settings: Application settings
+        
+    Returns:
+        User information if admin, raises exception otherwise
+    """
+    try:
+        # Decode the token
+        token = credentials.credentials
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        
+        # Check if user has admin role
+        role = payload.get("role", "user")
+        if role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        
+        return payload
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying admin token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
 
 async def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """
@@ -293,7 +342,7 @@ async def validate_session(session_id: str, db) -> Optional[Dict[str, Any]]:
             return None
             
         expires_at = session_data.get("expires_at")
-        if expires_at and expires_at < datetime.now():
+        if expires_at and expires_at < datetime.now(timezone.utc):
             # Mark session as expired
             db.collection("sessions").document(session_id).update({"is_active": False})
             return None

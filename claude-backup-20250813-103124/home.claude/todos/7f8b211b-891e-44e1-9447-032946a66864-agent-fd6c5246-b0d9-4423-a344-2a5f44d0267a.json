@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Analyze MCP component registration and API path alignment",
+    "status": "completed",
+    "id": "analyze_mcp_frontend"
+  },
+  {
+    "content": "Check if MCPManagement.js is included in build script",
+    "status": "completed",
+    "id": "check_build_system"
+  },
+  {
+    "content": "Verify backend API endpoints match frontend expectations",
+    "status": "completed",
+    "id": "verify_api_endpoints"
+  },
+  {
+    "content": "Test if components can load properly in browser",
+    "status": "completed",
+    "id": "test_component_loading"
+  },
+  {
+    "content": "Check if API calls include proper authentication headers",
+    "status": "completed",
+    "id": "check_authentication"
+  }
+]

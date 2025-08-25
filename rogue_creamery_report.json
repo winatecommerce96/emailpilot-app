@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-08-20T16:05:32.457953",
+  "client": "Rogue Creamery",
+  "data": {
+    "metric_id": "TPWsCU",
+    "campaign_total": 10351.66,
+    "flow_total": 3787.17,
+    "total": 14138.83,
+    "campaign_orders": 75,
+    "flow_orders": 30,
+    "total_orders": 105,
+    "timeframe": "last_7_days",
+    "client_id": "rogue-creamery"
+  },
+  "metrics": {
+    "campaign_percentage": 73.21,
+    "flow_percentage": 26.79
+  },
+  "ai_analysis": "Fallback analysis - LangChain not fully configured"
+}

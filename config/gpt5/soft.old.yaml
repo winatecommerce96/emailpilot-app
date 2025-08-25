@@ -1,0 +1,58 @@
+general_settings:
+  telemetry: false
+  master_key: ""  # leave empty; set a literal value only if you want the gateway to require Authorization: Bearer ...
+
+proxy_settings:
+  host: 127.0.0.1
+  port: 4000
+  cors: ["*"]
+
+litellm_settings:
+  set_verbose: true
+  drop_params: true
+  timeout: 120
+  num_retries: 3
+
+# Default mappings: Anthropic model IDs -> Anthropic backend (uses ANTHROPIC_API_KEY)
+model_list:
+  # ---- Claude 3.5 Sonnet (primary) ----
+  - model_name: claude-3-5-sonnet-20240620
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-3-5-sonnet-latest
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: sonnet
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # ---- Claude 3.5 Haiku (fast/budget) ----
+  - model_name: claude-3-5-haiku-20241022
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-3-5-haiku-latest
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: haiku
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # ---- Claude 3 Opus (optional heavy) ----
+  - model_name: claude-3-opus-20240229
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-3-opus-latest
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: opus
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY

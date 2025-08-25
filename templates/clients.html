@@ -1,0 +1,14 @@
+{% extends "_base.html" %}
+{% set entry_name = 'clients' %}
+{% set active = 'clients' %}
+{% block title %}EmailPilot · Clients{% endblock %}
+{% block content %}
+  <div class="container">
+    <h1>Clients</h1>
+    <table aria-label="Clients table">
+      <thead><tr><th>Name</th><th>Active</th><th>Contact</th></tr></thead>
+      <tbody id="clients-tbody"><tr><td colspan="3">Loading…</td></tr></tbody>
+    </table>
+  </div>
+{% endblock %}
+

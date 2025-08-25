@@ -80,6 +80,26 @@ MOCK_CLIENTS = [
     }
 ]
 
+@router.get("/")
+async def mcp_root() -> Dict[str, Any]:
+    """MCP Management API root endpoint"""
+    return {
+        "status": "operational",
+        "service": "EmailPilot MCP Management API", 
+        "version": "2.0.0",
+        "features": ["model_management", "client_management", "usage_tracking"],
+        "available_endpoints": [
+            "GET /api/mcp/models",
+            "GET /api/mcp/clients", 
+            "GET /api/mcp/health",
+            "GET /api/mcp/clients/{client_id}",
+            "GET /api/mcp/usage/{client_id}/stats",
+            "POST /api/mcp/clients",
+            "PUT /api/mcp/clients/{client_id}",
+            "DELETE /api/mcp/clients/{client_id}"
+        ]
+    }
+
 @router.get("/models")
 async def get_models() -> List[Dict[str, Any]]:
     """Get all available MCP models"""

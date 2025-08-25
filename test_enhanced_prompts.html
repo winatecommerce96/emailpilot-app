@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Agent Prompts with Variables & Creation</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto p-4">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold mb-4">🚀 Enhanced Agent Prompts Panel</h1>
+            
+            <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+                <h2 class="text-xl font-bold text-blue-800 mb-2">✨ New Features</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="font-bold text-blue-700">1. Create New Agent Button</h3>
+                        <p class="text-sm text-gray-600">
+                            Click the "Create New Agent" button at the top of the agent list to add custom agents
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-blue-700">2. Permanent Variables Display</h3>
+                        <p class="text-sm text-gray-600">
+                            Variables are now always visible in a dedicated panel on the right
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-blue-700">3. Categorized Variables</h3>
+                        <p class="text-sm text-gray-600">
+                            Variables organized by category: Client, Performance, System, etc.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-blue-700">4. Click to Insert</h3>
+                        <p class="text-sm text-gray-600">
+                            Click any variable to insert it into the current prompt editor
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-green-50 border border-green-200 rounded p-4 mb-4">
+                <h2 class="text-xl font-bold text-green-800 mb-2">📋 How to Use</h2>
+                <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                    <li><strong>View Variables:</strong> Look at the right panel to see all available variables</li>
+                    <li><strong>Create Agent:</strong> Click "Create New Agent" and fill in the form</li>
+                    <li><strong>Insert Variables:</strong> Click any variable to add it to your prompt</li>
+                    <li><strong>Edit Prompts:</strong> Select an agent and modify its prompt template</li>
+                    <li><strong>Save Changes:</strong> Click Save to update the agent configuration</li>
+                </ol>
+            </div>
+            
+            <div class="bg-purple-50 border border-purple-200 rounded p-4">
+                <h2 class="text-xl font-bold text-purple-800 mb-2">🔗 Quick Links</h2>
+                <div class="flex gap-4">
+                    <a href="/admin-dashboard" class="text-purple-600 hover:text-purple-800 underline">
+                        Admin Dashboard (with Agent Prompts tab)
+                    </a>
+                    <a href="/static/admin/langchain/prompts.html" class="text-purple-600 hover:text-purple-800 underline">
+                        Direct Prompts Page
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div id="root" class="bg-white rounded-lg shadow-lg"></div>
+    </div>
+    
+    <script src="/static/dist/LangChainPromptsPanel.js"></script>
+    <script>
+        // Mount the enhanced component
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        
+        if (typeof LangChainPromptsPanel !== 'undefined') {
+            console.log('✅ Enhanced LangChainPromptsPanel loaded successfully');
+            root.render(React.createElement(LangChainPromptsPanel));
+        } else {
+            console.error('❌ LangChainPromptsPanel component not found');
+            root.render(
+                React.createElement('div', { className: 'p-4 text-red-600' },
+                    'Error: Component not loaded'
+                )
+            );
+        }
+    </script>
+</body>
+</html>

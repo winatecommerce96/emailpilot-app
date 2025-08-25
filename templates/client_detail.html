@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ client_name | default('Client Details', true) }} - EmailPilot</title>
+    <meta name="description" content="Client details and configuration for {{ client_name | default('EmailPilot client', true) }}">
+    <link rel="canonical" href="/clients/{{ client_id }}">
+    
+    <script>
+        (function(){
+            var t=localStorage.getItem('emailpilot-theme')||'light';
+            document.documentElement.setAttribute('data-theme',t);
+            document.documentElement.style.backgroundColor=t==='dark'?'#111827':'#f9fafb';
+        })();
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Red+Hat+Display:wght@900&display=swap" rel="stylesheet">
+    <link href="/static/dist/styles.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div id="nav-root"></div>
+    
+    <!-- Server-injected data -->
+    <script type="application/json" id="client-data">
+        {
+            "client_id": "{{ client_id }}",
+            "client_name": "{{ client_name | default('', true) }}"
+        }
+    </script>
+    
+    <main id="client-detail-root" class="container mx-auto px-4 py-8" data-client-id="{{ client_id }}">
+        <noscript>
+            <h1>Client Details</h1>
+            <p>Client ID: {{ client_id }}</p>
+            <p>JavaScript is required for full client management features.</p>
+            <a href="/clients">← Back to Clients</a>
+        </noscript>
+    </main>
+
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    
+    <!-- Enhanced Client Management Component -->
+    <script src="/static/dist/AdminClientManagement.js"></script>
+    
+    <!-- Page initialization -->
+    <script>
+        window.API_BASE_URL = window.location.origin;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get client ID from server-injected data
+            const clientData = JSON.parse(document.getElementById('client-data').textContent);
+            const clientDetailRoot = document.getElementById('client-detail-root');
+            
+            if (clientDetailRoot && window.AdminClientManagement) {
+                // Mount component with client ID
+                ReactDOM.render(
+                    React.createElement(window.AdminClientManagement, {
+                        clientId: clientData.client_id,
+                        viewMode: 'detail'
+                    }),
+                    clientDetailRoot
+                );
+            }
+        });
+    </script>
+</body>
+</html>

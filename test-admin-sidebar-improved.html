@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Sidebar Improved - Retry & Error Handling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <style>
+        [data-theme="dark"] {
+            --bg-primary: #111827;
+            --bg-secondary: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+        }
+        
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --text-primary: #111827;
+            --text-secondary: #4b5563;
+        }
+        
+        body {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="flex h-screen">
+        <!-- Sidebar will be rendered here -->
+        <div id="sidebar-root"></div>
+        
+        <!-- Main content area -->
+        <div class="flex-1 p-8 overflow-y-auto">
+            <h1 class="text-3xl font-bold mb-6">Admin Sidebar Improved - Test Suite</h1>
+            
+            <!-- Test Controls -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- Server Simulation -->
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4">🖥️ Server Simulation</h2>
+                    <div class="space-y-3">
+                        <button onclick="simulateServerStatus('online')" 
+                                class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                            ✅ Server Online (Success)
+                        </button>
+                        <button onclick="simulateServerStatus('offline')" 
+                                class="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                            ❌ Server Offline (Network Error)
+                        </button>
+                        <button onclick="simulateServerStatus('slow')" 
+                                class="w-full px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">
+                            🐌 Slow Server (Timeout)
+                        </button>
+                        <button onclick="simulateServerStatus('auth-fail')" 
+                                class="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+                            🔒 Auth Failure (401)
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Test Scenarios -->
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4">🧪 Test Scenarios</h2>
+                    <div class="space-y-3">
+                        <button onclick="testRetryLogic()" 
+                                class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            🔄 Test Exponential Backoff
+                        </button>
+                        <button onclick="testPartialSuccess()" 
+                                class="w-full px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                            📊 Partial Data Success
+                        </button>
+                        <button onclick="clearAuth()" 
+                                class="w-full px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+                            🗑️ Clear Auth Token
+                        </button>
+                        <button onclick="setAuth()" 
+                                class="w-full px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">
+                            🔑 Set Test Token
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Status Display -->
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+                <h2 class="text-xl font-semibold mb-4">📊 Current Status</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Server Status</p>
+                        <p id="server-status" class="font-mono font-bold">Online</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Active Tab</p>
+                        <p id="active-tab" class="font-mono font-bold">overview</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Auth Token</p>
+                        <p id="auth-status" class="font-mono font-bold">None</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Retry Count</p>
+                        <p id="retry-count" class="font-mono font-bold">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Console Output -->
+            <div class="bg-gray-900 text-green-400 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-white">📟 Console Output</h2>
+                <div id="console-output" class="font-mono text-xs h-64 overflow-y-auto space-y-1">
+                    <div>Waiting for AdminSidebar to initialize...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mock Server Worker -->
+    <script>
+        // Server simulation state
+        let serverMode = 'online';
+        let mockDelay = 100;
+        
+        // Mock fetch to simulate different server conditions
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+            const log = (msg) => addConsoleLog(`[Fetch] ${msg}`);
+            
+            log(`Request to: ${url}`);
+            
+            // Check server mode
+            if (serverMode === 'offline') {
+                log('Simulating network error');
+                return Promise.reject(new Error('Network request failed'));
+            }
+            
+            if (serverMode === 'auth-fail') {
+                log('Simulating auth failure (401)');
+                return Promise.resolve({
+                    ok: false,
+                    status: 401,
+                    statusText: 'Unauthorized',
+                    json: () => Promise.resolve({ error: 'Invalid token' })
+                });
+            }
+            
+            if (serverMode === 'slow') {
+                log(`Simulating slow response (${mockDelay}ms delay)`);
+                mockDelay = Math.min(mockDelay * 1.5, 10000); // Increase delay each time
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        log('Timeout exceeded');
+                        resolve({
+                            ok: false,
+                            status: 408,
+                            statusText: 'Request Timeout'
+                        });
+                    }, mockDelay);
+                });
+            }
+            
+            // Simulate successful responses
+            log('Simulating successful response');
+            const mockResponses = {
+                '/api/admin/system/status': {
+                    status: 'operational',
+                    components: {
+                        mcp_service: { status: 'operational' },
+                        slack: { status: 'degraded' },
+                        secret_manager: { status: 'operational' }
+                    }
+                },
+                '/api/agent-config/agents': [
+                    { id: 1, name: 'GPT-4', configured: true },
+                    { id: 2, name: 'Claude', configured: true },
+                    { id: 3, name: 'Gemini', configured: false }
+                ],
+                '/api/performance/orders/monitor-all': [
+                    { id: 1, severity: 'critical', message: 'Order processing delayed' },
+                    { id: 2, severity: 'warning', message: 'Low inventory' }
+                ],
+                '/api/admin/ops/logs/large': [
+                    { file: 'app.log', size: 1024000 },
+                    { file: 'error.log', size: 512000 }
+                ]
+            };
+            
+            const path = url.replace(window.location.origin, '');
+            const responseData = mockResponses[path] || {};
+            
+            return Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve(responseData)
+            });
+        };
+        
+        // Console capture
+        function addConsoleLog(message) {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            line.innerHTML = `<span class="text-gray-500">[${time}]</span> ${message}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // Override console.log
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            if (message.includes('[AdminSidebar]')) {
+                addConsoleLog(message);
+            }
+        };
+        
+        // Test functions
+        function simulateServerStatus(status) {
+            serverMode = status;
+            mockDelay = 100;
+            document.getElementById('server-status').textContent = status;
+            addConsoleLog(`Server mode changed to: ${status}`);
+            
+            // Trigger reload
+            if (window.AdminSidebar) {
+                renderSidebar();
+            }
+        }
+        
+        function testRetryLogic() {
+            addConsoleLog('Starting exponential backoff test...');
+            simulateServerStatus('offline');
+            setTimeout(() => {
+                addConsoleLog('Server coming back online in 5 seconds...');
+                setTimeout(() => {
+                    simulateServerStatus('online');
+                }, 5000);
+            }, 2000);
+        }
+        
+        function testPartialSuccess() {
+            addConsoleLog('Testing partial data success...');
+            // This would require more complex mocking
+            serverMode = 'partial';
+            renderSidebar();
+        }
+        
+        function clearAuth() {
+            localStorage.removeItem('token');
+            document.getElementById('auth-status').textContent = 'None';
+            addConsoleLog('Auth token cleared');
+            renderSidebar();
+        }
+        
+        function setAuth() {
+            localStorage.setItem('token', 'test-token-12345');
+            document.getElementById('auth-status').textContent = 'Present';
+            addConsoleLog('Test token set');
+            renderSidebar();
+        }
+        
+        // Tab change handler
+        function handleTabChange(tabId) {
+            document.getElementById('active-tab').textContent = tabId;
+            addConsoleLog(`Tab changed to: ${tabId}`);
+        }
+        
+        // Render sidebar
+        function renderSidebar() {
+            const props = {
+                activeTab: 'overview',
+                onTabChange: handleTabChange
+            };
+            
+            if (window.AdminSidebar) {
+                ReactDOM.render(
+                    React.createElement(window.AdminSidebar, props),
+                    document.getElementById('sidebar-root')
+                );
+                addConsoleLog('Sidebar re-rendered');
+            }
+        }
+        
+        // Update status displays
+        setInterval(() => {
+            const token = localStorage.getItem('token');
+            document.getElementById('auth-status').textContent = token ? 'Present' : 'None';
+        }, 1000);
+    </script>
+
+    <!-- Load the AdminSidebar components -->
+    <script src="/static/dist/AdminSidebarImproved.js"></script>
+    
+    <script>
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            addConsoleLog('Page loaded, initializing...');
+            
+            // Set initial theme
+            const theme = localStorage.getItem('emailpilot-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            
+            // Wait for component and render
+            const checkAndRender = () => {
+                if (window.AdminSidebar) {
+                    addConsoleLog('AdminSidebar component found');
+                    renderSidebar();
+                } else {
+                    addConsoleLog('Waiting for AdminSidebar component...');
+                    setTimeout(checkAndRender, 100);
+                }
+            };
+            
+            checkAndRender();
+        });
+        
+        // Listen for retry events
+        window.addEventListener('admin-sidebar:use-defaults', () => {
+            addConsoleLog('User chose to continue with defaults');
+        });
+        
+        window.addEventListener('admin-sidebar:patched', (e) => {
+            addConsoleLog(`Sidebar patched with version: ${e.detail?.version}`);
+        });
+    </script>
+</body>
+</html>

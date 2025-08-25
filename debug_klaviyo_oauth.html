@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Klaviyo OAuth</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <h1 class="text-2xl font-bold">Klaviyo OAuth Debug Tool</h1>
+        
+        <!-- Auth Status -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Step 1: Check Authentication</h2>
+            <button onclick="checkAuth()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Check Auth Status
+            </button>
+            <div id="authStatus" class="mt-4 p-3 bg-gray-50 rounded text-sm"></div>
+        </div>
+
+        <!-- Get Auth URL -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Step 2: Get Authorization URL</h2>
+            <button onclick="getAuthUrl()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                Get Klaviyo Auth URL
+            </button>
+            <div id="authUrl" class="mt-4 p-3 bg-gray-50 rounded text-sm break-all"></div>
+        </div>
+
+        <!-- Manual OAuth -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Step 3: Manual OAuth Flow</h2>
+            <button onclick="startOAuth()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+                Start Klaviyo OAuth (with logging)
+            </button>
+            <div id="oauthStatus" class="mt-4 p-3 bg-gray-50 rounded text-sm"></div>
+        </div>
+
+        <!-- Check Connection -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Step 4: Check Connection Status</h2>
+            <button onclick="checkConnection()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                Check Klaviyo Connection
+            </button>
+            <div id="connectionStatus" class="mt-4 p-3 bg-gray-50 rounded text-sm"></div>
+        </div>
+
+        <!-- Console -->
+        <div class="bg-gray-900 rounded-lg shadow p-4">
+            <h3 class="text-white font-mono text-sm mb-2">Debug Console</h3>
+            <pre id="console" class="text-green-400 text-xs font-mono h-64 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        const log = (message, data = null) => {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            console.textContent += `[${timestamp}] ${message}\n`;
+            if (data) {
+                console.textContent += JSON.stringify(data, null, 2) + '\n';
+            }
+            console.scrollTop = console.scrollHeight;
+        };
+
+        async function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            const statusDiv = document.getElementById('authStatus');
+            
+            if (!token) {
+                statusDiv.innerHTML = '❌ No token found. Need to login first.';
+                log('No access token in localStorage');
+                
+                // Try guest login
+                try {
+                    log('Attempting guest login...');
+                    const response = await fetch(`${API_BASE}/api/auth/google/guest`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        localStorage.setItem('access_token', data.access_token);
+                        statusDiv.innerHTML = '✅ Guest login successful!';
+                        log('Guest login successful', data);
+                    } else {
+                        const error = await response.json();
+                        statusDiv.innerHTML = '❌ Guest login failed';
+                        log('Guest login failed', error);
+                    }
+                } catch (err) {
+                    log('Guest login error', err.message);
+                }
+                return;
+            }
+
+            try {
+                log('Checking authentication with token...');
+                const response = await fetch(`${API_BASE}/api/auth/google/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    statusDiv.innerHTML = `✅ Authenticated as: ${user.email}`;
+                    log('Authentication verified', user);
+                } else {
+                    statusDiv.innerHTML = '❌ Token is invalid';
+                    log('Token validation failed', response.status);
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `❌ Error: ${err.message}`;
+                log('Auth check error', err.message);
+            }
+        }
+
+        async function getAuthUrl() {
+            const token = localStorage.getItem('access_token');
+            const urlDiv = document.getElementById('authUrl');
+            
+            if (!token) {
+                urlDiv.innerHTML = '❌ Must be authenticated first';
+                log('No token - cannot get auth URL');
+                return;
+            }
+
+            try {
+                log('Fetching Klaviyo authorization URL...');
+                const response = await fetch(`${API_BASE}/api/integrations/klaviyo/auth`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                log(`Response status: ${response.status}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    urlDiv.innerHTML = `
+                        <div class="mb-2">✅ Authorization URL received:</div>
+                        <div class="font-mono text-xs">${data.authorization_url}</div>
+                        <button onclick="window.open('${data.authorization_url}', '_blank')" 
+                                class="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm">
+                            Open in New Tab
+                        </button>
+                    `;
+                    log('Authorization URL received', data);
+                    
+                    // Parse and display URL components
+                    const url = new URL(data.authorization_url);
+                    log('URL Components:', {
+                        host: url.host,
+                        pathname: url.pathname,
+                        client_id: url.searchParams.get('client_id'),
+                        redirect_uri: url.searchParams.get('redirect_uri'),
+                        scope: url.searchParams.get('scope'),
+                        state: url.searchParams.get('state')
+                    });
+                } else {
+                    urlDiv.innerHTML = `❌ Error: ${data.detail}`;
+                    log('Failed to get auth URL', data);
+                }
+            } catch (err) {
+                urlDiv.innerHTML = `❌ Error: ${err.message}`;
+                log('Error fetching auth URL', err.message);
+            }
+        }
+
+        async function startOAuth() {
+            const token = localStorage.getItem('access_token');
+            const statusDiv = document.getElementById('oauthStatus');
+            
+            if (!token) {
+                statusDiv.innerHTML = '❌ Must be authenticated first';
+                return;
+            }
+
+            statusDiv.innerHTML = '⏳ Starting OAuth flow...';
+            log('Starting Klaviyo OAuth flow...');
+
+            try {
+                // Get auth URL
+                const response = await fetch(`${API_BASE}/api/integrations/klaviyo/auth`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get authorization URL');
+                }
+
+                const data = await response.json();
+                log('Opening OAuth popup...');
+                
+                // Open popup
+                const popup = window.open(
+                    data.authorization_url,
+                    'KlaviyoOAuth',
+                    'width=600,height=700,scrollbars=yes,resizable=yes'
+                );
+
+                if (!popup) {
+                    throw new Error('Popup blocked!');
+                }
+
+                statusDiv.innerHTML = '⏳ Waiting for authorization...';
+                
+                // Listen for messages
+                const messageHandler = (event) => {
+                    log('Received message:', event.data);
+                    
+                    if (event.data.service === 'klaviyo') {
+                        if (event.data.success) {
+                            statusDiv.innerHTML = '✅ Klaviyo connected successfully!';
+                            log('OAuth successful!', event.data);
+                        } else {
+                            statusDiv.innerHTML = `❌ Connection failed: ${event.data.message}`;
+                            log('OAuth failed', event.data);
+                        }
+                        window.removeEventListener('message', messageHandler);
+                    }
+                };
+                
+                window.addEventListener('message', messageHandler);
+                log('Message listener attached');
+                
+                // Check if popup closes
+                const checkClosed = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkClosed);
+                        log('Popup closed');
+                        window.removeEventListener('message', messageHandler);
+                        checkConnection();
+                    }
+                }, 1000);
+
+            } catch (err) {
+                statusDiv.innerHTML = `❌ Error: ${err.message}`;
+                log('OAuth error', err.message);
+            }
+        }
+
+        async function checkConnection() {
+            const token = localStorage.getItem('access_token');
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            if (!token) {
+                statusDiv.innerHTML = '❌ Must be authenticated first';
+                return;
+            }
+
+            try {
+                log('Checking Klaviyo connection status...');
+                const response = await fetch(`${API_BASE}/api/integrations/klaviyo/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                log('Connection status response', data);
+                
+                if (data.connected) {
+                    statusDiv.innerHTML = `
+                        <div>✅ Klaviyo is connected</div>
+                        <div class="text-xs mt-2">
+                            <div>Connected at: ${data.connected_at}</div>
+                            <div>Scope: ${data.scope}</div>
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = '⚪ Klaviyo is not connected';
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `❌ Error: ${err.message}`;
+                log('Status check error', err.message);
+            }
+        }
+
+        // Auto-check auth on load
+        window.addEventListener('load', () => {
+            log('Debug tool loaded');
+            checkAuth();
+        });
+    </script>
+</body>
+</html>

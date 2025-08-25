@@ -1,15 +1,11 @@
 # app/api/goals.py
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
-from app.core.config import get_firestore_client
+from app.deps import get_db
 from datetime import datetime
 from google.cloud import firestore as fs
 
 router = APIRouter(prefix="/api/goals", tags=["goals"])
-
-def get_db():
-    """Get Firestore database client"""
-    return get_firestore_client()
 
 @router.get("/clients")
 def goals_by_client() -> Dict[str, Any]:
@@ -20,7 +16,7 @@ def goals_by_client() -> Dict[str, Any]:
     counts: Dict[str, Dict[str, int]] = {}
     total_goals = 0
     
-    db = get_firestore_client()
+    db = get_db()
     
     # First pass: collect goal statistics by client ID
     for snap in db.collection("goals").stream():
@@ -84,7 +80,7 @@ def company_aggregated() -> Dict[str, Any]:
     total_open = total_in_progress = total_done = 0
     total_revenue_goal = 0.0
     
-    db = get_firestore_client()
+    db = get_db()
     for snap in db.collection("goals").stream():
         data = snap.to_dict() or {}
         
@@ -122,7 +118,7 @@ def get_data_status() -> Dict[str, Any]:
     goals_with_override = 0
     clients_with_goals = set()
     
-    db = get_firestore_client()
+    db = get_db()
     for snap in db.collection("goals").stream():
         data = snap.to_dict() or {}
         total_goals += 1
@@ -165,7 +161,7 @@ def get_accuracy_comparison() -> Dict[str, Any]:
     ai_goals = []
     human_goals = []
     
-    db = get_firestore_client()
+    db = get_db()
     for snap in db.collection("goals").stream():
         data = snap.to_dict() or {}
         revenue_goal = data.get("revenue_goal", 0)
@@ -204,7 +200,7 @@ def get_client_goals(client_id: str) -> List[Dict[str, Any]]:
     goals = []
     
     # Query goals for this client
-    db = get_firestore_client()
+    db = get_db()
     query = db.collection("goals").where("client_id", "==", client_id)
     
     for snap in query.stream():
@@ -233,7 +229,7 @@ def get_goal_versions(goal_id: str) -> Dict[str, Any]:
     Currently returns the current version as we don't track history yet.
     """
     try:
-        db = get_firestore_client()
+        db = get_db()
         goal_ref = db.collection("goals").document(goal_id)
         goal_doc = goal_ref.get()
         
@@ -267,7 +263,7 @@ def create_goal(client_id: str, goal_data: Dict[str, Any]) -> Dict[str, Any]:
     Create a new goal for a client.
     """
     try:
-        db = get_firestore_client()
+        db = get_db()
         
         # Prepare goal document
         new_goal = {
@@ -306,7 +302,7 @@ def update_goal(goal_id: str, goal_data: Dict[str, Any]) -> Dict[str, Any]:
     Update an existing goal.
     """
     try:
-        db = get_firestore_client()
+        db = get_db()
         goal_ref = db.collection("goals").document(goal_id)
         
         # Check if goal exists

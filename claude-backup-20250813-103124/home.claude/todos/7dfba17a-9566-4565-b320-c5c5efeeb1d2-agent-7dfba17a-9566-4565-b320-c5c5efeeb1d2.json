@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Connect to Klaviyo API and get metrics list",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Get July 2024 revenue data",
+    "status": "pending",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Get July 2025 revenue data",
+    "status": "pending",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Get campaigns data",
+    "status": "pending",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Get flows data",
+    "status": "pending",
+    "priority": "high",
+    "id": "5"
+  },
+  {
+    "content": "Generate audit report",
+    "status": "completed",
+    "priority": "high",
+    "id": "6"
+  }
+]

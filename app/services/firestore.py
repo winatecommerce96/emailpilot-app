@@ -5,7 +5,7 @@ No files written to disk, no environment variables needed.
 import os
 from google.cloud import firestore
 from google.oauth2 import service_account
-from app.services.secret_manager import SecretLoadError
+from app.services.secrets import SecretError
 
 def build_firestore_client(project_id: str, sa_json: dict = None) -> firestore.Client:
     """Build Firestore client with service account credentials or default credentials."""
@@ -24,7 +24,7 @@ def build_firestore_client(project_id: str, sa_json: dict = None) -> firestore.C
         
         return client
     except Exception as e:
-        raise SecretLoadError(f"Could not build Firestore client: {e}") from e
+        raise SecretError(f"Could not build Firestore client: {e}") from e
 
 def ping(client: firestore.Client) -> None:
     """Lightweight connectivity check."""
@@ -33,5 +33,5 @@ def ping(client: firestore.Client) -> None:
     except StopIteration:
         return
     except Exception as e:
-        raise SecretLoadError(f"Firestore connectivity check failed: {e}") from e
+        raise SecretError(f"Firestore connectivity check failed: {e}") from e
 

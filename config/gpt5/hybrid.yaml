@@ -1,0 +1,75 @@
+general_settings:
+  telemetry: false
+  master_key: "sk-128d6e9dad2c1b6e592e16b650f7f822caaeaa830a8214f60d78fdf5e9b2f087"
+
+proxy_settings:
+  host: 127.0.0.1
+  port: 4000
+  cors: ["*"]
+
+litellm_settings:
+  set_verbose: true
+  drop_params: true
+  timeout: 120
+  num_retries: 3
+
+# Explicit, stable mappings across providers:
+# - OpenAI:  gpt-5, gpt-5-mini   (requires OPENAI_API_KEY)
+# - Anthropic: sonnet/haiku/opus + explicit IDs (requires ANTHROPIC_API_KEY)
+model_list:
+  # ---- OpenAI (GPT-5 family) ----
+  - model_name: gpt-5
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  # ---- Anthropic (Claude family) ----
+  - model_name: claude-3-5-sonnet-20240620
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-3-5-sonnet-latest
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: sonnet
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-3-5-haiku-20241022
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-3-5-haiku-latest
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: haiku
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-3-opus-20240229
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-3-opus-latest
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: opus
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY

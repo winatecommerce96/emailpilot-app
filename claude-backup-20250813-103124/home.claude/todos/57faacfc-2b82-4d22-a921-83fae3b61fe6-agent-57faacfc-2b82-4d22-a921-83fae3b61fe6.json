@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix client switching issue in calendar",
+    "status": "in_progress",
+    "id": "fix-client-switch"
+  },
+  {
+    "content": "Connect to EmailPilot Firebase instance",
+    "status": "in_progress",
+    "id": "connect-firebase"
+  },
+  {
+    "content": "Use proper Firebase collections structure",
+    "status": "in_progress",
+    "id": "fix-collections"
+  },
+  {
+    "content": "Test client switching functionality",
+    "status": "pending",
+    "id": "test-switching"
+  },
+  {
+    "content": "Update API to use correct Firebase paths",
+    "status": "in_progress",
+    "id": "update-api"
+  }
+]

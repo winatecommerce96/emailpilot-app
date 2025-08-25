@@ -1,0 +1,17 @@
+# config/gpt5/litellm.yaml
+# LiteLLM proxy config to power Claude Code with OpenAI GPT‑5 via Anthropic-compatible endpoint
+general_settings:
+  master_key: sk-128d6e9dad2c1b6e592e16b650f7f822caaeaa830a8214f60d78fdf5e9b2f087
+litellm_settings:
+  drop_params: true
+  set_verbose: true
+model_list:
+  - model_name: sonnet
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: haiku
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+

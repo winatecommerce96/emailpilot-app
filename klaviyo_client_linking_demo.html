@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klaviyo Client Linking - Complete Flow Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script>window.API_BASE_URL = 'http://localhost:8000';</script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">🔗 Klaviyo OAuth to Client Linking</h1>
+            <p class="text-gray-600">Complete flow: OAuth → Discover Accounts → Link to Clients</p>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-600">Auth:</span>
+                        <span id="authStatus" class="text-sm font-medium">Checking...</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-600">Klaviyo:</span>
+                        <span id="klaviyoStatus" class="text-sm font-medium">Checking...</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-600">Accounts:</span>
+                        <span id="accountStatus" class="text-sm font-medium">Not discovered</span>
+                    </div>
+                </div>
+                <button onclick="location.reload()" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Step by Step Flow -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <!-- Step 1: Authenticate -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">1</div>
+                    <h2 class="text-lg font-semibold">Authenticate</h2>
+                </div>
+                <p class="text-gray-600 mb-4 text-sm">Login to EmailPilot</p>
+                <button onclick="authenticate()" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Login as Guest
+                </button>
+            </div>
+
+            <!-- Step 2: Connect Klaviyo -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
+                    <h2 class="text-lg font-semibold">Connect Klaviyo</h2>
+                </div>
+                <p class="text-gray-600 mb-4 text-sm">OAuth authorization</p>
+                <button onclick="connectKlaviyo()" id="connectBtn" class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50" disabled>
+                    Connect via OAuth
+                </button>
+            </div>
+
+            <!-- Step 3: Discover & Link -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
+                    <h2 class="text-lg font-semibold">Discover & Link</h2>
+                </div>
+                <p class="text-gray-600 mb-4 text-sm">Link accounts to clients</p>
+                <button onclick="discoverAccounts()" id="discoverBtn" class="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50" disabled>
+                    Discover Accounts
+                </button>
+            </div>
+        </div>
+
+        <!-- React Component Container -->
+        <div id="linkingComponent"></div>
+
+        <!-- Results Display -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h3 class="font-semibold mb-4">Flow Status</h3>
+            <div id="flowResults" class="space-y-2 text-sm">
+                <p class="text-gray-500">Complete the steps above to see results...</p>
+            </div>
+        </div>
+
+        <!-- Debug Console -->
+        <div class="bg-gray-900 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-green-400 font-mono text-sm">Debug Console</h3>
+                <button onclick="clearConsole()" class="text-gray-400 hover:text-white text-xs">Clear</button>
+            </div>
+            <pre id="console" class="text-green-400 text-xs font-mono max-h-48 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <!-- Load Component -->
+    <script src="/static/dist/KlaviyoAccountLinking.js"></script>
+
+    <script>
+        const log = (msg, type = 'info') => {
+            const console = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            const symbols = { error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️' };
+            console.textContent += `${symbols[type]} [${time}] ${msg}\n`;
+            console.scrollTop = console.scrollHeight;
+        };
+
+        const addResult = (msg, success = true) => {
+            const results = document.getElementById('flowResults');
+            if (results.firstChild?.textContent?.includes('Complete the steps')) {
+                results.innerHTML = '';
+            }
+            const div = document.createElement('div');
+            div.className = `p-2 rounded ${success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
+            div.innerHTML = `${success ? '✅' : '❌'} ${msg}`;
+            results.appendChild(div);
+        };
+
+        const clearConsole = () => {
+            document.getElementById('console').textContent = '';
+            log('Console cleared');
+        };
+
+        // Check authentication status
+        async function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                document.getElementById('authStatus').innerHTML = '<span class="text-red-600">Not authenticated</span>';
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('authStatus').innerHTML = `<span class="text-green-600">✅ ${user.email}</span>`;
+                    document.getElementById('connectBtn').disabled = false;
+                    log(`Authenticated as ${user.email}`, 'success');
+                    return true;
+                } else {
+                    document.getElementById('authStatus').innerHTML = '<span class="text-red-600">Invalid token</span>';
+                    return false;
+                }
+            } catch (error) {
+                log(`Auth check error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Check Klaviyo connection
+        async function checkKlaviyoConnection() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return false;
+
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/klaviyo/status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.connected) {
+                        document.getElementById('klaviyoStatus').innerHTML = '<span class="text-green-600">✅ Connected</span>';
+                        document.getElementById('discoverBtn').disabled = false;
+                        log('Klaviyo is connected', 'success');
+                        return true;
+                    } else {
+                        document.getElementById('klaviyoStatus').innerHTML = '<span class="text-gray-600">Not connected</span>';
+                        return false;
+                    }
+                }
+            } catch (error) {
+                log(`Klaviyo status error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Step 1: Authenticate
+        async function authenticate() {
+            log('Starting authentication...');
+            
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/guest`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    addResult('Authentication successful');
+                    log('Guest login successful', 'success');
+                    await checkAuth();
+                    await checkKlaviyoConnection();
+                } else {
+                    addResult('Authentication failed', false);
+                    log('Authentication failed', 'error');
+                }
+            } catch (error) {
+                addResult(`Auth error: ${error.message}`, false);
+                log(`Auth error: ${error.message}`, 'error');
+            }
+        }
+
+        // Step 2: Connect Klaviyo
+        async function connectKlaviyo() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                addResult('Must authenticate first', false);
+                return;
+            }
+
+            log('Starting Klaviyo OAuth...');
+            
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/klaviyo/auth`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Opening OAuth popup...');
+                    
+                    const popup = window.open(
+                        data.authorization_url,
+                        'KlaviyoOAuth',
+                        'width=600,height=700,scrollbars=yes,resizable=yes'
+                    );
+
+                    if (!popup) {
+                        addResult('Popup blocked - please allow popups', false);
+                        return;
+                    }
+
+                    // Listen for OAuth completion
+                    const handleMessage = (event) => {
+                        if (event.data.service === 'klaviyo') {
+                            if (event.data.success) {
+                                addResult('Klaviyo connected successfully');
+                                log('Klaviyo OAuth successful', 'success');
+                                checkKlaviyoConnection();
+                            } else {
+                                addResult(`Klaviyo connection failed: ${event.data.message}`, false);
+                                log(`OAuth failed: ${event.data.message}`, 'error');
+                            }
+                            window.removeEventListener('message', handleMessage);
+                        }
+                    };
+
+                    window.addEventListener('message', handleMessage);
+
+                    // Check if popup closed
+                    const checkClosed = setInterval(() => {
+                        if (popup.closed) {
+                            clearInterval(checkClosed);
+                            checkKlaviyoConnection();
+                        }
+                    }, 1000);
+                }
+            } catch (error) {
+                addResult(`OAuth error: ${error.message}`, false);
+                log(`OAuth error: ${error.message}`, 'error');
+            }
+        }
+
+        // Step 3: Discover accounts
+        async function discoverAccounts() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                addResult('Must authenticate first', false);
+                return;
+            }
+
+            log('Discovering Klaviyo accounts...');
+            
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/klaviyo/discover-accounts`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const count = data.discovered_accounts?.length || 0;
+                    
+                    document.getElementById('accountStatus').innerHTML = `<span class="text-green-600">${count} discovered</span>`;
+                    addResult(`Discovered ${count} Klaviyo account(s)`);
+                    log(`Discovered ${count} accounts`, 'success');
+                    
+                    // Render the linking component
+                    renderLinkingComponent();
+                } else {
+                    const error = await response.json();
+                    addResult(`Discovery failed: ${error.detail}`, false);
+                    log(`Discovery failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                addResult(`Discovery error: ${error.message}`, false);
+                log(`Discovery error: ${error.message}`, 'error');
+            }
+        }
+
+        // Render the React component
+        function renderLinkingComponent() {
+            const container = document.getElementById('linkingComponent');
+            
+            if (!window.KlaviyoAccountLinking) {
+                log('Loading component...', 'warning');
+                // Try loading the component
+                const script = document.createElement('script');
+                script.src = '/static/dist/KlaviyoAccountLinking.js';
+                script.onload = () => {
+                    log('Component loaded', 'success');
+                    renderComponent();
+                };
+                script.onerror = () => {
+                    log('Failed to load component', 'error');
+                    // Use fallback inline component
+                    container.innerHTML = `
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <h3 class="text-lg font-semibold mb-4">Account Linking Interface</h3>
+                            <p class="text-gray-600">Component loading... Please check the console for details.</p>
+                            <p class="text-sm text-gray-500 mt-2">The Klaviyo account discovery was successful. You can now link accounts to clients using the API.</p>
+                        </div>
+                    `;
+                };
+                document.head.appendChild(script);
+            } else {
+                renderComponent();
+            }
+        }
+
+        function renderComponent() {
+            const container = document.getElementById('linkingComponent');
+            const component = React.createElement(window.KlaviyoAccountLinking, {
+                onAccountLinked: (accountId, clientId) => {
+                    addResult(`Account ${accountId} linked to client ${clientId}`);
+                    log(`Linked account ${accountId} to client ${clientId}`, 'success');
+                },
+                onClientCreated: (clientName) => {
+                    addResult(`New client created: ${clientName}`);
+                    log(`Created client: ${clientName}`, 'success');
+                }
+            });
+            ReactDOM.render(component, container);
+            log('Linking component rendered', 'success');
+        }
+
+        // Initialize
+        window.addEventListener('load', async () => {
+            log('Page loaded, checking status...');
+            const authOk = await checkAuth();
+            if (authOk) {
+                await checkKlaviyoConnection();
+            }
+        });
+    </script>
+</body>
+</html>

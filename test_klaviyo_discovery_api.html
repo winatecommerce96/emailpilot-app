@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klaviyo Account Discovery - API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        .endpoint-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        
+        .endpoint-title {
+            color: #007bff;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .method.post { background-color: #28a745; }
+        .method.get { background-color: #007bff; }
+        .method.delete { background-color: #dc3545; }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .response.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .response.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .auth-status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .auth-status.authenticated {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .auth-status.not-authenticated {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .info-box {
+            background-color: #e7f3ff;
+            border: 1px solid #b8daff;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Klaviyo Account Discovery API Test</h1>
+        
+        <div class="info-box">
+            <strong>📋 Testing Instructions:</strong><br>
+            1. Make sure you're authenticated in EmailPilot<br>
+            2. Ensure you have a Klaviyo OAuth token stored in Secret Manager<br>
+            3. Test the endpoints below to discover and manage your Klaviyo accounts
+        </div>
+
+        <div id="auth-status" class="auth-status not-authenticated">
+            🔒 Authentication Status: Checking...
+        </div>
+
+        <!-- Discover Accounts Endpoint -->
+        <div class="endpoint-section">
+            <div class="endpoint-title">
+                <span class="method post">POST</span>
+                /api/klaviyo/discover-accounts
+            </div>
+            <p>Discover Klaviyo accounts that you have access to via your OAuth token.</p>
+            <button onclick="discoverAccounts()">🔍 Discover Accounts</button>
+            <div id="discover-response" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Available Accounts Endpoint -->
+        <div class="endpoint-section">
+            <div class="endpoint-title">
+                <span class="method get">GET</span>
+                /api/klaviyo/available-accounts
+            </div>
+            <p>Get previously discovered accounts with their current link status.</p>
+            <button onclick="getAvailableAccounts()">📋 Get Available Accounts</button>
+            <div id="available-response" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Account Status Endpoint -->
+        <div class="endpoint-section">
+            <div class="endpoint-title">
+                <span class="method get">GET</span>
+                /api/klaviyo/account/{account_id}/status
+            </div>
+            <p>Check the link status of a specific Klaviyo account.</p>
+            <input type="text" id="account-id-input" placeholder="Enter account ID" style="padding: 5px; margin-right: 10px; width: 200px;">
+            <button onclick="getAccountStatus()">🔗 Check Status</button>
+            <div id="status-response" class="response" style="display: none;"></div>
+        </div>
+
+        <!-- Clear Discovered Accounts Endpoint -->
+        <div class="endpoint-section">
+            <div class="endpoint-title">
+                <span class="method delete">DELETE</span>
+                /api/klaviyo/clear-discovered
+            </div>
+            <p>Clear all discovered accounts (useful for re-discovery).</p>
+            <button onclick="clearDiscoveredAccounts()" style="background-color: #dc3545;">🗑️ Clear Discovered</button>
+            <div id="clear-response" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="info-box">
+            <strong>🔧 Implementation Details:</strong><br>
+            • OAuth tokens are stored in Secret Manager as <code>oauth-klaviyo-{user-email}</code><br>
+            • Discovered accounts are stored in Firestore collection <code>klaviyo_discovered_accounts</code><br>
+            • Link status is determined by checking existing clients in the <code>clients</code> collection<br>
+            • All endpoints require user authentication via session
+        </div>
+    </div>
+
+    <script>
+        // Check authentication status on page load
+        window.onload = function() {
+            checkAuthStatus();
+        };
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/admin/health');
+                const data = await response.json();
+                
+                const authStatus = document.getElementById('auth-status');
+                if (response.ok) {
+                    authStatus.className = 'auth-status authenticated';
+                    authStatus.innerHTML = '✅ Authentication Status: Connected to EmailPilot';
+                } else {
+                    authStatus.className = 'auth-status not-authenticated';
+                    authStatus.innerHTML = '❌ Authentication Status: Not authenticated or server error';
+                }
+            } catch (error) {
+                const authStatus = document.getElementById('auth-status');
+                authStatus.className = 'auth-status not-authenticated';
+                authStatus.innerHTML = '❌ Authentication Status: Cannot connect to server';
+            }
+        }
+
+        async function discoverAccounts() {
+            const responseDiv = document.getElementById('discover-response');
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response';
+            responseDiv.textContent = 'Discovering accounts...';
+
+            try {
+                const response = await fetch('/api/klaviyo/discover-accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `Error ${response.status}: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Network Error: ${error.message}`;
+            }
+        }
+
+        async function getAvailableAccounts() {
+            const responseDiv = document.getElementById('available-response');
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response';
+            responseDiv.textContent = 'Getting available accounts...';
+
+            try {
+                const response = await fetch('/api/klaviyo/available-accounts', {
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `Error ${response.status}: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Network Error: ${error.message}`;
+            }
+        }
+
+        async function getAccountStatus() {
+            const accountId = document.getElementById('account-id-input').value.trim();
+            const responseDiv = document.getElementById('status-response');
+            
+            if (!accountId) {
+                responseDiv.style.display = 'block';
+                responseDiv.className = 'response error';
+                responseDiv.textContent = 'Please enter an account ID';
+                return;
+            }
+
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response';
+            responseDiv.textContent = 'Checking account status...';
+
+            try {
+                const response = await fetch(`/api/klaviyo/account/${encodeURIComponent(accountId)}/status`, {
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `Error ${response.status}: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Network Error: ${error.message}`;
+            }
+        }
+
+        async function clearDiscoveredAccounts() {
+            if (!confirm('Are you sure you want to clear all discovered accounts? This will require re-discovery.')) {
+                return;
+            }
+
+            const responseDiv = document.getElementById('clear-response');
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response';
+            responseDiv.textContent = 'Clearing discovered accounts...';
+
+            try {
+                const response = await fetch('/api/klaviyo/clear-discovered', {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `Error ${response.status}: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Network Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

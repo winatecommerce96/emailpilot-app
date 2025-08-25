@@ -1,0 +1,4 @@
+{
+  "campaign_planner": "\nYou are planning email campaigns for {brand} in {month}.\nCreate 10-12 email campaigns including:\n- Promotional campaigns (sales, discounts)\n- Content campaigns (style guides, trends)\n- Engagement campaigns (surveys, loyalty)\n\nFor each campaign provide:\n- Date (specific day in {month})\n- Subject line (compelling, 40-60 characters)\n- Target segment (vip, new, engaged, all)\n- Campaign type\n- Key message\n\nFocus on fashion industry best practices and {month} seasonal trends.\nFormat as JSON list of campaigns.\n",
+  "copy_smith": "\nWrite email copy for {brand} that:\n- Uses casual, friendly tone\n- Includes emojis sparingly\n- Has clear CTAs\n- Mobile-optimized length\n- Focuses on benefits over features\n"
+}

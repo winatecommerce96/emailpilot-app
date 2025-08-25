@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Create User Guide for marketing teams covering dashboard usage and basic workflows",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Create Marketing KPI Documentation explaining all metrics and calculations",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Create Report Generation Guide for creating, scheduling, and exporting reports",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Create Troubleshooting Guide for common marketing user issues",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Create Best Practices guide for maximizing value from the tool",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Create Klaviyo Migration Guide with metric comparisons and transition guidance",
+    "status": "completed",
+    "id": "6"
+  }
+]

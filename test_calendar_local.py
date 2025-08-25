@@ -10,7 +10,7 @@ from datetime import datetime, date
 from typing import Dict, Any
 
 # Configuration
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = "http://localhost:8000"
 CALENDAR_API = f"{API_BASE}/api/calendar"
 
 def test_endpoint(method: str, endpoint: str, data: Dict[Any, Any] = None, expected_status: int = 200) -> Dict:
@@ -170,7 +170,7 @@ def main():
     print(f"📚 View API docs at: {API_BASE}/docs#/Calendar")
     print()
     print("Next steps:")
-    print("1. Open http://127.0.0.1:8000/calendar in your browser")
+    print("1. Open http://localhost:8000/calendar in your browser")
     print("2. Select or create a client")
     print("3. Add some campaign events")
     print("4. Check the revenue dashboard")

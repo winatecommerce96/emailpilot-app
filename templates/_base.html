@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}EmailPilot{% endblock %}</title>
+    <style>
+      :root { --bg:#0b1020; --bg2:#121a30; --fg:#e8ebf5; --muted:#9aa4c7; --accent:#5b8cff; --danger:#f87171; --ok:#22c55e; --warn:#f59e0b; --radius:10px; }
+      html,body { margin:0; padding:0; background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      header, footer { background: var(--bg2); border-bottom: 1px solid #243055; }
+      nav a { display:inline-block; padding:10px 12px; margin-right:6px; border-radius:8px; color:var(--fg); }
+      nav a[aria-current="page"] { background:#1a2447; }
+      main { max-width: 1100px; margin: 24px auto; padding: 0 16px 60px; }
+      .container { background:#0f1730; border:1px solid #1e2a55; border-radius: var(--radius); padding: 16px; }
+      h1 { font-size: 22px; margin: 8px 0 12px; }
+      table { width:100%; border-collapse: collapse; }
+      th, td { padding: 10px; border-bottom: 1px solid #22305a; text-align:left; font-size:14px; }
+      .btn { background:#20315f; color:var(--fg); border:1px solid #2c3f7a; padding:8px 12px; border-radius:8px; cursor:pointer; }
+      .btn:hover { background:#24376c; }
+      .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+      /* Debug Dock */
+      #ep-debug-dock { position: fixed; right: 12px; bottom: 12px; width: 340px; max-height: 45vh; background:#0c1227; border:1px solid #2b3869; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.45); display:none; z-index:99999; }
+      #ep-debug-dock.open { display:block; }
+      #ep-debug-dock header { padding:8px 10px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #2b3869; background:#0f1733; }
+      #ep-debug-dock pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color:#dbe3ff; margin:0; padding: 8px; overflow:auto; max-height: calc(45vh - 40px); }
+      #ep-debug-toggle { position: fixed; right: 12px; bottom: 12px; z-index: 99998; background:#24376c; color:#fff; border:1px solid #2e468c; border-radius:999px; padding:8px 12px; cursor:pointer; display:none; }
+    </style>
+
+    {% if entry_name %}
+      {{ vite_assets(entry_name)|safe }}
+    {% endif %}
+  </head>
+  <body>
+    <a class="sr-only" href="#main">Skip to content</a>
+    <header>
+      <div style="max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <strong>EmailPilot</strong>
+        </div>
+        <nav aria-label="Primary">
+          <a href="/" {% if active=='home' %}aria-current="page"{% endif %}>Home</a>
+          <a href="/clients" {% if active=='clients' %}aria-current="page"{% endif %}>Clients</a>
+          <a href="/calendar" {% if active=='calendar' %}aria-current="page"{% endif %}>Calendar</a>
+          <a href="/reports" {% if active=='reports' %}aria-current="page"{% endif %}>Reports</a>
+          <a href="/settings" {% if active=='settings' %}aria-current="page"{% endif %}>Settings</a>
+          <a href="/admin" {% if active=='admin' %}aria-current="page"{% endif %}>Admin</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="app-main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+      <div style="max-width:1100px;margin:0 auto;padding:12px 16px; color:var(--muted); font-size: 12px;">© EmailPilot</div>
+    </footer>
+
+    <!-- Debug Dock: inline, failsafe, streams telemetry -->
+    <button id="ep-debug-toggle" aria-controls="ep-debug-dock" aria-expanded="false">Debug</button>
+    <div id="ep-debug-dock" role="region" aria-label="Debug Dock" aria-live="polite">
+      <header>
+        <div>Debug</div>
+        <div style="font-size:11px;color:#a5b0d6">Client telemetry</div>
+      </header>
+      <pre id="ep-debug-log"></pre>
+    </div>
+    <script>
+    (function(){
+      const qs = new URLSearchParams(location.search);
+      const enabled = qs.get('debug')==='1' || localStorage.getItem('debug')==='1';
+      const toggle = document.getElementById('ep-debug-toggle');
+      const dock = document.getElementById('ep-debug-dock');
+      const log = document.getElementById('ep-debug-log');
+      function showDock(){ toggle.style.display='inline-block'; }
+      function pad(n){ return (n<10?'0':'')+n }
+      function ts(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` }
+      function append(evt){ try{ const line = `[${ts()}] ${evt.type}: ${evt.message || ''} ${evt.url? '('+evt.url+')':''}`; log.textContent += line + '\n'; log.scrollTop = log.scrollHeight; }catch(e){} }
+      async function post(evt){ try{
+        const body = JSON.stringify(evt);
+        if (navigator.sendBeacon) { navigator.sendBeacon('/api/dev/telemetry', body); return; }
+        await fetch('/api/dev/telemetry', {method:'POST', headers:{'Content-Type':'application/json'}, body});
+      }catch(e){}
+      }
+      function emit(evt){ append(evt); post(evt); }
+      function wrapConsole(method){ const orig = console[method]; console[method] = function(...args){ try{ const msg = args.map(a=>typeof a==='string'?a:JSON.stringify(a)).join(' '); emit({type:`console.${method}` , message: msg, ts: Date.now()}); }catch(e){} return orig.apply(console, args); } }
+      function wrapFetch(){ const orig = window.fetch; window.fetch = async function(input, init){ const url = (typeof input==='string')? input : (input && input.url) || ''; try{ const res = await orig(input, init); if(!res.ok){ emit({type:'fetch', message:`HTTP ${res.status}`, url, status: res.status, ts: Date.now()}); } return res; } catch(err){ emit({type:'fetch_error', message: String(err), url, ts: Date.now()}); throw err; } }
+      }
+      function boot(){ if(enabled){ showDock(); }
+        toggle.addEventListener('click', ()=>{ const open = dock.classList.toggle('open'); toggle.setAttribute('aria-expanded', String(open)); });
+        window.addEventListener('error', function(e){ emit({type:'error', message: e.message, stack: (e.error&&e.error.stack)||'', url: (e.filename||location.href), ts: Date.now()}); });
+        window.addEventListener('unhandledrejection', function(e){ const reason = e.reason && (e.reason.stack||e.reason.message||String(e.reason)); emit({type:'unhandledrejection', message: reason, ts: Date.now()}); });
+        ['warn','error'].forEach(wrapConsole);
+        wrapFetch();
+        window.__EP_DEBUG__ = { emit };
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+    })();
+    </script>
+  </body>
+  </html>

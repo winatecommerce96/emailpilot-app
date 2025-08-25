@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Check Python dependencies for multi-agent system",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Fix import issues in email_sms_agents.py",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Start local EmailPilot server",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test multi-agent endpoints",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Create test script for local testing",
+    "status": "completed",
+    "id": "5"
+  }
+]

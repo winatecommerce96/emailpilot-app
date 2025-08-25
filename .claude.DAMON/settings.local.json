@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude agents)",
+      "Bash(cp:*)",
+      "Bash(source:*)",
+      "Bash(make:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/Damon/.claude/agents",
+      "/Users/Damon/.npm-global/bin"
+    ]
+  }
+}

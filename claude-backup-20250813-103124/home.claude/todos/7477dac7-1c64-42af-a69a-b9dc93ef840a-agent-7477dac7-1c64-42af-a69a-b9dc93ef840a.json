@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Examine existing codebase structure and API integration",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Get detailed campaigns for July 2024",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Get detailed campaigns for July 2025",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Get detailed flows for July 2024",
+    "status": "completed",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Get detailed flows for July 2025",
+    "status": "completed",
+    "priority": "high",
+    "id": "5"
+  },
+  {
+    "content": "Calculate engagement rates and create comparison",
+    "status": "completed",
+    "priority": "high",
+    "id": "6"
+  }
+]

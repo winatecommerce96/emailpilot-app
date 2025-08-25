@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Calendar Clients</title>
+</head>
+<body>
+    <h1>Calendar Clients Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function testClients() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Test calendar clients endpoint
+                const response = await fetch('/api/calendar/clients', {
+                    credentials: 'include'
+                });
+                
+                resultsDiv.innerHTML += `<p>Response status: ${response.status}</p>`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML += `<p>Data type: ${typeof data}</p>`;
+                    resultsDiv.innerHTML += `<p>Is array: ${Array.isArray(data)}</p>`;
+                    resultsDiv.innerHTML += `<p>Number of clients: ${Array.isArray(data) ? data.length : 'N/A'}</p>`;
+                    
+                    if (Array.isArray(data) && data.length > 0) {
+                        resultsDiv.innerHTML += '<h2>Clients:</h2><ul>';
+                        data.forEach(client => {
+                            resultsDiv.innerHTML += `<li>${client.name} (ID: ${client.id}, Active: ${client.is_active})</li>`;
+                        });
+                        resultsDiv.innerHTML += '</ul>';
+                    }
+                    
+                    resultsDiv.innerHTML += '<h3>Raw JSON:</h3>';
+                    resultsDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    resultsDiv.innerHTML += `<p>Error: ${response.statusText}</p>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `<p>Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test on page load
+        testClients();
+    </script>
+</body>
+</html>

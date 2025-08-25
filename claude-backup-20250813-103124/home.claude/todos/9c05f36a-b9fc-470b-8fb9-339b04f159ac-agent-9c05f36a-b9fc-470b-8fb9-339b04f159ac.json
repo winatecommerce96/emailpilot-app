@@ -1,0 +1,44 @@
+[
+  {
+    "content": "Get all lists with profile counts and creation dates",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Get all segments with profile counts and activity status",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Analyze key segments: VIP, Engaged 0-30, Engaged 31-60, Window Shoppers",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Pull sample profile data for device types and locations",
+    "status": "completed",
+    "priority": "medium",
+    "id": "4"
+  },
+  {
+    "content": "Analyze list growth trends (July 2024 - July 2025)",
+    "status": "completed",
+    "priority": "high",
+    "id": "5"
+  },
+  {
+    "content": "Check segment performance during July 2025",
+    "status": "completed",
+    "priority": "high",
+    "id": "6"
+  },
+  {
+    "content": "Generate audience health summary with metrics",
+    "status": "completed",
+    "priority": "high",
+    "id": "7"
+  }
+]

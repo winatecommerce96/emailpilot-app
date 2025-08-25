@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integration Status - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">🔗 Integration Status</h1>
+            <p class="text-gray-600">Your connected services for EmailPilot</p>
+        </div>
+
+        <!-- User Info -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Account Information</h2>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between py-2 border-b">
+                    <span class="text-gray-600">Status:</span>
+                    <span id="authStatus" class="font-medium">Checking...</span>
+                </div>
+                <div class="flex items-center justify-between py-2 border-b">
+                    <span class="text-gray-600">User:</span>
+                    <span id="userEmail" class="font-medium">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Klaviyo Integration -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="border rounded-lg p-4 bg-green-50 border-green-200">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">📧</span>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-green-900">Klaviyo</h3>
+                            <p class="text-sm text-green-700">Email Marketing Platform</p>
+                        </div>
+                    </div>
+                    <div id="klaviyoStatus" class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                        Checking...
+                    </div>
+                </div>
+                <div id="klaviyoDetails" class="text-sm space-y-1"></div>
+                <div class="mt-3">
+                    <button onclick="checkKlaviyoStatus()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Asana Integration -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="border rounded-lg p-4 bg-purple-50 border-purple-200">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
+                            <span class="text-2xl">📋</span>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-purple-900">Asana</h3>
+                            <p class="text-sm text-purple-700">Project Management</p>
+                        </div>
+                    </div>
+                    <div id="asanaStatus" class="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">
+                        Checking...
+                    </div>
+                </div>
+                <div id="asanaDetails" class="text-sm space-y-1"></div>
+                <div class="mt-3">
+                    <button onclick="checkAsanaStatus()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+                        Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Data -->
+        <div class="bg-gray-900 rounded-lg p-4">
+            <h3 class="text-green-400 font-mono text-sm mb-2">Raw API Response</h3>
+            <pre id="rawData" class="text-green-400 text-xs font-mono max-h-64 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        // Check authentication
+        async function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                document.getElementById('authStatus').innerHTML = '<span class="text-red-600">❌ Not authenticated</span>';
+                document.getElementById('userEmail').textContent = 'No token found';
+                updateRawData('No authentication token in localStorage');
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/google/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const responseText = await response.text();
+                
+                if (response.ok) {
+                    const user = JSON.parse(responseText);
+                    document.getElementById('authStatus').innerHTML = '<span class="text-green-600">✅ Authenticated</span>';
+                    document.getElementById('userEmail').textContent = user.email || user.sub || 'Unknown';
+                    updateRawData(`Auth Success: ${responseText}`);
+                    return true;
+                } else {
+                    document.getElementById('authStatus').innerHTML = '<span class="text-red-600">❌ Invalid token</span>';
+                    document.getElementById('userEmail').textContent = `Error ${response.status}`;
+                    updateRawData(`Auth Failed (${response.status}): ${responseText}`);
+                    
+                    // Try guest login
+                    tryGuestLogin();
+                    return false;
+                }
+            } catch (error) {
+                document.getElementById('authStatus').innerHTML = '<span class="text-red-600">❌ Error</span>';
+                document.getElementById('userEmail').textContent = error.message;
+                updateRawData(`Auth Error: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Try guest login
+        async function tryGuestLogin() {
+            updateRawData('Attempting guest login...');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/google/guest`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    updateRawData('Guest login successful! Refreshing...');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    updateRawData('Guest login failed');
+                }
+            } catch (error) {
+                updateRawData(`Guest login error: ${error.message}`);
+            }
+        }
+
+        // Check Klaviyo status
+        async function checkKlaviyoStatus() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                updateRawData('Cannot check Klaviyo - no auth token');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/integrations/klaviyo/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const responseText = await response.text();
+                
+                if (response.ok) {
+                    const data = JSON.parse(responseText);
+                    const statusEl = document.getElementById('klaviyoStatus');
+                    const detailsEl = document.getElementById('klaviyoDetails');
+
+                    if (data.connected) {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800';
+                        statusEl.innerHTML = '✅ Connected';
+                        
+                        let details = '<div class="text-green-700">';
+                        if (data.connected_at) {
+                            const date = new Date(data.connected_at);
+                            details += `<p><strong>Connected:</strong> ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}</p>`;
+                        }
+                        if (data.scope) {
+                            const scopes = data.scope.split(' ');
+                            details += `<p><strong>Permissions:</strong> ${scopes.length} scopes granted</p>`;
+                            details += `<div class="mt-2 p-2 bg-green-100 rounded text-xs">`;
+                            scopes.forEach(s => {
+                                details += `<span class="inline-block px-2 py-1 m-1 bg-green-200 rounded">${s}</span>`;
+                            });
+                            details += `</div>`;
+                        }
+                        details += '</div>';
+                        detailsEl.innerHTML = details;
+                        
+                        updateRawData(`Klaviyo Connected:\n${JSON.stringify(data, null, 2)}`);
+                    } else {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600';
+                        statusEl.innerHTML = '⚪ Not Connected';
+                        detailsEl.innerHTML = '<p class="text-gray-500">No active Klaviyo connection</p>';
+                        
+                        updateRawData(`Klaviyo Not Connected:\n${responseText}`);
+                    }
+                } else {
+                    document.getElementById('klaviyoStatus').innerHTML = `<span class="text-red-600">Error ${response.status}</span>`;
+                    updateRawData(`Klaviyo Status Error (${response.status}):\n${responseText}`);
+                }
+            } catch (error) {
+                document.getElementById('klaviyoStatus').innerHTML = '<span class="text-red-600">Error</span>';
+                updateRawData(`Klaviyo Check Error: ${error.message}`);
+            }
+        }
+
+        // Check Asana status
+        async function checkAsanaStatus() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                updateRawData('Cannot check Asana - no auth token');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/integrations/asana/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const responseText = await response.text();
+                
+                if (response.ok) {
+                    const data = JSON.parse(responseText);
+                    const statusEl = document.getElementById('asanaStatus');
+                    const detailsEl = document.getElementById('asanaDetails');
+
+                    if (data.connected) {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800';
+                        statusEl.innerHTML = '✅ Connected';
+                        
+                        let details = '<div class="text-purple-700">';
+                        if (data.connected_at) {
+                            const date = new Date(data.connected_at);
+                            details += `<p><strong>Connected:</strong> ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}</p>`;
+                        }
+                        if (data.user_name) {
+                            details += `<p><strong>Account:</strong> ${data.user_name}</p>`;
+                        }
+                        if (data.user_email) {
+                            details += `<p><strong>Email:</strong> ${data.user_email}</p>`;
+                        }
+                        details += '</div>';
+                        detailsEl.innerHTML = details;
+                        
+                        updateRawData(`Asana Connected:\n${JSON.stringify(data, null, 2)}`);
+                    } else {
+                        statusEl.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600';
+                        statusEl.innerHTML = '⚪ Not Connected';
+                        detailsEl.innerHTML = '<p class="text-gray-500">No active Asana connection</p>';
+                        
+                        updateRawData(`Asana Not Connected:\n${responseText}`);
+                    }
+                } else {
+                    document.getElementById('asanaStatus').innerHTML = `<span class="text-red-600">Error ${response.status}</span>`;
+                    updateRawData(`Asana Status Error (${response.status}):\n${responseText}`);
+                }
+            } catch (error) {
+                document.getElementById('asanaStatus').innerHTML = '<span class="text-red-600">Error</span>';
+                updateRawData(`Asana Check Error: ${error.message}`);
+            }
+        }
+
+        // Update raw data display
+        function updateRawData(text) {
+            const rawDataEl = document.getElementById('rawData');
+            const timestamp = new Date().toLocaleTimeString();
+            rawDataEl.textContent = `[${timestamp}]\n${text}\n\n${rawDataEl.textContent}`;
+        }
+
+        // Initialize
+        async function init() {
+            updateRawData('Initializing...');
+            const authOk = await checkAuth();
+            if (authOk) {
+                await checkKlaviyoStatus();
+                await checkAsanaStatus();
+            }
+        }
+
+        // Start when page loads
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

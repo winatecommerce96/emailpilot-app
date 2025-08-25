@@ -1,32 +1,58 @@
 """
 Calendar API Router for EmailPilot
 Provides endpoints for calendar functionality with Firebase integration
+Now with LangSmith tracing integration for observability
 """
+from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from datetime import datetime, date
 from pydantic import BaseModel
 import json
 import logging
 import os
-from firebase_admin import firestore, auth
-import firebase_admin
-from firebase_admin import credentials
+import sys
+from google.cloud import firestore
+
+# Add LangSmith tracing
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+try:
+    from workflow.instrumentation import instrument_workflow, create_langsmith_callback
+    from langsmith.run_helpers import traceable
+    TRACING_ENABLED = True
+except ImportError:
+    logger.warning("LangSmith tracing not available - running without traces")
+    TRACING_ENABLED = False
+    # Create dummy decorators
+    def instrument_workflow(name, context):
+        def decorator(func):
+            return func
+        return decorator
+    def traceable(**kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 # Import the new schemas and Gemini service
 from app.schemas.calendar import CampaignPlanRequest, CampaignPlanResponse, CalendarChatRequest, AICalendarRequest
 from app.services.gemini_service import GeminiService
 
+if TYPE_CHECKING:
+    from app.services.secrets import SecretManagerService
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Initialize Firebase Admin if not already initialized
-if not firebase_admin._apps:
-    # Use default credentials in Cloud Run
-    firebase_admin.initialize_app()
+# Import the Firestore client
+from app.deps import get_db, get_secret_manager_service
 
-db = firestore.client()
+
+
+db = get_db()
+
+def get_gemini_service_dependency(secret_manager: SecretManagerService = Depends(get_secret_manager_service)) -> GeminiService:
+    return GeminiService(secret_manager=secret_manager)
 
 # Pydantic models
 class CalendarEvent(BaseModel):
@@ -56,12 +82,37 @@ class DocumentImportRequest(BaseModel):
 class EventDuplicateRequest(BaseModel):
     new_date: Optional[str] = None
 
-# Initialize Gemini service
-gemini_service = GeminiService()
+
+@router.get("/")
+async def calendar_root():
+    """Calendar API root endpoint"""
+    return {
+        "status": "operational",
+        "service": "EmailPilot Calendar API",
+        "version": "2.0.0",
+        "features": ["campaign_planning", "ai_chat", "event_management", "firebase_sync"],
+        "available_endpoints": [
+            "POST /api/calendar/plan-campaign",
+            "POST /api/calendar/ai-chat",
+            "GET /api/calendar/events",
+            "POST /api/calendar/events",
+            "PUT /api/calendar/events/{event_id}",
+            "DELETE /api/calendar/events/{event_id}",
+            "POST /api/calendar/events/{event_id}/duplicate",
+            "POST /api/calendar/import-document"
+        ]
+    }
+
 
 # Campaign Planning Endpoint with Gemini AI
 @router.post("/plan-campaign", response_model=CampaignPlanResponse)
-async def plan_campaign(request: CampaignPlanRequest):
+@traceable(
+    run_type="chain",
+    name="calendar_plan_campaign",
+    project_name=os.getenv("LANGSMITH_PROJECT", "emailpilot-calendar"),
+    tags=["calendar", "campaign_planning", "gemini"]
+)
+async def plan_campaign(request: CampaignPlanRequest, gemini_service: GeminiService = Depends(get_gemini_service_dependency)):
     """
     Plan a comprehensive email/SMS campaign using Gemini AI
     
@@ -70,6 +121,8 @@ async def plan_campaign(request: CampaignPlanRequest):
     - Multiple calendar events with intelligent timing
     - Both email and SMS touchpoints
     - Events stored in Firestore calendar_events collection
+    
+    LangSmith tracing enabled for observability.
     """
     try:
         logger.info(f"Planning campaign for client {request.client_id}: {request.campaign_type}")
@@ -148,12 +201,18 @@ async def plan_campaign(request: CampaignPlanRequest):
 
 # Calendar Event Endpoints
 @router.get("/events")
+@traceable(
+    run_type="chain",
+    name="calendar_get_events",
+    project_name=os.getenv("LANGSMITH_PROJECT", "emailpilot-calendar"),
+    tags=["calendar", "events", "retrieval"]
+)
 async def get_calendar_events(
     client_id: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
-    """Get calendar events for a client"""
+    """Get calendar events for a client with LangSmith tracing"""
     try:
         # Query Firebase for events
         events_ref = db.collection('calendar_events')
@@ -182,25 +241,72 @@ async def get_calendar_events(
 
 @router.get("/events/{client_id}")
 async def get_calendar_events_by_client(client_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
-    """Get calendar events for a specific client"""
+    """Get calendar events for a specific client - compatible with orchestrator output"""
     try:
-        # Query events for the client - using where() which is the correct method
+        logger.info(f"Fetching events for client: {client_id}, date range: {start_date} to {end_date}")
+        
+        # Try both field names for compatibility (orchestrator uses client_firestore_id)
         events_ref = db.collection('calendar_events')
-        query = events_ref.where('client_id', '==', client_id)
         
-        # Apply date filters if provided
-        if start_date:
-            query = query.where('date', '>=', start_date)
-        if end_date:
-            query = query.where('date', '<=', end_date)
+        # First try with client_firestore_id (orchestrator field)
+        query = events_ref.where('client_firestore_id', '==', client_id).where('latest', '==', True)
         
-        # Execute query
+        # Execute query for orchestrator events
         events = []
         for doc in query.stream():
             event_data = doc.to_dict()
             event_data['id'] = doc.id
+            
+            # Map orchestrator fields to frontend expected fields
+            if 'planned_send_datetime' in event_data:
+                # Convert datetime to ISO string for frontend
+                if hasattr(event_data['planned_send_datetime'], 'isoformat'):
+                    event_data['date'] = event_data['planned_send_datetime'].isoformat()
+                else:
+                    event_data['date'] = str(event_data['planned_send_datetime'])
+            
+            # Map campaign_name to title
+            if 'campaign_name' in event_data and 'title' not in event_data:
+                event_data['title'] = event_data['campaign_name']
+            
+            # Add color based on channel
+            if 'channel' in event_data:
+                event_data['color'] = 'bg-orange-200 text-orange-800' if event_data['channel'] == 'sms' else 'bg-blue-200 text-blue-800'
+            
+            # Ensure required fields
+            event_data['client_id'] = client_id
+            
             events.append(event_data)
         
+        # If no orchestrator events, try legacy format
+        if not events:
+            query = events_ref.where('client_id', '==', client_id)
+            
+            # Apply date filters if provided
+            if start_date:
+                query = query.where('date', '>=', start_date)
+            if end_date:
+                query = query.where('date', '<=', end_date)
+            
+            for doc in query.stream():
+                event_data = doc.to_dict()
+                event_data['id'] = doc.id
+                events.append(event_data)
+        
+        # Apply date filtering for orchestrator events if needed
+        if events and start_date:
+            filtered_events = []
+            for event in events:
+                event_date = event.get('date', event.get('planned_send_datetime', ''))
+                if event_date and event_date >= start_date:
+                    if not end_date or event_date <= end_date:
+                        filtered_events.append(event)
+            events = filtered_events
+        
+        # Sort by date
+        events.sort(key=lambda x: x.get('date', x.get('planned_send_datetime', '')))
+        
+        logger.info(f"Retrieved {len(events)} calendar events for client {client_id}")
         return events
     except Exception as e:
         logger.error(f"Error fetching calendar events for client {client_id}: {e}")
@@ -558,7 +664,7 @@ def get_recommendations(achievement_percentage: float) -> List[str]:
 
 # AI Integration Endpoints
 @router.post("/ai/summarize")
-async def summarize_document(request: DocumentImportRequest):
+async def summarize_document(request: DocumentImportRequest, gemini_service: GeminiService = Depends(get_gemini_service_dependency)):
     """Parse document text into calendar campaigns using AI"""
     try:
         # Use Gemini service to process document
@@ -616,7 +722,7 @@ async def calendar_ai_chat_legacy(request: AIRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/ai/chat-enhanced")
-async def calendar_ai_chat_enhanced(request: AICalendarRequest):
+async def calendar_ai_chat_enhanced(request: AICalendarRequest, gemini_service: GeminiService = Depends(get_gemini_service_dependency)):
     """Enhanced AI-powered calendar chat with full CRUD operations support"""
     try:
         logger.info(f"Processing AI chat for client {request.client_id}: {request.message}")

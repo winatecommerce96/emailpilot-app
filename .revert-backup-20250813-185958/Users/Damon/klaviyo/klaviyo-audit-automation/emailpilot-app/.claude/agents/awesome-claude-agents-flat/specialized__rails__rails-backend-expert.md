@@ -1,0 +1,1 @@
+/Users/Damon/klaviyo/klaviyo-audit-automation/emailpilot-app/.vendor/awesome-claude-agents/agents/specialized/rails/rails-backend-expert.md

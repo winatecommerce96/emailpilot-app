@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix /api/agents/admin/dashboard error",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Fix /api/calendar/events 422 error",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Fix /api/goals/clients 500 error",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Fix /api/reports/latest/weekly error",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Fix /api/dashboard/overview mapper error",
+    "status": "completed",
+    "id": "5"
+  }
+]

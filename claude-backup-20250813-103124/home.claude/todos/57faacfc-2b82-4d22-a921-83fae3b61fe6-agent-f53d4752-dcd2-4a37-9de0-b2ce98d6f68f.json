@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Analyze current EmailPilot SPA structure and calendar integration",
+    "status": "completed",
+    "id": "spa-analysis-complete"
+  },
+  {
+    "content": "Create deployment package optimized for SPA architecture integration",
+    "status": "completed",
+    "id": "create-spa-deployment-package"
+  },
+  {
+    "content": "Update deployment script to integrate components into existing SPA structure",
+    "status": "completed",
+    "id": "update-deployment-script"
+  },
+  {
+    "content": "Create detailed SPA integration instructions for calendar with goals",
+    "status": "completed",
+    "id": "create-integration-instructions"
+  },
+  {
+    "content": "Ensure deployment package is compatible with existing SPA structure",
+    "status": "completed",
+    "id": "test-deployment-compatibility"
+  }
+]

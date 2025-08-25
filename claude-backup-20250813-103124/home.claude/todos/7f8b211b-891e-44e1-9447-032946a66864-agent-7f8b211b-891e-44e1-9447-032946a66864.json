@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Immediate 10-minute triage checklist",
+    "status": "completed",
+    "id": "triage-immediate"
+  },
+  {
+    "content": "Fix API 500 on /api/performance/mtd/{clientId}",
+    "status": "completed",
+    "id": "api-500-fix"
+  },
+  {
+    "content": "Stop HTML fallback for /api/* routes",
+    "status": "completed",
+    "id": "html-fallback-fix"
+  },
+  {
+    "content": "Fix static asset paths and component exports",
+    "status": "completed",
+    "id": "static-assets-fix"
+  },
+  {
+    "content": "Fix environment fetch loop memoization",
+    "status": "completed",
+    "id": "env-fetch-fix"
+  },
+  {
+    "content": "Add integration tests and health checks",
+    "status": "completed",
+    "id": "integration-tests"
+  }
+]

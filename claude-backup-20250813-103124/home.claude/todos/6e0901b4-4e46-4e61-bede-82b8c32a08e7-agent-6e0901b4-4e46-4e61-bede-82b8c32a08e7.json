@@ -1,0 +1,50 @@
+[
+  {
+    "content": "Fix truncated performance summary text in Slack",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Add comprehensive company-wide analysis at the top",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Implement Month over Month (MoM) comparison",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Implement Year over Year (YoY) comparison",
+    "status": "completed",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Add historical data storage and retrieval",
+    "status": "completed",
+    "priority": "high",
+    "id": "5"
+  },
+  {
+    "content": "Update MCP service to provide historical metrics",
+    "status": "completed",
+    "priority": "high",
+    "id": "6"
+  },
+  {
+    "content": "Enhance Slack formatting for comprehensive overview",
+    "status": "completed",
+    "priority": "high",
+    "id": "7"
+  },
+  {
+    "content": "Deploy and test enhanced reporting with historical comparisons",
+    "status": "completed",
+    "priority": "medium",
+    "id": "8"
+  }
+]

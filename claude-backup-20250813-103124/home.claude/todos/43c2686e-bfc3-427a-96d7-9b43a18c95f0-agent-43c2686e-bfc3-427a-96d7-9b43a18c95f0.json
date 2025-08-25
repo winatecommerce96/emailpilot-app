@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Fix static file serving and JavaScript content-type issues",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Remove in-browser Babel and set up proper build process",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Fix GeminiChatService initialization and load order",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Implement missing backend API endpoints",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Configure CORS properly with credentials",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Fix firebaseService.initialize error",
+    "status": "completed",
+    "id": "6"
+  },
+  {
+    "content": "Test all fixes and verify no console errors",
+    "status": "completed",
+    "id": "7"
+  }
+]

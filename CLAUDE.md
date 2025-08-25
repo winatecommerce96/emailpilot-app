@@ -1,10 +1,31 @@
+<!-- GPT‑5 Orchestration Policy: place at top of CLAUDE.md if adopting permanently -->
+# Agent Policy (GPT‑5)
+- Primary model: **GPT‑5 (alias: sonnet)**; background tasks: **GPT‑5‑mini (alias: haiku)**.
+- Always Plan → Act → Verify with explicit tests.
+- Prefer diffs/patches; summarize changes before writing.
+- After significant edits, invoke **qa-reviewer** and **test-runner** subagents.
+- Never read or edit `.env*`, `secrets/**`, SSH keys, or production credentials.
+- On failures: localize, propose the minimal fix, re‑run tests.
+
 # EmailPilot - Klaviyo Automation Platform
 
 EmailPilot is a comprehensive FastAPI-based platform for automating Klaviyo email marketing campaigns, performance monitoring, and client management. The system features an integrated calendar for campaign planning, admin dashboard for system management, and Firebase integration for real-time data synchronization.
 
-## Recent Architecture Updates (2025-08-12)
+## Recent Architecture Updates (2025-08-22)
 
-### ✅ Completed Reorganization
+### ✅ LangGraph Integration Complete
+- **LangGraph Studio**: Browser-based visual workflow editor now operational
+- **Campaign Planning Graph**: Intelligent email campaign planning with Klaviyo integration
+- **LangSmith Tracing**: Full observability and debugging for all workflow executions
+- **Unified AI System**: LangGraph replaces previous MCP agents with visual workflows
+
+### ✅ AI System Architecture (2025-08-20)
+- **LangChain Multi-Agent**: Core agent system for RAG, revenue analysis, and campaign planning
+- **LangGraph Workflows**: Visual workflow orchestration for complex multi-step processes
+- **Agent Prompts UI**: Full prompt management interface in Admin Dashboard → Agent Prompts tab
+- **Variable Discovery**: 100+ dynamic variables from Firestore, system context, and integrations
+
+### ✅ Completed Reorganization (2025-08-12)
 - **Single Entrypoint**: `main_firestore.py` is now the ONLY application entrypoint
 - **Build System**: Frontend uses esbuild compilation (no more runtime Babel)
 - **Static Assets**: All served from `/static/dist/` mount point (files in `frontend/public/dist/`)
@@ -87,12 +108,37 @@ EmailPilot is a comprehensive FastAPI-based platform for automating Klaviyo emai
 
 ### Current System Architecture
 
+#### **LangGraph Workflow System** (NEW - Primary Visual Interface)
+- **Studio Access**: Browser-based at `https://smith.langchain.com/studio/`
+- **Campaign Planning Graph**: Visual workflow for email campaign orchestration
+- **Available Tools**:
+  - `analyze_klaviyo_metrics` - Real-time Klaviyo metrics analysis
+  - `generate_campaign_calendar` - Automated campaign scheduling
+  - `optimize_send_times` - ML-based send time optimization
+- **LangSmith Integration**: Full tracing and debugging capabilities
+- **Location**: `emailpilot_graph/` directory with dedicated README
+
+#### **LangChain Multi-Agent System** (Text-Based AI Interface)
+- **Core Agents**: `rag`, `default`, `revenue_analyst`, `campaign_planner`
+- **Specialized Agents** (Maintained in LangChain for backwards compatibility):
+  - `copy_smith` - Copywriting with AIDA/PAS/FOMO frameworks
+  - `layout_lab` - Mobile-first responsive design
+  - `calendar_strategist` - Campaign timing optimization
+  - `brand_brain` - Brand consistency and voice
+  - `gatekeeper` - Compliance and regulations
+  - `truth_teller` - Performance analytics
+  - `audience_architect` - Segmentation strategies
+- **Admin Interface**: `/api/admin/langchain/` - Full agent management
+- **Prompt Management**: Editable prompts via Admin Dashboard
+- **Variable System**: 100+ dynamic variables from Firestore/integrations
+
 #### **FastAPI Backend Structure**
 - `main_firestore.py` - SINGLE application entrypoint (all other main*.py files archived)
 - `app/api/` - API route modules (14 routers: admin, auth, calendar, goals, performance, etc.)
-- `app/models/` - SQLAlchemy database models
+- `app/models/` - SQLAlchemy database models (being phased out for Firestore)
 - `app/services/` - Business logic and external integrations
 - `app/core/` - Configuration and database setup
+- `multi-agent/` - LangChain implementation and agent definitions
 
 #### **React Frontend Structure**
 - `frontend/public/` - Static assets served at `/static`
@@ -104,8 +150,12 @@ EmailPilot is a comprehensive FastAPI-based platform for automating Klaviyo emai
 
 #### **Development Commands**
 ```bash
+# CRITICAL: Server MUST run with --host localhost (not 127.0.0.1 or 0.0.0.0)
+uvicorn main_firestore:app --port 8000 --host localhost --reload
+
+# Alternative make commands (ensure they use --host localhost):
 make help        # Show all available commands
-make dev         # Start development server (port 8000)
+make dev         # Start development server (port 8000) 
 make dev-emu     # Start with Firestore emulator
 make build       # Build frontend assets
 make test        # Run tests
@@ -142,7 +192,7 @@ make validate    # Check development environment
 ### Important Development Notes
 
 #### Always Use These Patterns:
-- **Run Server**: Always use `uvicorn main_firestore:app --port 8000` (NOT main.py or other files)
+- **Run Server**: MUST use `uvicorn main_firestore:app --port 8000 --host localhost` (NOT 127.0.0.1, NOT 0.0.0.0)
 - **Local Development URL**: ALWAYS use `http://localhost:8000` (NOT port 8080, 8001, or 127.0.0.1)
 - **Static Files**: All frontend assets must be in `frontend/public/dist/` and served via `/static/dist/`
 - **Build Frontend**: Run `make build` or `npm run build` before testing UI changes
@@ -164,7 +214,7 @@ make validate    # Check development environment
 # Setup and run
 source .venv/bin/activate  # IMPORTANT: Use venv, not conda
 pip install -r requirements.txt  # Install all deps
-make dev  # Start server on port 8000
+uvicorn main_firestore:app --port 8000 --host localhost --reload  # MUST use --host localhost
 
 # Quick health checks (use localhost:8000, NOT 127.0.0.1 or port 8080)
 curl -s http://localhost:8000/health  # Should return {"status":"ok"}
@@ -194,4 +244,3 @@ requests>=2.31.0
 ```
 
 Your EmailPilot development team is ready to enhance the package upload functionality and resolve any admin dashboard issues\!
-EOF < /dev/null

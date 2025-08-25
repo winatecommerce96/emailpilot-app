@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Agent Prompts Panel</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div id="root" class="container mx-auto p-8"></div>
+    
+    <script src="/static/dist/LangChainPromptsPanel.js"></script>
+    <script>
+        // Mount the component
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        
+        // Add error boundary to catch any issues
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error: error };
+            }
+            
+            componentDidCatch(error, errorInfo) {
+                console.error('Component error:', error, errorInfo);
+            }
+            
+            render() {
+                if (this.state.hasError) {
+                    return React.createElement('div', { className: 'p-4 bg-red-50 border border-red-200 rounded' },
+                        React.createElement('h2', { className: 'text-red-800 font-bold' }, 'Component Loading Error'),
+                        React.createElement('pre', { className: 'mt-2 text-sm text-red-600' }, 
+                            this.state.error ? this.state.error.toString() : 'Unknown error')
+                    );
+                }
+                return this.props.children;
+            }
+        }
+        
+        // Check if component exists
+        if (typeof LangChainPromptsPanel !== 'undefined') {
+            console.log('✅ LangChainPromptsPanel component loaded successfully');
+            root.render(
+                React.createElement(ErrorBoundary, null,
+                    React.createElement('div', null,
+                        React.createElement('h1', { className: 'text-2xl font-bold mb-6' }, 'Test: Agent Prompts Panel'),
+                        React.createElement(LangChainPromptsPanel)
+                    )
+                )
+            );
+        } else {
+            console.error('❌ LangChainPromptsPanel component not found');
+            root.render(
+                React.createElement('div', { className: 'p-4 bg-red-50 border border-red-200 rounded' },
+                    React.createElement('p', { className: 'text-red-800' }, 'Error: LangChainPromptsPanel component not found')
+                )
+            );
+        }
+        
+        // Log any console errors
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+    </script>
+</body>
+</html>

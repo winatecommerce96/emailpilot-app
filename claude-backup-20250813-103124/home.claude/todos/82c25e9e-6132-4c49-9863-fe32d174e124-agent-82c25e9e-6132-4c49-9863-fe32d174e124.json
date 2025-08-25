@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Clean up duplicate router imports in main_firestore.py",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Ensure each router is included only once with correct prefix",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Create performance.py stub if needed",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test all API endpoints after cleanup",
+    "status": "completed",
+    "id": "4"
+  }
+]

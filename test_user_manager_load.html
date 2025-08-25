@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test UserManagerEnhanced Loading</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script>
+        window.API_BASE_URL = 'http://localhost:8000';
+    </script>
+</head>
+<body>
+    <h1>Testing UserManagerEnhanced Component Loading</h1>
+    <div id="status"></div>
+    <div id="root"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        
+        // Step 1: Check if React is available
+        status.innerHTML += '<p>1. React available: ' + (typeof React !== 'undefined') + '</p>';
+        
+        // Step 2: Load the component
+        status.innerHTML += '<p>2. Loading UserManagerEnhanced.js...</p>';
+        
+        const script = document.createElement('script');
+        script.src = '/static/dist/UserManagerEnhanced.js';
+        script.onload = () => {
+            status.innerHTML += '<p>3. Script loaded successfully</p>';
+            status.innerHTML += '<p>4. window.UserManagerEnhanced available: ' + (typeof window.UserManagerEnhanced !== 'undefined') + '</p>';
+            
+            if (window.UserManagerEnhanced) {
+                status.innerHTML += '<p>5. Component registered successfully!</p>';
+                
+                // Try to render it
+                try {
+                    const root = ReactDOM.createRoot(document.getElementById('root'));
+                    const mockUser = { email: 'test@example.com', role: 'admin' };
+                    root.render(React.createElement(window.UserManagerEnhanced, { currentUser: mockUser }));
+                    status.innerHTML += '<p>6. Component rendered successfully!</p>';
+                } catch (e) {
+                    status.innerHTML += '<p>6. Error rendering: ' + e.message + '</p>';
+                    console.error(e);
+                }
+            } else {
+                status.innerHTML += '<p>5. Component NOT registered to window!</p>';
+            }
+        };
+        script.onerror = (e) => {
+            status.innerHTML += '<p>3. Error loading script: ' + e + '</p>';
+        };
+        document.body.appendChild(script);
+        
+        // Step 3: Check after delay
+        setTimeout(() => {
+            status.innerHTML += '<p>7. Final check - window.UserManagerEnhanced: ' + (typeof window.UserManagerEnhanced) + '</p>';
+        }, 2000);
+    </script>
+</body>
+</html>

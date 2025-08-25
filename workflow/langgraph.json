@@ -1,0 +1,15 @@
+{
+  "graphs": {
+    "emailpilot_calendar": {
+      "path": "./workflow.json",
+      "description": "Email campaign calendar workflow"
+    }
+  },
+  "dependencies": [
+    "langchain-core",
+    "langchain-openai",
+    "langgraph"
+  ],
+  "python_version": "3.9",
+  "env": ".env.langgraph"
+}

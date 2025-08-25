@@ -1,0 +1,34 @@
+general_settings:
+  telemetry: false
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+proxy_settings:
+  host: 127.0.0.1
+  port: 4000
+  cors:
+    - "http://localhost:5173"
+    - "http://127.0.0.1:5173"
+    - "http://localhost:8000"
+    - "http://127.0.0.1:8000"
+  jwt_auth: false
+  enforce_user_provided_key: false
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  num_workers: 1
+
+model_list:
+  - model_name: gpt-5
+    litellm_params:
+      model: claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+      timeout: 120
+
+allowed_routes:
+  - /v1/chat/completions
+  - /v1/completions
+  - /v1/models
+  - /v1/messages            # ✅ Anthropic unified
+  - /anthropic/v1/messages  # ✅ Anthropic pass-through
+  - /health

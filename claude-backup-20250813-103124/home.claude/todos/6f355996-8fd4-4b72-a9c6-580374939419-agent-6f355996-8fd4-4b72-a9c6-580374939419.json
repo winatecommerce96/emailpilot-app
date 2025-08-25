@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Create shell deployment script for permanent MCP integration",
+    "status": "completed",
+    "id": "39"
+  },
+  {
+    "content": "Design browser-agnostic solution",
+    "status": "completed",
+    "id": "40"
+  },
+  {
+    "content": "Create Cloud Shell deployment script",
+    "status": "completed",
+    "id": "42"
+  }
+]

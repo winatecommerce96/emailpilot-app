@@ -1,0 +1,51 @@
+# soft.yaml — minimal, stable LiteLLM config for Claude Code + GPT-5
+# Place at: <project>/config/gpt5/soft.yaml
+# Goals:
+# - Avoid 422 on Anthropic 'system' blocks by using the /anthropic pass-through route from Claude Code
+# - Keep defaults: Anthropic models go to Anthropic; GPT-5 models go to OpenAI
+# - Use ONLY a master key (no DB). Claude must send Authorization: Bearer $LITELLM_MASTER_KEY
+
+model_list:
+  # OpenAI (GPT‑5 family)
+  - model_name: gpt-5
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  # Anthropic — keep standard names mapping to Anthropic
+  - model_name: claude-3-5-sonnet-20240620
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-sonnet-4-20250514
+    litellm_params:
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-3-opus-20240229
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-3-5-haiku-20241022
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+litellm_settings:
+  # Keep logs useful, and avoid brittle param issues
+  set_verbose: true
+  drop_params: true
+  timeout: 120
+  num_retries: 2
+
+general_settings:
+  # Require Claude to send: Authorization: Bearer $LITELLM_MASTER_KEY
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Keep routes minimal; allow the unified and pass-through Anthropic endpoints
+  allowed_routes:
+    - "/v1/messages"
+    - "/anthropic/v1/messages"
+    - "/health"

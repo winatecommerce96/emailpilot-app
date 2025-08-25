@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Endpoints</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">API Endpoint Test</h1>
+        
+        <div class="space-y-4">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-2">System Status</h2>
+                <button onclick="testEndpoint('/api/admin/system/status')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Test Endpoint
+                </button>
+                <pre id="status-result" class="mt-4 p-4 bg-gray-100 rounded text-xs overflow-x-auto"></pre>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-2">Agents</h2>
+                <button onclick="testEndpoint('/api/agent-config/agents')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Test Endpoint
+                </button>
+                <pre id="agents-result" class="mt-4 p-4 bg-gray-100 rounded text-xs overflow-x-auto"></pre>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-2">Alerts</h2>
+                <button onclick="testEndpoint('/api/performance/orders/monitor-all')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Test Endpoint
+                </button>
+                <pre id="alerts-result" class="mt-4 p-4 bg-gray-100 rounded text-xs overflow-x-auto"></pre>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-2">Logs</h2>
+                <button onclick="testEndpoint('/api/admin/ops/logs/large')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Test Endpoint
+                </button>
+                <pre id="logs-result" class="mt-4 p-4 bg-gray-100 rounded text-xs overflow-x-auto"></pre>
+            </div>
+        </div>
+        
+        <div class="mt-8 bg-yellow-50 border border-yellow-200 p-4 rounded">
+            <h3 class="font-semibold text-yellow-800 mb-2">Console Output</h3>
+            <div id="console-output" class="text-xs font-mono space-y-1"></div>
+        </div>
+    </div>
+    
+    <script>
+        function addLog(message, isError = false) {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = isError ? 'text-red-600' : 'text-gray-700';
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(line);
+        }
+        
+        async function testEndpoint(url) {
+            const resultId = url.includes('status') ? 'status-result' :
+                           url.includes('agents') ? 'agents-result' :
+                           url.includes('monitor') ? 'alerts-result' : 'logs-result';
+            
+            const resultElement = document.getElementById(resultId);
+            resultElement.textContent = 'Loading...';
+            
+            addLog(`Testing ${url}...`);
+            
+            try {
+                const token = localStorage.getItem('token');
+                const headers = {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                };
+                
+                addLog(`Headers: ${JSON.stringify(headers)}`);
+                
+                const response = await fetch(url, { 
+                    headers,
+                    credentials: 'include'
+                });
+                
+                addLog(`Response status: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = JSON.stringify(data, null, 2);
+                addLog(`Success: ${url}`);
+                
+                // Process data for summary
+                if (url.includes('agents')) {
+                    const configured = data.configured_count || 0;
+                    const total = data.total_agents || 0;
+                    addLog(`Agents: ${configured}/${total} configured`);
+                } else if (url.includes('monitor')) {
+                    const count = Array.isArray(data) ? data.length : 0;
+                    addLog(`Alerts: ${count} total`);
+                } else if (url.includes('logs')) {
+                    const count = Array.isArray(data) ? data.length : 0;
+                    addLog(`Large logs: ${count} files`);
+                }
+                
+            } catch (error) {
+                resultElement.textContent = `Error: ${error.message}`;
+                addLog(`Error: ${error.message}`, true);
+            }
+        }
+        
+        // Test all endpoints on load
+        window.addEventListener('DOMContentLoaded', () => {
+            addLog('Page loaded, ready to test endpoints');
+            
+            // Check for auth token
+            const token = localStorage.getItem('token');
+            if (token) {
+                addLog(`Auth token found: ${token.substring(0, 20)}...`);
+            } else {
+                addLog('No auth token in localStorage', true);
+            }
+        });
+    </script>
+</body>
+</html>

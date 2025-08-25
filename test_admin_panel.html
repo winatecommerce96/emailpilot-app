@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .status { 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            display: inline-block;
+            margin: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Admin Panel API Test</h1>
+    
+    <div class="test-section">
+        <h2>Authentication Status</h2>
+        <div id="auth-status"></div>
+        <button onclick="checkAuth()">Check Auth</button>
+        <button onclick="setTestToken()">Set Test Token</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>System Status</h2>
+        <div id="system-status"></div>
+        <button onclick="testSystemStatus()">Test System Status</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Agent Config</h2>
+        <div id="agent-status"></div>
+        <button onclick="testAgentConfig()">Test Agent Config</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Alert Counts</h2>
+        <div id="alert-status"></div>
+        <button onclick="testAlertCounts()">Test Alert Counts</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Admin Sidebar Component</h2>
+        <div id="sidebar-status"></div>
+        <button onclick="checkSidebarComponent()">Check Sidebar</button>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        function log(elementId, message, type = 'info') {
+            const el = document.getElementById(elementId);
+            const span = document.createElement('div');
+            span.className = `status ${type}`;
+            span.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            el.appendChild(span);
+        }
+        
+        function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            if (token) {
+                log('auth-status', `Token found: ${token.substring(0, 20)}...`, 'success');
+            } else {
+                log('auth-status', 'No token found in localStorage', 'error');
+            }
+        }
+        
+        function setTestToken() {
+            // This is just for testing - normally you'd get this from login
+            const testToken = prompt('Enter your access token:');
+            if (testToken) {
+                localStorage.setItem('access_token', testToken);
+                log('auth-status', 'Token set successfully', 'success');
+            }
+        }
+        
+        async function testSystemStatus() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch(`${API_BASE}/api/admin/system/status`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('system-status', `Status: ${data.status}`, 'success');
+                    log('system-status', `Components: ${JSON.stringify(data.components, null, 2)}`, 'info');
+                } else {
+                    log('system-status', `Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('system-status', `Fetch error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAgentConfig() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch(`${API_BASE}/api/agent-config/agents`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('agent-status', `Total agents: ${data.total_agents}`, 'success');
+                    log('agent-status', `Configured: ${data.configured_count}`, 'info');
+                    log('agent-status', `Unconfigured: ${JSON.stringify(data.unconfigured_agents)}`, 'info');
+                } else {
+                    log('agent-status', `Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('agent-status', `Fetch error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testAlertCounts() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch(`${API_BASE}/api/performance/orders/monitor-all`, {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('alert-status', `Clients monitored: ${data.clients?.length || 0}`, 'success');
+                    
+                    let critical = 0, warning = 0;
+                    (data.clients || []).forEach(client => {
+                        if (!client.success && client.error) {
+                            critical++;
+                        } else if (client.success) {
+                            const { zero_order_days, zero_revenue_days } = client;
+                            if (zero_order_days >= 3 || zero_revenue_days >= 3) {
+                                critical++;
+                            } else if (zero_order_days >= 1 || zero_revenue_days >= 1) {
+                                warning++;
+                            }
+                        }
+                    });
+                    
+                    log('alert-status', `Critical: ${critical}, Warning: ${warning}`, 'info');
+                } else {
+                    log('alert-status', `Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log('alert-status', `Fetch error: ${error.message}`, 'error');
+            }
+        }
+        
+        function checkSidebarComponent() {
+            if (window.AdminSidebar) {
+                log('sidebar-status', 'AdminSidebar component is loaded', 'success');
+            } else {
+                log('sidebar-status', 'AdminSidebar component not found', 'error');
+                log('sidebar-status', 'Attempting to load...', 'info');
+                
+                const script = document.createElement('script');
+                script.src = '/static/dist/AdminSidebar.js';
+                script.onload = () => {
+                    log('sidebar-status', 'AdminSidebar loaded successfully', 'success');
+                };
+                script.onerror = () => {
+                    log('sidebar-status', 'Failed to load AdminSidebar', 'error');
+                };
+                document.body.appendChild(script);
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            checkSidebarComponent();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Check current SSL certificate status",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Test site accessibility",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Investigate alternative solutions",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Monitor SSL certificate provisioning",
+    "status": "pending",
+    "id": "4"
+  }
+]

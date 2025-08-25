@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klaviyo Client Linking - Standalone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-purple-50 to-green-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent mb-2">
+                        Klaviyo Account → Client Linking
+                    </h1>
+                    <p class="text-gray-600">Connect your Klaviyo accounts to EmailPilot clients</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                        OAuth Enabled
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Dashboard -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-2xl font-bold text-blue-600" id="authStatusCard">-</div>
+                <div class="text-sm text-gray-600">Authentication</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-2xl font-bold text-green-600" id="klaviyoStatusCard">-</div>
+                <div class="text-sm text-gray-600">Klaviyo OAuth</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-2xl font-bold text-purple-600" id="accountsCard">0</div>
+                <div class="text-sm text-gray-600">Discovered Accounts</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-2xl font-bold text-indigo-600" id="clientsCard">0</div>
+                <div class="text-sm text-gray-600">Available Clients</div>
+            </div>
+        </div>
+
+        <!-- Action Steps -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Quick Actions</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <button onclick="step1_authenticate()" class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    1️⃣ Authenticate
+                </button>
+                <button onclick="step2_connectKlaviyo()" id="connectBtn" class="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50" disabled>
+                    2️⃣ Connect Klaviyo
+                </button>
+                <button onclick="step3_discover()" id="discoverBtn" class="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50" disabled>
+                    3️⃣ Discover Accounts
+                </button>
+                <button onclick="step4_showLinking()" id="linkBtn" class="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50" disabled>
+                    4️⃣ Link to Clients
+                </button>
+            </div>
+        </div>
+
+        <!-- Discovered Accounts -->
+        <div id="accountsSection" class="hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">Discovered Klaviyo Accounts</h2>
+                <div id="accountsList" class="space-y-4">
+                    <!-- Accounts will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Linking Interface -->
+        <div id="linkingSection" class="hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">Link Accounts to Clients</h2>
+                <div id="linkingInterface">
+                    <!-- Linking UI will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="bg-gray-900 rounded-xl shadow-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-green-400 font-mono text-sm">Activity Log</h3>
+                <button onclick="clearLog()" class="text-gray-400 hover:text-white text-xs">Clear</button>
+            </div>
+            <div id="activityLog" class="text-green-400 text-xs font-mono max-h-48 overflow-y-auto space-y-1"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentUser = null;
+        let discoveredAccounts = [];
+        let availableClients = [];
+
+        // Logging
+        function log(msg, type = 'info') {
+            const logDiv = document.getElementById('activityLog');
+            const time = new Date().toLocaleTimeString();
+            const colors = {
+                error: 'text-red-400',
+                success: 'text-green-400',
+                warning: 'text-yellow-400',
+                info: 'text-blue-400'
+            };
+            const entry = document.createElement('div');
+            entry.className = colors[type] || 'text-gray-400';
+            entry.textContent = `[${time}] ${msg}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        }
+
+        function clearLog() {
+            document.getElementById('activityLog').innerHTML = '';
+            log('Log cleared');
+        }
+
+        // Check status
+        async function checkStatus() {
+            const token = localStorage.getItem('access_token');
+            
+            // Check auth
+            if (!token) {
+                document.getElementById('authStatusCard').textContent = '❌';
+                return;
+            }
+
+            try {
+                const authRes = await fetch(`${API_BASE}/api/auth/google/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (authRes.ok) {
+                    const user = await authRes.json();
+                    currentUser = user.email;
+                    document.getElementById('authStatusCard').textContent = '✅';
+                    document.getElementById('connectBtn').disabled = false;
+                    log(`Authenticated as ${user.email}`, 'success');
+                    
+                    // Check Klaviyo
+                    const klaviyoRes = await fetch(`${API_BASE}/api/integrations/klaviyo/status`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (klaviyoRes.ok) {
+                        const klaviyoData = await klaviyoRes.json();
+                        if (klaviyoData.connected) {
+                            document.getElementById('klaviyoStatusCard').textContent = '✅';
+                            document.getElementById('discoverBtn').disabled = false;
+                            log('Klaviyo connected', 'success');
+                            
+                            // Check discovered accounts
+                            await checkDiscoveredAccounts();
+                        } else {
+                            document.getElementById('klaviyoStatusCard').textContent = '❌';
+                        }
+                    }
+                } else {
+                    document.getElementById('authStatusCard').textContent = '❌';
+                }
+            } catch (error) {
+                log(`Status check error: ${error.message}`, 'error');
+            }
+        }
+
+        // Check discovered accounts
+        async function checkDiscoveredAccounts() {
+            const token = localStorage.getItem('access_token');
+            try {
+                const res = await fetch(`${API_BASE}/api/klaviyo/available-accounts`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    discoveredAccounts = data.accounts || [];
+                    document.getElementById('accountsCard').textContent = discoveredAccounts.length;
+                    if (discoveredAccounts.length > 0) {
+                        document.getElementById('linkBtn').disabled = false;
+                        displayAccounts();
+                    }
+                }
+            } catch (error) {
+                log(`Failed to check accounts: ${error.message}`, 'error');
+            }
+        }
+
+        // Step 1: Authenticate
+        async function step1_authenticate() {
+            log('Starting authentication...');
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/google/guest`, {
+                    method: 'POST'
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    log('Authentication successful!', 'success');
+                    await checkStatus();
+                } else {
+                    log('Authentication failed', 'error');
+                }
+            } catch (error) {
+                log(`Auth error: ${error.message}`, 'error');
+            }
+        }
+
+        // Step 2: Connect Klaviyo
+        async function step2_connectKlaviyo() {
+            const token = localStorage.getItem('access_token');
+            log('Starting Klaviyo OAuth...');
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/integrations/klaviyo/auth`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    const popup = window.open(data.authorization_url, 'KlaviyoOAuth', 'width=600,height=700');
+                    
+                    if (!popup) {
+                        log('Popup blocked! Please allow popups.', 'error');
+                        return;
+                    }
+                    
+                    log('OAuth popup opened...', 'info');
+                    
+                    const handleMessage = (event) => {
+                        if (event.data.service === 'klaviyo') {
+                            if (event.data.success) {
+                                log('Klaviyo connected successfully!', 'success');
+                                checkStatus();
+                            } else {
+                                log(`Connection failed: ${event.data.message}`, 'error');
+                            }
+                            window.removeEventListener('message', handleMessage);
+                        }
+                    };
+                    
+                    window.addEventListener('message', handleMessage);
+                }
+            } catch (error) {
+                log(`OAuth error: ${error.message}`, 'error');
+            }
+        }
+
+        // Step 3: Discover accounts
+        async function step3_discover() {
+            const token = localStorage.getItem('access_token');
+            log('Discovering Klaviyo accounts...');
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/klaviyo/discover-accounts`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Discovered ${data.discovered_accounts?.length || 0} accounts!`, 'success');
+                    await checkDiscoveredAccounts();
+                } else {
+                    const error = await res.json();
+                    log(`Discovery failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Discovery error: ${error.message}`, 'error');
+            }
+        }
+
+        // Display accounts
+        function displayAccounts() {
+            const section = document.getElementById('accountsSection');
+            const list = document.getElementById('accountsList');
+            
+            if (discoveredAccounts.length === 0) {
+                list.innerHTML = '<p class="text-gray-500">No accounts discovered yet.</p>';
+                return;
+            }
+            
+            section.classList.remove('hidden');
+            list.innerHTML = discoveredAccounts.map(account => `
+                <div class="border rounded-lg p-4 ${account.linked_client_id ? 'bg-green-50 border-green-300' : 'bg-gray-50'}">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-semibold">${account.account_name || 'Unnamed Account'}</h3>
+                            <p class="text-sm text-gray-600">${account.contact_email || 'No email'}</p>
+                            <p class="text-xs text-gray-500">ID: ${account.account_id}</p>
+                        </div>
+                        <div>
+                            ${account.linked_client_id 
+                                ? '<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">Linked</span>'
+                                : '<span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Not Linked</span>'
+                            }
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Step 4: Show linking interface
+        async function step4_showLinking() {
+            const token = localStorage.getItem('access_token');
+            log('Loading linking interface...');
+            
+            // Get linkable clients
+            try {
+                const res = await fetch(`${API_BASE}/api/klaviyo/linkable-clients`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    availableClients = data.clients || [];
+                    document.getElementById('clientsCard').textContent = availableClients.length;
+                    displayLinkingInterface();
+                }
+            } catch (error) {
+                log(`Failed to load clients: ${error.message}`, 'error');
+            }
+        }
+
+        // Display linking interface
+        function displayLinkingInterface() {
+            const section = document.getElementById('linkingSection');
+            const interface = document.getElementById('linkingInterface');
+            
+            section.classList.remove('hidden');
+            
+            const unlinkedAccounts = discoveredAccounts.filter(a => !a.linked_client_id);
+            
+            if (unlinkedAccounts.length === 0) {
+                interface.innerHTML = '<p class="text-gray-500">All accounts are already linked!</p>';
+                return;
+            }
+            
+            interface.innerHTML = `
+                <div class="space-y-4">
+                    ${unlinkedAccounts.map(account => `
+                        <div class="border rounded-lg p-4">
+                            <h4 class="font-semibold mb-2">${account.account_name || 'Unnamed'}</h4>
+                            <div class="flex items-center gap-4">
+                                <select id="client_${account.account_id}" class="flex-1 px-3 py-2 border rounded">
+                                    <option value="">Select a client to link...</option>
+                                    ${availableClients.map(client => 
+                                        `<option value="${client.id}">${client.name}</option>`
+                                    ).join('')}
+                                </select>
+                                <button onclick="linkAccount('${account.account_id}')" 
+                                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                                    Link
+                                </button>
+                                <button onclick="createClient('${account.account_id}', '${account.account_name}')" 
+                                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                                    Create New
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Link account to client
+        async function linkAccount(accountId) {
+            const token = localStorage.getItem('access_token');
+            const clientId = document.getElementById(`client_${accountId}`).value;
+            
+            if (!clientId) {
+                log('Please select a client', 'warning');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/klaviyo/link-account`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        client_id: clientId
+                    })
+                });
+                
+                if (res.ok) {
+                    log('Account linked successfully!', 'success');
+                    await checkDiscoveredAccounts();
+                    displayLinkingInterface();
+                } else {
+                    const error = await res.json();
+                    log(`Link failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Link error: ${error.message}`, 'error');
+            }
+        }
+
+        // Create new client
+        async function createClient(accountId, accountName) {
+            const token = localStorage.getItem('access_token');
+            const name = prompt('Client name:', accountName || 'New Client');
+            
+            if (!name) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/klaviyo/create-client`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        client_name: name
+                    })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    log(`Client "${name}" created and linked!`, 'success');
+                    await checkDiscoveredAccounts();
+                    displayLinkingInterface();
+                } else {
+                    const error = await res.json();
+                    log(`Create failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log(`Create error: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('Page loaded, checking status...');
+            checkStatus();
+        });
+    </script>
+</body>
+</html>

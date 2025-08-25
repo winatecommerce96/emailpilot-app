@@ -1,0 +1,34 @@
+# LiteLLM hardened config for local gateway
+# Acts as an OpenAI-compatible proxy. Alias "gpt-5" -> Anthropic Claude.
+general_settings:
+  telemetry: False
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+# Basic proxy hardening
+proxy_settings:
+  host: 127.0.0.1
+  port: 4000
+  cors: ["http://localhost:5173","http://127.0.0.1:5173","http://localhost:8000","http://127.0.0.1:8000"]
+  jwt_auth: False
+  enforce_user_provided_key: False  # we're using server-side Anthropic key + master key gate
+
+litellm_settings:
+  drop_params: True
+  set_verbose: False
+  num_workers: 1
+
+# Map your internal alias to a real model
+model_list:
+  - model_name: gpt-5
+    litellm_provider: anthropic
+    model: claude-3-5-sonnet-20240620
+    api_key: os.environ/ANTHROPIC_API_KEY
+    rpm: 50
+    tpm: 200000
+
+# Limit routes to the essentials
+allowed_routes:
+  - /v1/chat/completions
+  - /v1/completions
+  - /v1/models
+  - /health

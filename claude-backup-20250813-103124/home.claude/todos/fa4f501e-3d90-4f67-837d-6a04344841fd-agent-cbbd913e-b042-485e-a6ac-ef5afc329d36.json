@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Enhance authentication state management to use real backend auth checks",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Replace mock login prompt with proper Google OAuth login UI",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Add dynamic admin role detection from backend API response",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Improve navigation to show proper authentication status and user info",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test authentication flow and admin access functionality",
+    "status": "completed",
+    "id": "5"
+  }
+]

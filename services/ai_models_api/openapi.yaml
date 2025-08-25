@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: AI Models Admin API
+  version: '1.0.0'
+  description: Prompt Designer and Prompt Management for EmailPilot
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/ai-models/prompt-designer/chat:
+    post:
+      summary: Design or refine a prompt for a workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflow:
+                  type: string
+                goal:
+                  type: string
+                constraints:
+                  type: string
+                provider:
+                  type: string
+                model:
+                  type: string
+                include_context:
+                  type: boolean
+      responses:
+        '200':
+          description: OK
+  /api/ai-models/prompts:
+    get:
+      summary: List prompts
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: provider
+          schema:
+            type: string
+        - in: query
+          name: active_only
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create or update a prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+  /api/ai-models/prompts/{prompt_id}:
+    get:
+      summary: Get prompt by ID
+      parameters:
+        - in: path
+          name: prompt_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK

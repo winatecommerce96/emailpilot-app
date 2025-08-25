@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UserManagerEnhanced Component Test</title>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="test-container" class="p-8">
+        <h1 class="text-2xl font-bold mb-4">UserManagerEnhanced Component Test</h1>
+        <div id="component-status" class="mb-4 p-4 border rounded">
+            <p>Loading component...</p>
+        </div>
+        <div id="component-mount"></div>
+    </div>
+
+    <script>
+        // Set API base URL
+        window.API_BASE_URL = 'http://localhost:8000';
+        
+        // Load the UserManagerEnhanced component
+        const script = document.createElement('script');
+        script.src = '/static/dist/UserManagerEnhanced.js';
+        
+        script.onload = function() {
+            const status = document.getElementById('component-status');
+            const mount = document.getElementById('component-mount');
+            
+            if (window.UserManagerEnhanced) {
+                status.innerHTML = '✅ UserManagerEnhanced component loaded successfully';
+                status.className = 'mb-4 p-4 border rounded bg-green-100 text-green-800';
+                
+                // Try to mount the component
+                try {
+                    const mockUser = { 
+                        name: 'Test User', 
+                        email: 'test@example.com', 
+                        role: 'admin' 
+                    };
+                    
+                    ReactDOM.render(
+                        React.createElement(window.UserManagerEnhanced, { currentUser: mockUser }),
+                        mount
+                    );
+                    
+                    console.log('UserManagerEnhanced mounted successfully');
+                } catch (error) {
+                    status.innerHTML = '❌ Error mounting component: ' + error.message;
+                    status.className = 'mb-4 p-4 border rounded bg-red-100 text-red-800';
+                    console.error('Mount error:', error);
+                }
+            } else {
+                status.innerHTML = '❌ UserManagerEnhanced not found on window object';
+                status.className = 'mb-4 p-4 border rounded bg-red-100 text-red-800';
+            }
+        };
+        
+        script.onerror = function(error) {
+            const status = document.getElementById('component-status');
+            status.innerHTML = '❌ Failed to load UserManagerEnhanced script';
+            status.className = 'mb-4 p-4 border rounded bg-red-100 text-red-800';
+            console.error('Script load error:', error);
+        };
+        
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

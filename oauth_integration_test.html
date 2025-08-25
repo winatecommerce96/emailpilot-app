@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Integration Test Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        window.API_BASE_URL = 'http://localhost:8000';
+    </script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">OAuth Integration Test Suite</h1>
+            <p class="text-gray-600">Complete testing workflow for Asana and Klaviyo OAuth integrations</p>
+        </div>
+
+        <!-- Status Dashboard -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-semibold text-gray-700">Auth Status</h3>
+                    <span id="authIndicator" class="w-3 h-3 rounded-full bg-gray-400"></span>
+                </div>
+                <p id="authStatus" class="text-sm text-gray-600">Not authenticated</p>
+                <p id="userEmail" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-semibold text-purple-700">Asana</h3>
+                    <span id="asanaIndicator" class="w-3 h-3 rounded-full bg-gray-400"></span>
+                </div>
+                <p id="asanaStatus" class="text-sm text-gray-600">Not connected</p>
+                <p id="asanaDetails" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-semibold text-green-700">Klaviyo</h3>
+                    <span id="klaviyoIndicator" class="w-3 h-3 rounded-full bg-gray-400"></span>
+                </div>
+                <p id="klaviyoStatus" class="text-sm text-gray-600">Not connected</p>
+                <p id="klaviyoDetails" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Controls</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Authentication Tests -->
+                <div>
+                    <h3 class="font-medium text-gray-700 mb-3">1. Authentication</h3>
+                    <div class="space-y-2">
+                        <button onclick="testGuestLogin()" 
+                                class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                            Test Guest Login
+                        </button>
+                        <button onclick="testAuthCheck()" 
+                                class="w-full px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition">
+                            Verify Authentication
+                        </button>
+                        <button onclick="logout()" 
+                                class="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+
+                <!-- OAuth Tests -->
+                <div>
+                    <h3 class="font-medium text-gray-700 mb-3">2. OAuth Connections</h3>
+                    <div class="space-y-2">
+                        <button onclick="testAsanaOAuth()" 
+                                id="asanaOAuthBtn"
+                                class="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition disabled:opacity-50"
+                                disabled>
+                            Connect Asana
+                        </button>
+                        <button onclick="testKlaviyoOAuth()" 
+                                id="klaviyoOAuthBtn"
+                                class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50"
+                                disabled>
+                            Connect Klaviyo
+                        </button>
+                        <button onclick="checkAllStatuses()" 
+                                class="w-full px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition">
+                            Check All Statuses
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Scenarios -->
+            <div class="mt-6 pt-6 border-t">
+                <h3 class="font-medium text-gray-700 mb-3">3. Test Scenarios</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <button onclick="runFullFlow()" 
+                            class="px-3 py-2 bg-teal-600 text-white text-sm rounded hover:bg-teal-700">
+                        Full Flow Test
+                    </button>
+                    <button onclick="testErrorHandling()" 
+                            class="px-3 py-2 bg-orange-600 text-white text-sm rounded hover:bg-orange-700">
+                        Error Handling
+                    </button>
+                    <button onclick="testPopupBlocked()" 
+                            class="px-3 py-2 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700">
+                        Popup Blocked
+                    </button>
+                    <button onclick="testTimeout()" 
+                            class="px-3 py-2 bg-pink-600 text-white text-sm rounded hover:bg-pink-700">
+                        Timeout Test
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Results</h2>
+            <div id="testResults" class="space-y-2 max-h-96 overflow-y-auto">
+                <p class="text-gray-500 text-sm">No tests run yet...</p>
+            </div>
+        </div>
+
+        <!-- Debug Console -->
+        <div class="bg-gray-900 rounded-lg shadow-sm p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-white font-mono text-sm">Debug Console</h3>
+                <button onclick="clearConsole()" class="text-gray-400 hover:text-white text-xs">Clear</button>
+            </div>
+            <pre id="console" class="text-green-400 text-xs font-mono h-48 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Utility functions
+        const log = (message, type = 'info') => {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const symbols = {
+                'error': '❌',
+                'success': '✅',
+                'warning': '⚠️',
+                'info': 'ℹ️'
+            };
+            console.textContent += `${symbols[type]} [${timestamp}] ${message}\n`;
+            console.scrollTop = console.scrollHeight;
+        };
+
+        const addTestResult = (testName, passed, details = '') => {
+            const results = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `p-2 rounded ${passed ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`;
+            resultDiv.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span class="${passed ? 'text-green-800' : 'text-red-800'} font-medium">
+                        ${passed ? '✅' : '❌'} ${testName}
+                    </span>
+                    <span class="text-xs ${passed ? 'text-green-600' : 'text-red-600'}">
+                        ${new Date().toLocaleTimeString()}
+                    </span>
+                </div>
+                ${details ? `<p class="text-xs mt-1 ${passed ? 'text-green-700' : 'text-red-700'}">${details}</p>` : ''}
+            `;
+            if (results.firstChild?.textContent?.includes('No tests run yet')) {
+                results.innerHTML = '';
+            }
+            results.insertBefore(resultDiv, results.firstChild);
+        };
+
+        const updateIndicator = (elementId, status) => {
+            const indicator = document.getElementById(elementId);
+            const colors = {
+                'connected': 'bg-green-500',
+                'disconnected': 'bg-gray-400',
+                'error': 'bg-red-500',
+                'loading': 'bg-yellow-500 animate-pulse'
+            };
+            indicator.className = `w-3 h-3 rounded-full ${colors[status] || 'bg-gray-400'}`;
+        };
+
+        // Clear console
+        const clearConsole = () => {
+            document.getElementById('console').textContent = '';
+            log('Console cleared', 'info');
+        };
+
+        // Authentication functions
+        async function testGuestLogin() {
+            log('Testing guest login...', 'info');
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/guest`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access_token);
+                    log('Guest login successful', 'success');
+                    addTestResult('Guest Login', true, 'Token received and stored');
+                    await testAuthCheck();
+                    
+                    // Enable OAuth buttons
+                    document.getElementById('asanaOAuthBtn').disabled = false;
+                    document.getElementById('klaviyoOAuthBtn').disabled = false;
+                } else {
+                    const error = await response.json();
+                    log(`Guest login failed: ${error.detail}`, 'error');
+                    addTestResult('Guest Login', false, error.detail);
+                }
+            } catch (error) {
+                log(`Guest login error: ${error.message}`, 'error');
+                addTestResult('Guest Login', false, error.message);
+            }
+        }
+
+        async function testAuthCheck() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                updateIndicator('authIndicator', 'disconnected');
+                document.getElementById('authStatus').textContent = 'Not authenticated';
+                document.getElementById('userEmail').textContent = '';
+                addTestResult('Auth Check', false, 'No token found');
+                return false;
+            }
+
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/auth/google/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    updateIndicator('authIndicator', 'connected');
+                    document.getElementById('authStatus').textContent = 'Authenticated';
+                    document.getElementById('userEmail').textContent = user.email;
+                    log(`Authenticated as: ${user.email}`, 'success');
+                    addTestResult('Auth Check', true, `User: ${user.email}`);
+                    return true;
+                } else {
+                    updateIndicator('authIndicator', 'error');
+                    document.getElementById('authStatus').textContent = 'Invalid token';
+                    log('Token validation failed', 'error');
+                    addTestResult('Auth Check', false, 'Invalid token');
+                    return false;
+                }
+            } catch (error) {
+                updateIndicator('authIndicator', 'error');
+                log(`Auth check error: ${error.message}`, 'error');
+                addTestResult('Auth Check', false, error.message);
+                return false;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            updateIndicator('authIndicator', 'disconnected');
+            document.getElementById('authStatus').textContent = 'Not authenticated';
+            document.getElementById('userEmail').textContent = '';
+            document.getElementById('asanaOAuthBtn').disabled = true;
+            document.getElementById('klaviyoOAuthBtn').disabled = true;
+            log('Logged out', 'info');
+            addTestResult('Logout', true);
+        }
+
+        // OAuth functions
+        async function testAsanaOAuth() {
+            await testServiceOAuth('asana', 'purple');
+        }
+
+        async function testKlaviyoOAuth() {
+            await testServiceOAuth('klaviyo', 'green');
+        }
+
+        async function testServiceOAuth(service, color) {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                log('Must be authenticated first', 'error');
+                addTestResult(`${service} OAuth`, false, 'Not authenticated');
+                return;
+            }
+
+            log(`Starting ${service} OAuth flow...`, 'info');
+            updateIndicator(`${service}Indicator`, 'loading');
+
+            try {
+                // Get authorization URL
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/${service}/auth`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to get ${service} authorization URL`);
+                }
+
+                const data = await response.json();
+                log(`Got ${service} authorization URL`, 'success');
+
+                // Open OAuth popup
+                const popup = window.open(
+                    data.authorization_url,
+                    `${service}OAuth`,
+                    'width=600,height=700,scrollbars=yes,resizable=yes'
+                );
+
+                if (!popup) {
+                    throw new Error('Popup blocked! Please allow popups.');
+                }
+
+                // Listen for OAuth completion
+                const handleMessage = (event) => {
+                    if (event.data.service === service) {
+                        if (event.data.success) {
+                            log(`${service} connected successfully!`, 'success');
+                            addTestResult(`${service} OAuth`, true, 'Connection established');
+                            checkServiceStatus(service);
+                        } else {
+                            log(`${service} connection failed: ${event.data.error}`, 'error');
+                            addTestResult(`${service} OAuth`, false, event.data.error);
+                            updateIndicator(`${service}Indicator`, 'error');
+                        }
+                        window.removeEventListener('message', handleMessage);
+                    }
+                };
+
+                window.addEventListener('message', handleMessage);
+
+                // Check if popup closed
+                const checkClosed = setInterval(() => {
+                    if (popup.closed) {
+                        clearInterval(checkClosed);
+                        checkServiceStatus(service);
+                    }
+                }, 1000);
+
+            } catch (error) {
+                log(`${service} OAuth error: ${error.message}`, 'error');
+                addTestResult(`${service} OAuth`, false, error.message);
+                updateIndicator(`${service}Indicator`, 'error');
+            }
+        }
+
+        async function checkServiceStatus(service) {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+
+            try {
+                const response = await fetch(`${window.API_BASE_URL}/api/integrations/${service}/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.connected) {
+                        updateIndicator(`${service}Indicator`, 'connected');
+                        document.getElementById(`${service}Status`).textContent = 'Connected';
+                        document.getElementById(`${service}Details`).textContent = 
+                            data.user_name || data.scope || 'Active connection';
+                        document.getElementById(`${service}OAuthBtn`).textContent = `Disconnect ${service}`;
+                    } else {
+                        updateIndicator(`${service}Indicator`, 'disconnected');
+                        document.getElementById(`${service}Status`).textContent = 'Not connected';
+                        document.getElementById(`${service}Details`).textContent = '';
+                        document.getElementById(`${service}OAuthBtn`).textContent = `Connect ${service}`;
+                    }
+                }
+            } catch (error) {
+                log(`Error checking ${service} status: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkAllStatuses() {
+            log('Checking all connection statuses...', 'info');
+            await testAuthCheck();
+            await checkServiceStatus('asana');
+            await checkServiceStatus('klaviyo');
+            addTestResult('Status Check', true, 'All statuses updated');
+        }
+
+        // Test scenarios
+        async function runFullFlow() {
+            log('Running full integration flow test...', 'info');
+            
+            // Step 1: Login
+            await testGuestLogin();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Step 2: Check statuses
+            await checkAllStatuses();
+            
+            log('Full flow test complete', 'success');
+            addTestResult('Full Flow Test', true, 'All steps completed');
+        }
+
+        function testErrorHandling() {
+            log('Testing error handling...', 'warning');
+            
+            // Simulate various error conditions
+            fetch(`${window.API_BASE_URL}/api/integrations/invalid/auth`)
+                .catch(error => {
+                    log(`Handled network error: ${error.message}`, 'success');
+                    addTestResult('Error Handling', true, 'Network errors handled correctly');
+                });
+        }
+
+        function testPopupBlocked() {
+            log('Testing popup blocked scenario...', 'info');
+            try {
+                const popup = window.open('', 'test', 'width=1,height=1');
+                if (popup) {
+                    popup.close();
+                    addTestResult('Popup Test', true, 'Popups are allowed');
+                } else {
+                    addTestResult('Popup Test', false, 'Popups are blocked');
+                }
+            } catch (error) {
+                addTestResult('Popup Test', false, 'Popup test failed');
+            }
+        }
+
+        function testTimeout() {
+            log('Testing timeout handling...', 'info');
+            const timeoutPromise = new Promise((resolve, reject) => {
+                setTimeout(() => reject(new Error('Timeout')), 3000);
+            });
+            
+            Promise.race([
+                timeoutPromise,
+                new Promise(resolve => setTimeout(resolve, 2000))
+            ]).then(() => {
+                addTestResult('Timeout Test', true, 'Completed before timeout');
+            }).catch(() => {
+                addTestResult('Timeout Test', false, 'Operation timed out');
+            });
+        }
+
+        // Initialize on load
+        window.addEventListener('load', async () => {
+            log('OAuth Integration Test Suite loaded', 'info');
+            await checkAllStatuses();
+        });
+    </script>
+</body>
+</html>

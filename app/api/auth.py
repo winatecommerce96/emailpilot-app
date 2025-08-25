@@ -9,7 +9,7 @@ from typing import Optional
 import jwt
 import os
 
-from app.core.config import settings
+from app.core.settings import get_settings
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -43,10 +43,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+        expire = datetime.utcnow() + timedelta(minutes=get_settings().access_token_expire_minutes)
     
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    encoded_jwt = jwt.encode(to_encode, get_settings().secret_key, algorithm=get_settings().algorithm)
     return encoded_jwt
 
 def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
@@ -66,7 +66,7 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
     
     try:
         token = credentials.credentials
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, get_settings().secret_key, algorithms=[get_settings().algorithm])
         email: str = payload.get("sub")
         
         if email is None:
@@ -74,6 +74,17 @@ def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(s
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials"
             )
+        
+        # Handle guest users (temporary users not in DEMO_USERS)
+        if email.endswith("@guest.emailpilot.ai"):
+            guest_id = email.split("@")[0]
+            return {
+                "id": guest_id,
+                "name": "Guest User",
+                "role": "guest",
+                "email": email,
+                "is_guest": True
+            }
             
         if email not in DEMO_USERS:
             raise HTTPException(
@@ -101,7 +112,7 @@ async def login(email: str, password: str = "demo"):
         )
     
     user = DEMO_USERS[email]
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token_expires = timedelta(minutes=get_settings().access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": email}, expires_delta=access_token_expires
     )
@@ -109,8 +120,69 @@ async def login(email: str, password: str = "demo"):
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "expires_in": settings.access_token_expire_minutes * 60,
+        "expires_in": get_settings().access_token_expire_minutes * 60,
         "user": user
+    }
+
+@router.post("/register")
+async def register(email: str, password: str, name: str, company: str = ""):
+    """Simple registration endpoint"""
+    
+    # For demo purposes, create a new user entry
+    if email in DEMO_USERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already exists"
+        )
+    
+    # Create new user
+    new_user = {
+        "id": len(DEMO_USERS) + 1,
+        "name": name,
+        "role": "user",
+        "email": email,
+        "company": company
+    }
+    
+    # Add to demo users (in real app, save to database)
+    DEMO_USERS[email] = new_user
+    
+    access_token_expires = timedelta(minutes=get_settings().access_token_expire_minutes)
+    access_token = create_access_token(
+        data={"sub": email}, expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": get_settings().access_token_expire_minutes * 60,
+        "user": new_user
+    }
+
+@router.post("/guest")
+async def guest_access():
+    """Create guest session"""
+    
+    # Create a temporary guest user
+    guest_id = f"guest_{datetime.utcnow().timestamp()}"
+    guest_user = {
+        "id": guest_id,
+        "name": "Guest User",
+        "role": "guest",
+        "email": f"{guest_id}@guest.emailpilot.ai",
+        "is_guest": True
+    }
+    
+    access_token_expires = timedelta(minutes=60)  # Shorter expiry for guests
+    access_token = create_access_token(
+        data={"sub": guest_user["email"]}, expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": 60 * 60,  # 1 hour
+        "user": guest_user
     }
 
 @router.get("/me")
@@ -153,7 +225,7 @@ async def google_demo_callback(user_data: dict):
         }
     
     # Create access token
-    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token_expires = timedelta(minutes=get_settings().access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": email}, expires_delta=access_token_expires
     )
@@ -161,7 +233,7 @@ async def google_demo_callback(user_data: dict):
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "expires_in": settings.access_token_expire_minutes * 60,
+        "expires_in": get_settings().access_token_expire_minutes * 60,
         "user": user
     }
 

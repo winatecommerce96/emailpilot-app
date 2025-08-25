@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix Pydantic validation errors - Update calendar schemas to use string IDs",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Add missing stats endpoint to calendar API",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Fix Firestore deprecation warnings - Update to use filter keyword",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Fix 405 Method Not Allowed errors on event endpoints",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test all fixes and verify errors are resolved",
+    "status": "completed",
+    "id": "5"
+  }
+]

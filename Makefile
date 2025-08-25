@@ -37,6 +37,17 @@ help:
 	@echo "🧹 Maintenance:"
 	@echo "  make clean      - Clean temporary files and build artifacts"
 	@echo "  make logs       - Show server logs"
+	@echo "  make logs-clean - Find and clean large log files (opts: SIZE=1G MODE=list|truncate|delete)"
+	@echo "  make bigfiles   - List large non-log files (>200M)"
+	@echo "  make quick-check-revenue - Start Revenue API on :9090 and test CORS"
+	@echo "  make quick-check-simple  - Start simplified backend and probe endpoints"
+	@echo "  make status-revenue      - Probe Revenue API and show CORS headers (no start)"
+	@echo "  make cron-clean-logs     - Non-interactive log truncation for cron (opts: SIZE=1G)"
+	@echo "  make test-smoke          - Run minimal smoke tests (no GCP deps)"
+	@echo "  make docker-build-app    - Build Docker image for Cloud Run"
+	@echo "  make docker-run-app      - Run Docker image locally (port 8080)"
+	@echo "  make deploy-cloudrun     - Deploy to Cloud Run (set PROJECT_ID, REGION)"
+	@echo "  make status-all          - Probe key endpoints (health, admin, auth, optional revenue)"
 
 # Install dependencies
 install:
@@ -46,7 +57,7 @@ install:
 # Start development server
 dev:
 	@echo "🚀 Starting development server on http://localhost:8000"
-	uvicorn main_firestore:app --reload --port 8000
+	uvicorn main_firestore:app --reload --port 8000 --host localhost
 
 # Start development server with Firestore emulator
 # Uses local Firestore emulator instead of production Firebase
@@ -60,12 +71,12 @@ dev-emu:
 	FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
 	GOOGLE_CLOUD_PROJECT=emailpilot-dev \
 	FIREBASE_PROJECT_ID=emailpilot-dev \
-	uvicorn main_firestore:app --reload --port 8000
+	uvicorn main_firestore:app --reload --port 8000 --host localhost
 
 # Alternative dev server using main.py (if available)
 dev-simple:
 	@echo "🚀 Starting simple server on http://localhost:8000"
-	uvicorn main:app --reload --port 8000
+	uvicorn main:app --reload --port 8000 --host localhost
 
 # Run tests
 test:
@@ -124,6 +135,53 @@ logs:
 	@echo "📋 Showing server logs (last 50 lines)..."
 	@tail -n 50 -f *.log 2>/dev/null || echo "No log files found. Server logs to console."
 
+# Find and optionally clean large logs
+# Usage: make logs-clean SIZE=1G MODE=truncate YES=yes
+logs-clean:
+	@chmod +x scripts/cleanup_large_files.sh
+	@SIZE=$${SIZE:-500M}; MODE=$${MODE:-list}; YES_FLAG=$$( [ "$${YES:-no}" = "yes" ] && echo "--yes" ); \
+	 echo "🔎 Cleaning logs (threshold: $$SIZE, mode: $$MODE)"; \
+	 ./scripts/cleanup_large_files.sh -t $$SIZE $$( [ "$$MODE" = "delete" ] && echo --delete ) $$( [ "$$MODE" = "truncate" ] && echo --truncate ) $$YES_FLAG
+
+# List large non-log files (>200M)
+bigfiles:
+	@echo "🔎 Large non-log files (>200M):"
+	@find . -type f -size +200M ! -name "*.log" ! -name "*.out" ! -path "./logs/*" -print 2>/dev/null | sed -n '1,200p' || true
+
+# Start Klaviyo API (formerly Revenue API) and test CORS preflight; then stop
+quick-check-revenue:
+	@echo "🚀 Starting Klaviyo API on http://127.0.0.1:9090 (background)"
+	@mkdir -p logs
+	@LOG_DIR=logs GOOGLE_CLOUD_PROJECT=$${GOOGLE_CLOUD_PROJECT:-emailpilot-438321} nohup uvicorn services.klaviyo_api.main:app --host 127.0.0.1 --port 9090 > logs/klaviyo_api_uvicorn.out 2>&1 & echo $$! > .revenue_api.pid
+	@sleep 1
+	@echo "🏥 /healthz:" && curl -sS http://127.0.0.1:9090/healthz || true
+	@echo "-- CORS Preflight (Origin http://localhost:3000) --"
+	@curl -sSI -X OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 -H 'Origin: http://localhost:3000' -H 'Access-Control-Request-Method: GET' -H 'Access-Control-Request-Headers: content-type' | sed -n '1,40p'
+	@echo "🛑 Stopping Klaviyo API"; kill $$(cat .revenue_api.pid) 2>/dev/null || true; rm -f .revenue_api.pid
+
+# Start simplified backend (no GCP deps) and probe a few endpoints; then stop
+quick-check-simple:
+	@echo "🚀 Starting simplified backend on http://127.0.0.1:8088 (background)"
+	@mkdir -p logs
+	@nohup uvicorn test_agent_sanity_app:app --host 127.0.0.1 --port 8088 > logs/simple_uvicorn.out 2>&1 & echo $$! > .simple_backend.pid
+	@sleep 1
+	@echo "🏥 /health:" && curl -sS http://127.0.0.1:8088/health || true
+	@echo "📄 / (index.html):" && curl -sSI http://127.0.0.1:8088/ | head -n 1 || true
+	@echo "🛑 Stopping simplified backend"; kill $$(cat .simple_backend.pid) 2>/dev/null || true; rm -f .simple_backend.pid
+
+# Probe Klaviyo API status and report CORS headers (does not start the server)
+status-revenue:
+	@BASE=$${KLAVIYO_API_BASE:-$${REVENUE_API_BASE:-http://127.0.0.1:9090}}; ORIGIN=$${ORIGIN:-http://localhost:3000}; \
+	echo "🔎 Klaviyo API status ($$BASE)"; \
+	echo "- GET /healthz:"; curl -sS "$$BASE/healthz" || true; echo; \
+	echo "- CORS preflight headers (OPTIONS /clients/test/revenue/last7 Origin $$ORIGIN):"; \
+	curl -sSI -X OPTIONS "$$BASE/clients/test/revenue/last7" -H "Origin: $$ORIGIN" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: content-type" | awk 'BEGIN{IGNORECASE=1} /^HTTP|^Access-Control-Allow-Origin|^Access-Control-Allow-Methods|^Access-Control-Allow-Headers/ {print}'
+
+# Cron-friendly log cleanup (truncate files over SIZE)
+cron-clean-logs:
+	@SIZE=$${SIZE:-1G}; echo "🧹 Cron log cleanup: truncating logs > $$SIZE"; \
+	chmod +x scripts/cleanup_large_files.sh; ./scripts/cleanup_large_files.sh -t $$SIZE --truncate --yes || true
+
 # Kill process on port 8000 (useful when port is stuck)
 kill-port:
 	@echo "🔫 Killing process on port 8000..."
@@ -141,6 +199,17 @@ status:
 	@curl -s http://localhost:8000/api/calendar/health > /dev/null 2>&1 && echo "✅ Available" || echo "❌ Not available"
 	@echo -n "Auth API: "
 	@curl -s http://localhost:8000/api/auth/session > /dev/null 2>&1 && echo "✅ Available" || echo "❌ Not available"
+
+# Extended status with HTTP codes and snippets
+status-all:
+	@BASE=$${BASE:-http://localhost:8000}; REV=$${REV:-http://127.0.0.1:9090}; ORIGIN=$${ORIGIN:-http://localhost:3000}; \
+	echo "📊 Status (BASE=$$BASE)"; \
+	echo "- /health:"; curl -sSI "$$BASE/health" | head -n1 || true; \
+	echo "- /api/admin/system/status:"; curl -sS "$$BASE/api/admin/system/status" | sed -e 's/{.*/{...}/' -e 's/"status":"[^"]*"/"status":"..."/' | head -c 200; echo; \
+	echo "- /api/auth/google/status:"; curl -sS "$$BASE/api/auth/google/status" | head -c 200; echo; \
+	echo "- /api/auth/me (unauth):"; curl -sSI "$$BASE/api/auth/me" | head -n1; \
+	echo "- Revenue /healthz (optional at $$REV):"; curl -sSI "$$REV/healthz" | head -n1 || true; \
+	echo "- Revenue CORS preflight:"; curl -sSI -X OPTIONS "$$REV/clients/test/revenue/last7" -H "Origin: $$ORIGIN" -H "Access-Control-Request-Method: GET" | awk 'BEGIN{IGNORECASE=1} /^HTTP|^Access-Control-Allow/ {print}' || true
 
 # Development setup - install and run
 setup: install dev
@@ -160,6 +229,36 @@ test-all:
 	@echo "🧪 Running comprehensive test suite..."
 	@chmod +x run_all_tests.sh
 	./run_all_tests.sh
+
+# Minimal smoke tests that don't require GCP
+test-smoke:
+	@echo "🧪 Running smoke tests..."
+	pytest -q tests || true
+
+# Docker targets for Cloud Run deployment
+docker-build-app:
+	@echo "🐳 Building Docker image emailpilot-app:latest"
+	docker build -t emailpilot-app:latest .
+
+docker-run-app:
+	@echo "🐳 Running Docker image on http://localhost:8080"
+	docker run --rm -p 8080:8080 -e PORT=8080 emailpilot-app:latest
+
+deploy-cloudrun:
+	@echo "🚀 Deploying to Cloud Run (PROJECT_ID=$${PROJECT_ID:-unset}, REGION=$${REGION:-us-central1})"
+	@chmod +x scripts/deploy_cloud_run.sh
+	PROJECT_ID=$${PROJECT_ID:-$${GOOGLE_CLOUD_PROJECT}} REGION=$${REGION:-us-central1} SERVICE_NAME=$${SERVICE_NAME:-emailpilot-app} \
+	./scripts/deploy_cloud_run.sh $${NO_BUILD:+--no-build}
+
+# Preflight deploy: run smoke tests, status checks, and prompt before deploy
+preflight-deploy:
+	@echo "🧪 Running smoke tests..."; \
+	pytest -q tests || { echo "❌ Smoke tests failed"; exit 1; }; \
+	BASE=$${BASE:-http://localhost:8000}; echo "📊 Running status-all (BASE=$$BASE)"; \
+	$(MAKE) -s status-all || true; \
+	read -p "Proceed with deploy to Cloud Run? (y/N) " ans; \
+	[ "$$ans" = "y" ] || [ "$$ans" = "Y" ] || { echo "Aborted."; exit 1; }; \
+	$(MAKE) deploy-cloudrun
 
 # Install development dependencies (includes pytest if needed)
 install-dev: install

@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Update FirebaseCalendarService.getClients() to use active_only=true parameter",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Update CalendarViewLocal.loadClients() to use active_only=true parameter",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Test that both calendar components only show active clients in dropdown",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Verify the changes work correctly by testing the frontend",
+    "status": "completed",
+    "id": "4"
+  }
+]

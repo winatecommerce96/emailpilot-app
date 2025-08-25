@@ -1,0 +1,260 @@
+{
+  "client_id": "jstKU42fvbrzLwCNBs7W",
+  "month": "2025-03",
+  "firestore_data": {
+    "client": {
+      "created_at": "2025-08-20T23:09:18.863767",
+      "storage_mode": "development_direct",
+      "is_active": false,
+      "updated_at": "2025-08-20T23:09:25.201073",
+      "name": "Test Client sxyw1k",
+      "key_growth_objective": "increased_testing",
+      "client_voice": "Updated professional voice with more enthusiasm",
+      "affinity_segment_3_name": "Test Segment 3",
+      "affinity_segment_1_definition": "Users who love testing",
+      "client_slug": "test-client-sxyw1k",
+      "deleted_at": "2025-08-20T23:09:25.201079",
+      "client_background": "Test company specializing in automated testing",
+      "metric_id": "TEST_METRIC_sxyw1k",
+      "affinity_segment_3_definition": "Automated test enthusiasts",
+      "website": "https://test-sxyw1k.example.com",
+      "klaviyo_account_id": "",
+      "affinity_segment_1_name": "Updated Test Segment",
+      "description": "Updated test description at 2025-08-20T18:09:20.008911",
+      "contact_email": "test_sxyw1k@example.com",
+      "affinity_segment_2_definition": "Power testers with high engagement",
+      "contact_name": "Test Contact sxyw1k",
+      "klaviyo_api_key": "pk_test_sxyw1k_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "has_klaviyo_key": true,
+      "updated_by": "admin@emailpilot.ai",
+      "affinity_segment_2_name": "Test Segment 2",
+      "timezone": "America/New_York",
+      "asana_project_link": "https://app.asana.com/test/sxyw1k",
+      "created_by": "admin@emailpilot.ai"
+    },
+    "campaigns": [],
+    "fetched_at": "2025-08-24T14:17:13.704462"
+  },
+  "client_info": {
+    "created_at": "2025-08-20T23:09:18.863767",
+    "storage_mode": "development_direct",
+    "is_active": false,
+    "updated_at": "2025-08-20T23:09:25.201073",
+    "name": "Test Client sxyw1k",
+    "key_growth_objective": "increased_testing",
+    "client_voice": "Updated professional voice with more enthusiasm",
+    "affinity_segment_3_name": "Test Segment 3",
+    "affinity_segment_1_definition": "Users who love testing",
+    "client_slug": "test-client-sxyw1k",
+    "deleted_at": "2025-08-20T23:09:25.201079",
+    "client_background": "Test company specializing in automated testing",
+    "metric_id": "TEST_METRIC_sxyw1k",
+    "affinity_segment_3_definition": "Automated test enthusiasts",
+    "website": "https://test-sxyw1k.example.com",
+    "klaviyo_account_id": "",
+    "affinity_segment_1_name": "Updated Test Segment",
+    "description": "Updated test description at 2025-08-20T18:09:20.008911",
+    "contact_email": "test_sxyw1k@example.com",
+    "affinity_segment_2_definition": "Power testers with high engagement",
+    "contact_name": "Test Contact sxyw1k",
+    "klaviyo_api_key": "pk_test_sxyw1k_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "has_klaviyo_key": true,
+    "updated_by": "admin@emailpilot.ai",
+    "affinity_segment_2_name": "Test Segment 2",
+    "timezone": "America/New_York",
+    "asana_project_link": "https://app.asana.com/test/sxyw1k",
+    "created_by": "admin@emailpilot.ai"
+  },
+  "campaign_plan": {
+    "brand": "Test Client sxyw1k",
+    "month": "2025-03",
+    "campaigns": [
+      {
+        "date": "2025-03-01",
+        "subject_line": "Spring into Savings! \ud83c\udf3c",
+        "target_segment": "All Subscribers",
+        "expected_metrics": {
+          "open_rate": "20%",
+          "click_rate": "5%",
+          "revenue": "$500"
+        }
+      },
+      {
+        "date": "2025-03-05",
+        "subject_line": "Exclusive Offer Just for You!",
+        "target_segment": "Loyal Customers",
+        "expected_metrics": {
+          "open_rate": "25%",
+          "click_rate": "7%",
+          "revenue": "$700"
+        }
+      },
+      {
+        "date": "2025-03-10",
+        "subject_line": "New Arrivals: Check Them Out!",
+        "target_segment": "New Subscribers",
+        "expected_metrics": {
+          "open_rate": "22%",
+          "click_rate": "6%",
+          "revenue": "$300"
+        }
+      },
+      {
+        "date": "2025-03-15",
+        "subject_line": "Don't Miss Our Spring Sale!",
+        "target_segment": "All Subscribers",
+        "expected_metrics": {
+          "open_rate": "18%",
+          "click_rate": "4%",
+          "revenue": "$400"
+        }
+      },
+      {
+        "date": "2025-03-20",
+        "subject_line": "Last Chance: Spring Sale Ends Soon!",
+        "target_segment": "Cart Abandoners",
+        "expected_metrics": {
+          "open_rate": "30%",
+          "click_rate": "10%",
+          "revenue": "$600"
+        }
+      },
+      {
+        "date": "2025-03-25",
+        "subject_line": "Feedback Request: Help Us Improve!",
+        "target_segment": "Recent Buyers",
+        "expected_metrics": {
+          "open_rate": "15%",
+          "click_rate": "3%",
+          "revenue": "$100"
+        }
+      },
+      {
+        "date": "2025-03-28",
+        "subject_line": "Spring Cleaning: Special Discounts!",
+        "target_segment": "All Subscribers",
+        "expected_metrics": {
+          "open_rate": "20%",
+          "click_rate": "5%",
+          "revenue": "$500"
+        }
+      },
+      {
+        "date": "2025-03-30",
+        "subject_line": "April Preview: What\u2019s Coming Next!",
+        "target_segment": "Engaged Subscribers",
+        "expected_metrics": {
+          "open_rate": "25%",
+          "click_rate": "8%",
+          "revenue": "$400"
+        }
+      }
+    ],
+    "generated_by": "ai",
+    "model": "gpt-4o-mini"
+  },
+  "email_templates": [
+    {
+      "campaign_id": "template_2025-03-01",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-05",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-10",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    }
+  ],
+  "send_schedule": {
+    "timezone": "America/New_York",
+    "optimized_times": {
+      "monday": "10:00",
+      "tuesday": "14:00",
+      "wednesday": "11:00",
+      "thursday": "15:00",
+      "friday": "09:00",
+      "saturday": "12:00",
+      "sunday": "18:00"
+    },
+    "frequency_cap": 3,
+    "quiet_hours": {
+      "start": "21:00",
+      "end": "08:00"
+    },
+    "recommendations": [
+      "Send promotional emails on Tuesday/Thursday",
+      "Newsletter works best on Wednesday morning",
+      "Avoid Mondays for sales campaigns"
+    ]
+  },
+  "timestamp": "2025-08-24T14:17:12.551076",
+  "errors": [
+    "No Klaviyo data available"
+  ],
+  "status": "completed"
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Review current OAuth implementation in the codebase",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Update OAuth configuration to use Secret Manager credentials",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Implement OAuth login endpoints if missing",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Update frontend OAuth integration",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test OAuth login flow end-to-end",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Verify token validation and session management",
+    "status": "completed",
+    "id": "6"
+  }
+]

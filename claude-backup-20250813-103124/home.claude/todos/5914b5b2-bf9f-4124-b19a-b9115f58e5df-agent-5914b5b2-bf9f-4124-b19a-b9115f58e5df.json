@@ -1,0 +1,47 @@
+[
+  {
+    "content": "Review current goals.py implementation and understand existing endpoints",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Fix the /clients endpoint to handle missing status field",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Add /data-status endpoint for goals data completeness",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Add /{client_id} endpoint to get client-specific goals",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Add /accuracy/comparison endpoint for AI vs human comparison",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Add /{goal_id}/versions endpoint for version history",
+    "status": "completed",
+    "id": "6"
+  },
+  {
+    "content": "Add POST /{client_id} endpoint to create new goals",
+    "status": "completed",
+    "id": "7"
+  },
+  {
+    "content": "Add PUT /{goal_id} endpoint to update existing goals",
+    "status": "completed",
+    "id": "8"
+  },
+  {
+    "content": "Test all endpoints with the frontend",
+    "status": "completed",
+    "id": "9"
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Test Goals module from the Dashboard",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Identify any issues with Goals functionality",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Create a plan to fix identified issues",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Implement the fixes",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test the fixes to ensure Goals works perfectly",
+    "status": "completed",
+    "id": "5"
+  }
+]

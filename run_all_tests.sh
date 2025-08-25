@@ -1,4 +1,4 @@
-#\!/bin/bash
+#!/bin/bash
 # EmailPilot Dashboard - Run All Tests
 # Comprehensive testing suite for dashboard fixes
 
@@ -13,7 +13,7 @@ echo ""
 
 # Check if server is running
 echo "🔍 Checking if server is running..."
-if \! curl -s --connect-timeout 2 "$BASE_URL/api/admin/health" >/dev/null; then
+if ! curl -s --connect-timeout 2 "$BASE_URL/api/admin/health" >/dev/null; then
     echo "❌ Server not running at $BASE_URL"
     echo "Please start with: python main_firestore.py"
     exit 1
@@ -24,7 +24,7 @@ echo ""
 # Run build system test
 echo "🔧 Testing Build System..."
 if [ -f "./scripts/build_frontend.sh" ]; then
-    if [ \! -x "./scripts/build_frontend.sh" ]; then
+    if [ ! -x "./scripts/build_frontend.sh" ]; then
         chmod +x ./scripts/build_frontend.sh
     fi
     ./scripts/build_frontend.sh

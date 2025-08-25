@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Update secret_manager.py with project-aware implementation",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Create firestore.py service for in-memory credentials",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Update config.py for Firestore-only configuration",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Update main_firestore.py startup probe",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Create Firestore verification script",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Test the complete implementation",
+    "status": "completed",
+    "id": "6"
+  }
+]

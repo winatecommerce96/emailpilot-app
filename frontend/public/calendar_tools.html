@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Calendar Tools Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Calendar Integration Tools</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Quick Workflow Runner -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Quick Workflow Runner</h2>
+                <input type="text" id="brand" placeholder="Brand Name" class="w-full p-2 border rounded mb-3">
+                <input type="text" id="month" placeholder="Month (e.g., March 2025)" class="w-full p-2 border rounded mb-3">
+                <textarea id="goals" placeholder="Goals (one per line)" class="w-full p-2 border rounded mb-3" rows="3"></textarea>
+                <button onclick="runWorkflow()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full">
+                    Run Complete Workflow
+                </button>
+                <div id="result" class="mt-4"></div>
+            </div>
+            
+            <!-- Server Status -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">System Status</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span>Main Server (8000)</span>
+                        <span id="main-status" class="text-green-600">✓ Running</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>LangGraph Studio (2024)</span>
+                        <span id="studio-status" class="text-green-600">✓ Running</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>MCP Klaviyo (9090)</span>
+                        <button onclick="checkMCP()" class="text-blue-600 underline">Check</button>
+                        <span id="mcp-status" class="text-gray-400">...</span>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-blue-50 rounded">
+                    <p class="text-sm">
+                        <strong>LangGraph Studio:</strong><br>
+                        <a href="https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024" target="_blank" class="text-blue-600 underline">
+                            Open Visual Editor →
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Python Usage -->
+        <div class="bg-white p-6 rounded-lg shadow mt-6">
+            <h2 class="text-xl font-semibold mb-4">Python Usage</h2>
+            <pre class="bg-gray-100 p-4 rounded overflow-x-auto text-sm"><code>from integrated_calendar_system import IntegratedCalendarSystem
+
+# Initialize
+system = IntegratedCalendarSystem()
+
+# Run everything with one command
+results = system.run_complete_workflow(
+    brand="YourBrand",
+    month="March 2025",
+    goals=["Increase revenue", "Improve engagement"]
+)
+
+# Or use specific functions
+system.auto_start_mcp_servers()  # Start MCP
+system.edit_agent_prompt("copy_smith", "new prompt")  # Edit agent
+system.call_llm_locally(prompt, variables)  # Use LLM</code></pre>
+            
+            <button onclick="runPythonExample()" class="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                Run Example in Terminal
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        async function runWorkflow() {
+            const brand = document.getElementById('brand').value || 'TestBrand';
+            const month = document.getElementById('month').value || 'March 2025';
+            const goals = document.getElementById('goals').value.split('\n').filter(g => g.trim());
+            
+            const result = document.getElementById('result');
+            result.innerHTML = '<div class="text-blue-600">Running workflow...</div>';
+            
+            try {
+                const response = await fetch('/api/calendar/workflow', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({brand, month, goals})
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML = '<div class="text-green-600">✓ Workflow completed! Check console for details.</div>';
+                    console.log('Workflow Results:', data);
+                } else {
+                    result.innerHTML = '<div class="text-amber-600">API endpoint not implemented yet. Use Python script instead.</div>';
+                }
+            } catch (error) {
+                result.innerHTML = '<div class="text-red-600">Error: ' + error.message + '</div>';
+            }
+        }
+        
+        async function checkMCP() {
+            const status = document.getElementById('mcp-status');
+            try {
+                const response = await fetch('http://127.0.0.1:9090/healthz');
+                if (response.ok) {
+                    status.textContent = '✓ Running';
+                    status.className = 'text-green-600';
+                } else {
+                    status.textContent = '✗ Not running';
+                    status.className = 'text-red-600';
+                }
+            } catch (error) {
+                status.textContent = '✗ Not running';
+                status.className = 'text-red-600';
+            }
+        }
+        
+        function runPythonExample() {
+            alert('Run this in your terminal:\n\npython use_integrated_system.py\n\nThis will demonstrate the complete system!');
+        }
+        
+        // Check MCP on load
+        checkMCP();
+    </script>
+</body>
+</html>

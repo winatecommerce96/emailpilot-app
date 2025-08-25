@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# fastapi_mapper_install.txt — One-shot installer for the FastAPI "gpt-5" mapper (NO LiteLLM)
+#
+# Usage:
+#   cd "/Users/Damon/klaviyo/klaviyo-audit-automation/emailpilot-app"
+#   bash fastapi_mapper_install.txt
+#
+# What this does (non-destructive):
+#   • Creates a tiny FastAPI shim that maps model "gpt-5" → Anthropic Sonnet and forwards /v1/messages
+#   • Adds two scripts: start the mapper, and launch Claude Code pinned to a stable version
+#   • Reads ANTHROPIC_API_KEY from ./.env (or your environment). No secrets are stored in code.
+#   • Does NOT touch LiteLLM or your previous gateway.
+
+set -euo pipefail
+
+ROOT="${PROJECT_ROOT:-$(pwd)}"
+ENV_FILE="$ROOT/.env"
+SCRIPTS_DIR="$ROOT/scripts"
+VENV_DIR="$ROOT/.mini-proxy"
+MAPPER_PY="$ROOT/anthropic_mapper.py"
+START_SH="$SCRIPTS_DIR/start_gpt5_mapper.sh"
+CLAUDE_SH="$SCRIPTS_DIR/claude_mapper_gpt5.sh"
+PORT="${MAPPER_PORT:-4050}"
+HOST="127.0.0.1"
+CLI_VERSION="${CLAUDE_CLI_VERSION:-1.0.61}"
+
+mkdir -p "$SCRIPTS_DIR"
+
+# 0) Load .env if present (to pick up ANTHROPIC_API_KEY)
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
+# 1) Sanity checks
+command -v python3 >/dev/null 2>&1 || { echo "❌ python3 not found"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "❌ Node.js not found (needed for Claude Code CLI)"; exit 1; }
+
+# 2) Write the FastAPI mapper (maps alias → Anthropic model and forwards)
+cat > "$MAPPER_PY" <<'PY'
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, StreamingResponse
+import httpx, os
+
+UPSTREAM = os.getenv("ANTHROPIC_UPSTREAM", "https://api.anthropic.com")
+DEFAULT_VERSION = os.getenv("ANTHROPIC_VERSION", "2023-06-01")
+
+ALIAS_MAP = {
+    "gpt-5": "claude-3-5-sonnet-20240620",
+    "sonnet": "claude-3-5-sonnet-20240620",
+    "claude-3-5-sonnet-latest": "claude-3-5-sonnet-20240620",
+    "opus": "claude-3-opus-20240229",
+}
+
+app = FastAPI(title="Mini Anthropic Mapper", version="0.1.0")
+
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
+@app.get("/v1/models")
+async def models():
+    ids = list(ALIAS_MAP.keys()) + list(dict.fromkeys(ALIAS_MAP.values()))
+    return {"object": "list", "data": [{"id": mid} for mid in ids]}
+
+@app.post("/v1/messages")
+async def messages(req: Request):
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"error": {"type": "bad_request", "message": "Invalid JSON"}}, status_code=400)
+
+    model = body.get("model")
+    if isinstance(model, str) and model in ALIAS_MAP:
+        body["model"] = ALIAS_MAP[model]
+
+    incoming = req.headers
+    upstream_key = incoming.get("x-api-key") or os.getenv("ANTHROPIC_API_KEY")
+    if not upstream_key:
+        return JSONResponse({"error": {"type": "authentication_error", "message": "Missing Anthropic API key (x-api-key header or ANTHROPIC_API_KEY env)."}}, status_code=401)
+
+    headers = {
+        "x-api-key": upstream_key,
+        "anthropic-version": incoming.get("anthropic-version", DEFAULT_VERSION),
+        "content-type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=None) as client:
+        url = f"{UPSTREAM}/v1/messages"
+        if body.get("stream") is True:
+            upstream = await client.stream("POST", url, json=body, headers=headers)
+            return StreamingResponse(
+                upstream.aiter_raw(),
+                status_code=upstream.status_code,
+                media_type=upstream.headers.get("content-type", "text/event-stream"),
+            )
+        else:
+            upstream = await client.post(url, json=body, headers=headers)
+            return Response(
+                content=upstream.content,
+                status_code=upstream.status_code,
+                media_type=upstream.headers.get("content-type", "application/json"),
+            )
+PY
+
+# 3) Create mapper start script
+cat > "$START_SH" <<'BASH'
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="${PROJECT_ROOT:-$(pwd)}"
+VENV="$ROOT/.mini-proxy"
+APP="$ROOT/anthropic_mapper.py"
+HOST="${MAPPER_HOST:-127.0.0.1}"
+PORT="${MAPPER_PORT:-4050}"
+
+# Load .env for ANTHROPIC_API_KEY
+ENV_FILE="$ROOT/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a; source "$ENV_FILE"; set +a
+fi
+: "${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in .env or env}"
+
+python3 -m venv "$VENV" 2>/dev/null || true
+source "$VENV/bin/activate"
+pip -q install -U pip fastapi uvicorn[standard] httpx
+
+# Kill anything already on the port
+lsof -ti tcp:$PORT 2>/dev/null | xargs -r kill -9 || true
+
+echo "🚀 Mapper → http://$HOST:$PORT  (alias: gpt-5 → Sonnet)"
+exec uvicorn anthropic_mapper:app --host "$HOST" --port "$PORT"
+BASH
+chmod +x "$START_SH"
+
+# 4) Create pinned Claude launcher pointing at the mapper
+cat > "$CLAUDE_SH" <<'BASH'
+#!/usr/bin/env bash
+set -euo pipefail
+unset ANTHROPIC_BASE_URL ANTHROPIC_API_BASE ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL CLAUDE_CODE_MAX_OUTPUT_TOKENS
+ROOT="${PROJECT_ROOT:-$(pwd)}"
+ENV_FILE="$ROOT/.env"
+if [[ -f "$ENV_FILE" ]]; then set -a; source "$ENV_FILE"; set +a; fi
+HOST="${MAPPER_HOST:-127.0.0.1}"
+PORT="${MAPPER_PORT:-4050}"
+export ANTHROPIC_BASE_URL="http://$HOST:$PORT"
+export ANTHROPIC_MODEL="gpt-5"
+: "${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in .env or env}"
+exec npx -y "npm:@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:-1.0.61}" "$@"
+BASH
+chmod +x "$CLAUDE_SH"
+
+# 5) Helpful .gitignore entries (don’t commit venv)
+GITIGNORE="$ROOT/.gitignore"
+grep -qxF ".mini-proxy" "$GITIGNORE" 2>/dev/null || echo ".mini-proxy" >> "$GITIGNORE"
+
+# 6) Final instructions
+cat <<MSG
+
+✅ Installed FastAPI mapper + launchers.
+
+Next steps:
+  1) Ensure your Anthropic key is set (one time):
+       echo "ANTHROPIC_API_KEY=sk-ant-…" >> "$ENV_FILE"
+
+  2) Start the mapper (terminal A):
+       $START_SH
+
+  3) Launch Claude Code pinned to a stable build (terminal B):
+       $CLAUDE_SH
+       # In the REPL: /status → Base URL http://$HOST:$PORT, Model gpt-5
+       #              /agents  → your agents list
+
+  4) Test via curl (optional, terminal B):
+       curl -s http://$HOST:$PORT/v1/models | jq
+       curl -s http://$HOST:$PORT/v1/messages \
+         -H "x-api-key: $ANTHROPIC_API_KEY" \
+         -H "anthropic-version: 2023-06-01" \
+         -H "content-type: application/json" \
+         -d '{"model":"gpt-5","max_tokens":64,"messages":[{"role":"user","content":"Say hi"}]}' | jq
+
+Revert:
+  • Quit Claude Code and Ctrl+C the mapper.
+  • To go back to vanilla cloud, run your existing scripts/claude_cloud.sh launcher.
+
+MSG

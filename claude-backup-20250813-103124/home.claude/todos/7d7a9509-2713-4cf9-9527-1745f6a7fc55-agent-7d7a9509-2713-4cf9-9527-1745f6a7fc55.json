@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Connect to Vlasic Klaviyo via MCP and gather campaign performance data",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Analyze flow performance metrics for revenue tracking",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Calculate current revenue vs $20,000 monthly goal",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Evaluate segment performance across all requested metrics",
+    "status": "completed",
+    "priority": "medium",
+    "id": "4"
+  },
+  {
+    "content": "Generate comprehensive performance report with recommendations",
+    "status": "completed",
+    "priority": "medium",
+    "id": "5"
+  }
+]

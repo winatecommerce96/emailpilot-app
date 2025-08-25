@@ -65,7 +65,7 @@ for route in app.routes:
 print("=" * 80)
 print("EMAILPILOT API ROUTES - ORGANIZED BY MODULE")
 print("=" * 80)
-print(f"Base URL: http://127.0.0.1:8000")
+print(f"Base URL: http://localhost:8000")
 print("=" * 80)
 print()
 

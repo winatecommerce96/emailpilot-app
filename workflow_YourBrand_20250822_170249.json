@@ -1,0 +1,93 @@
+{
+  "brand": "YourBrand",
+  "month": "March 2025",
+  "started_at": "2025-08-22T17:02:07.151421",
+  "steps": [
+    {
+      "step": "MCP Servers",
+      "status": "success"
+    },
+    {
+      "step": "Calendar Generation",
+      "status": "success",
+      "artifacts": 3
+    },
+    {
+      "step": "Agent Analysis",
+      "status": "success",
+      "agents_used": [
+        "revenue_analyst",
+        "campaign_planner"
+      ]
+    }
+  ],
+  "calendar": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Plan a campaign calendar for YourBrand in March 2025"
+      }
+    ],
+    "tasks": [],
+    "current_task": null,
+    "artifacts": [
+      {
+        "task_id": "task_1",
+        "task_type": "analyze_metrics",
+        "timestamp": "2025-08-22T17:02:15.637759",
+        "status": "completed",
+        "tool": "analyze_metrics",
+        "completed_at": "2025-08-22T17:02:15.640116",
+        "result": "{\"brand\": \"YourBrand\", \"timeframe\": \"last_30_days\", \"metrics\": {\"open_rate\": 0.172, \"click_rate\": 0.021, \"conversion_rate\": 0.02, \"revenue\": 15936.86, \"sends\": 36306, \"best_performing_day\": \"Wednesday\", \"best_performing_time\": \"11:00 AM\"}, \"trends\": {\"open_rate_trend\": \"decreasing\", \"engagement_score\": 0.79}, \"analyzed_at\": \"2025-08-22T17:02:15.639622\"}"
+      },
+      {
+        "task_id": "task_2",
+        "task_type": "generate_calendar",
+        "timestamp": "2025-08-22T17:02:15.640560",
+        "status": "completed",
+        "tool": "generate_calendar",
+        "completed_at": "2025-08-22T17:02:15.641878",
+        "result": "{\"brand\": \"YourBrand\", \"month\": \"March 2025\", \"events\": [{\"id\": \"event_4\", \"date\": \"2025-08-03\", \"time\": \"16:00\", \"type\": \"promotional\", \"subject\": \"YourBrand Newsletter\", \"status\": \"planned\", \"estimated_sends\": 9233}, {\"id\": \"event_2\", \"date\": \"2025-08-05\", \"time\": \"12:00\", \"type\": \"seasonal\", \"subject\": \"YourBrand Special Offer\", \"status\": \"planned\", \"estimated_sends\": 3164}, {\"id\": \"event_3\", \"date\": \"2025-08-18\", \"time\": \"13:00\", \"type\": \"promotional\", \"subject\": \"YourBrand Product Launch\", \"status\": \"planned\", \"estimated_sends\": 2442}, {\"id\": \"event_1\", \"date\": \"2025-08-26\", \"time\": \"15:00\", \"type\": \"seasonal\", \"subject\": \"YourBrand Special Offer\", \"status\": \"planned\", \"estimated_sends\": 7438}], \"total_campaigns\": 4, \"generated_at\": \"2025-08-22T17:02:15.641503\"}"
+      },
+      {
+        "task_id": "task_3",
+        "task_type": "optimize_timing",
+        "timestamp": "2025-08-22T17:02:15.642355",
+        "status": "completed",
+        "result": {
+          "best_day": "Tuesday",
+          "best_time": "10:00 AM",
+          "timezone": "EST"
+        }
+      }
+    ],
+    "brand": "YourBrand",
+    "month": "March 2025",
+    "run_context": {
+      "started_at": "2025-08-22T17:02:15.636311",
+      "environment": "development"
+    },
+    "error": "'NoneType' object has no attribute 'get'",
+    "completed": true
+  },
+  "agent_results": {
+    "revenue_analyst": {
+      "status": "completed",
+      "response": "To analyze the revenue potential for YourBrand's March 2025 campaigns, we will consider the following factors:\n\n1. **List Size**: 10,000 subscribers or potential customers.\n2. **Average Order Value (AOV)**: $75.\n3. **Industry Benchmarks**: For eCommerce, average conversion rates typically range from 1% to 3%, depending on the industry and the effectiveness of the campaign.\n4. **Seasonal Factors**: March can be influenced by various factors such as spring sales, holidays (like Easter), and tax refund season in some regions, which can boost consumer spending.\n\n### Revenue Projections\n\n#### 1. **Conservative Scenario**\n- **Conversion Rate**: 1%\n- **Number of Orders**: 10,000 * 1% = 100 orders\n- **Revenue**: 100 orders * $75 AOV = $7,500\n\n#### 2. **Expected Scenario**\n- **Conversion Rate**: 2%\n- **Number of Orders**: 10,000 * 2% = 200 orders\n- **Revenue**: 200 orders * $75 AOV = $15,000\n\n#### 3. **Optimistic Scenario**\n- **Conversion Rate**: 3%\n- **Number of Orders**: 10,000 * 3% = 300 orders\n- **Revenue**: 300 orders * $75 AOV = $22,500\n\n### Summary of Revenue Projections\n| Scenario      | Conversion Rate | Number of Orders | Revenue   |\n|---------------|------------------|------------------|-----------|\n| Conservative   | 1%               | 100              | $7,500    |\n| Expected       | 2%               | 200              | $15,000   |\n| Optimistic     | 3%               | 300              | $22,500   |\n\n### Additional Considerations\n- **Marketing Strategy**: The effectiveness of the marketing campaign (email, social media, ads) can significantly impact conversion rates.\n- **Customer Engagement**: Higher engagement rates (e.g., open rates, click-through rates) can lead to better conversion rates.\n- **Market Trends**: Keep an eye on market trends and consumer behavior leading up to March 2025, as these can influence spending patterns.\n- **Competitor Activity**: Monitor competitors' campaigns and promotions, as they can affect your brand's performance.\n\n### Conclusion\nYourBrand's revenue potential for March 2025 can range from $7,500 in a conservative scenario to $22,500 in an optimistic scenario, with an expected revenue of around $15,000. Adjusting marketing strategies and focusing on customer engagement can help achieve the higher end of these projections.",
+      "timestamp": "2025-08-22T17:02:27.042850"
+    },
+    "campaign_planner": {
+      "status": "completed",
+      "response": "### YourBrand Email Campaign Strategy - March 2025\n\n#### Campaign Overview\nThis email campaign aims to engage different customer segments, including VIPs, New Customers, and Inactive Customers, to drive sales, increase brand loyalty, and re-engage lapsed users. The campaign will run throughout March 2025, with 3-4 emails sent each week.\n\n---\n\n### Campaign Calendar\n\n| Date       | Email # | Subject Line                                | Target Segment     | Expected Open Rate | Expected Click Rate |\n|------------|---------|---------------------------------------------|---------------------|--------------------|---------------------|\n| March 3    | 1       | \"Welcome to YourBrand! Here\u2019s Your 20% Off!\" | New Customers        | 30%                | 10%                 |\n| March 5    | 2       | \"Exclusive Offer for Our VIPs!\"            | VIPs                 | 35%                | 15%                 |\n| March 7    | 3       | \"We Miss You! Here\u2019s a Special Deal Just for You\" | Inactive Customers    | 28%                | 12%                 |\n| March 9    | 4       | \"Spring into Savings: New Arrivals Just for You!\" | All Segments         | 25%                | 8%                  |\n| March 10   | 5       | \"Your Feedback Matters! Share & Win!\"      | All Segments         | 27%                | 9%                  |\n| March 12   | 6       | \"VIP Access: Early Bird Sale Starts Now!\"   | VIPs                 | 36%                | 16%                 |\n| March 14   | 7       | \"Last Chance: Your 20% Off Expires Soon!\"  | New Customers        | 32%                | 11%                 |\n| March 16   | 8       | \"Reignite Your Passion: Special Offer Inside!\" | Inactive Customers    | 29%                | 10%                 |\n| March 17   | 9       | \"Spring Collection Launch: Shop the Look!\"  | All Segments         | 26%                | 7%                  |\n| March 19   | 10      | \"Thank You for Being a VIP: Enjoy This Gift!\" | VIPs                 | 37%                | 17%                 |\n| March 21   | 11      | \"New Arrivals Alert: Don\u2019t Miss Out!\"       | New Customers        | 31%                | 10%                 |\n| March 23   | 12      | \"We Want You Back: Exclusive Offer Inside!\" | Inactive Customers    | 30%                | 12%                 |\n| March 24   | 13      | \"Spring Sale: Up to 50% Off Selected Items!\" | All Segments         | 28%                | 9%                  |\n| March 26   | 14      | \"VIP Exclusive: Limited Edition Products!\"   | VIPs                 | 38%                | 18%                 |\n| March 28   | 15      | \"Final Call: Your 20% Off Expires Tonight!\" | New Customers        | 33%                | 11%                 |\n| March 30   | 16      | \"Last Chance to Save: Spring Sale Ends Soon!\" | Inactive Customers    | 29%                | 10%                 |\n\n---\n\n### Target Segments Explained\n- **New Customers**: Individuals who have made their first purchase within the last month.\n- **VIPs**: Customers who have spent above a certain threshold or have made multiple purchases.\n- **Inactive Customers**: Customers who have not made a purchase in the last 6 months.\n- **All Segments**: General emails sent to the entire customer base to promote new products or sales.\n\n### Expected Metrics\n- **Open Rates**: Vary by segment, with VIPs generally having the highest open rates due to their engagement level.\n- **Click Rates**: Expected to be higher for VIPs and targeted offers, as they are more likely to engage with personalized content.\n\n### Conclusion\nThis structured email campaign is designed to maximize engagement across different customer segments, leveraging targeted messaging and exclusive offers to drive conversions and enhance customer loyalty. Regular analysis of open and click rates will help refine future campaigns for even better performance.",
+      "timestamp": "2025-08-22T17:02:49.673416"
+    }
+  },
+  "klaviyo_data": {
+    "source": "MCP servers",
+    "endpoints": [
+      "http://127.0.0.1:9090/metrics",
+      "http://127.0.0.1:9091/performance"
+    ]
+  },
+  "completed_at": "2025-08-22T17:02:49.673496"
+}

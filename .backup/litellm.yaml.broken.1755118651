@@ -1,0 +1,32 @@
+general_settings:
+  # All requests to the proxy must include: Authorization: Bearer <this>
+  master_key: sk-change-me
+
+litellm_settings:
+  drop_params: true
+  set_verbose: true
+  timeout: 120
+  num_retries: 3
+
+# Map model names the client may send to the real OpenAI models.
+# We support both the Claude-style aliases (sonnet/haiku) and direct names (gpt-5/gpt-5-mini)
+model_list:
+  - model_name: sonnet
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: haiku
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: gpt-5
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY

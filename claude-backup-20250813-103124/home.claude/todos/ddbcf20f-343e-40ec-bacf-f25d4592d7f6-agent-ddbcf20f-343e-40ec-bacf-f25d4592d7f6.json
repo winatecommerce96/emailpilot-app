@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Fix MoM/YoY calculations and add data verification",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Create sales goals system with AI calculation",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Implement human-readable campaign/flow names",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Create sales goals editor interface",
+    "status": "completed",
+    "priority": "medium",
+    "id": "4"
+  },
+  {
+    "content": "Document grade determination system",
+    "status": "completed",
+    "priority": "medium",
+    "id": "5"
+  }
+]

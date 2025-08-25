@@ -8,7 +8,7 @@ import asyncio
 import aiohttp
 import json
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://localhost:8000"
 
 async def test_admin_agents():
     # Create session with cookie jar for authentication

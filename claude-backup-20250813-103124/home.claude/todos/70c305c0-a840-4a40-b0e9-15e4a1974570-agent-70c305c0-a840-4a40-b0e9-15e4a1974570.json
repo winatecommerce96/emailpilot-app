@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Search for Deployment Agent configuration in the codebase",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Check for agent-related configuration files",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Investigate how agents are registered/defined",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Check if deployment agent needs to be registered in a config file",
+    "status": "completed",
+    "id": "4"
+  }
+]

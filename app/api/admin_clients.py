@@ -7,20 +7,25 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status, Depends
 from pydantic import BaseModel
 
 # Firestore
 from google.cloud import firestore
-from app.services.firestore_client import get_firestore_client
-from app.core.config import settings
+from app.deps import get_db, get_secret_manager_service
+from app.core.settings import get_settings, Settings
 
-# Import Secret Manager service and KlaviyoClient
-try:
-    from app.services.secret_manager import SecretManagerService, get_secret_manager
+# Type checking imports
+if TYPE_CHECKING:
+    from app.services.secrets import SecretManagerService
     from app.services.klaviyo_client import KlaviyoClient
+
+# Import Secret Manager service and KlaviyoClient for runtime
+try:
+    from app.services.secrets import SecretManagerService as _SecretManagerService
+    from app.services.klaviyo_client import KlaviyoClient as _KlaviyoClient
     
     def get_secret(name: str) -> Optional[str]:
         try:
@@ -33,6 +38,10 @@ except Exception:
     get_secret_manager = None
     KlaviyoClient = None
 
+# Fallback mode for development environments
+DEVELOPMENT_MODE = os.getenv("ENVIRONMENT", "development") == "development"
+SECRET_MANAGER_ENABLED = os.getenv("SECRET_MANAGER_ENABLED", "true").lower() == "true"
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +52,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin Client Management"])
 # ----------------------------
 # Dependencies / helpers
 # ----------------------------
-def get_db():
-    return get_firestore_client()
+
 
 
 def get_current_user_from_session(request: Request):
@@ -62,63 +70,109 @@ def get_current_user_from_session(request: Request):
     return user
 
 
+def generate_client_slug(name: str) -> str:
+    """Generate a URL-safe client slug from the client name."""
+    import re
+    
+    # Convert to lowercase and replace spaces with hyphens
+    slug = name.lower().strip()
+    
+    # Replace apostrophes and other special characters
+    slug = slug.replace("'", "").replace("&", "and")
+    
+    # Replace multiple spaces/hyphens with single hyphen
+    slug = re.sub(r'[\s\-]+', '-', slug)
+    
+    # Keep only alphanumeric characters and hyphens
+    slug = re.sub(r'[^a-z0-9\-]', '', slug)
+    
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    
+    # Ensure it's not empty
+    if not slug:
+        slug = "client"
+    
+    return slug
+
+
 class ClientCreate(BaseModel):
+    # Basic fields
     name: str
-    metric_id: Optional[str] = ""
-    klaviyo_api_key: Optional[str] = ""
     description: Optional[str] = ""
-    is_active: Optional[bool] = True
     contact_email: Optional[str] = ""
     contact_name: Optional[str] = ""
     website: Optional[str] = ""
-    # Brand Manager
+    is_active: Optional[bool] = True
+    
+    # API fields
+    klaviyo_api_key: Optional[str] = ""
+    metric_id: Optional[str] = ""
+    klaviyo_account_id: Optional[str] = ""
+    
+    # Brand Manager fields
     client_voice: Optional[str] = ""
     client_background: Optional[str] = ""
-    # PM
+    
+    # PM fields
     asana_project_link: Optional[str] = ""
-    # Affinity
+    
+    # Segments fields
     affinity_segment_1_name: Optional[str] = ""
     affinity_segment_1_definition: Optional[str] = ""
     affinity_segment_2_name: Optional[str] = ""
     affinity_segment_2_definition: Optional[str] = ""
     affinity_segment_3_name: Optional[str] = ""
     affinity_segment_3_definition: Optional[str] = ""
-    # Growth
+    
+    # Growth fields
     key_growth_objective: Optional[str] = "subscriptions"
+    timezone: Optional[str] = "UTC"
 
 
 class ClientUpdate(BaseModel):
+    # Basic fields
     name: Optional[str] = None
-    metric_id: Optional[str] = None
-    klaviyo_api_key: Optional[str] = None
     description: Optional[str] = None
-    is_active: Optional[bool] = None
     contact_email: Optional[str] = None
     contact_name: Optional[str] = None
     website: Optional[str] = None
-    # Brand Manager
+    is_active: Optional[bool] = None
+    
+    # API fields
+    klaviyo_api_key: Optional[str] = None
+    metric_id: Optional[str] = None
+    klaviyo_account_id: Optional[str] = None
+    
+    # Brand Manager fields
     client_voice: Optional[str] = None
     client_background: Optional[str] = None
-    # PM
+    
+    # PM fields
     asana_project_link: Optional[str] = None
-    # Affinity
+    
+    # Segments fields
     affinity_segment_1_name: Optional[str] = None
     affinity_segment_1_definition: Optional[str] = None
     affinity_segment_2_name: Optional[str] = None
     affinity_segment_2_definition: Optional[str] = None
     affinity_segment_3_name: Optional[str] = None
     affinity_segment_3_definition: Optional[str] = None
-    # Growth
+    
+    # Growth fields
     key_growth_objective: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 
 
-def _resolve_client_key(db, client_id: str) -> Optional[str]:
+def _resolve_client_key(db, client_id: str, secret_manager: "SecretManagerService") -> Optional[str]:
     """
-    Resolve a per-client Klaviyo API key via:
-      1) Client's klaviyo_secret_name in Secret Manager
-      2) Legacy fallback to direct fields (temporary)
+    Resolve a per-client Klaviyo API key via standardized fields:
+      1) Client's klaviyo_api_key_secret in Secret Manager (standardized)
+      2) Legacy klaviyo_secret_name in Secret Manager (old format)
+      3) Legacy fallback to direct fields (temporary)
+      4) Development mode fallback to environment variables
     """
     if not client_id:
         return None
@@ -131,22 +185,53 @@ def _resolve_client_key(db, client_id: str) -> Optional[str]:
         
         data = snap.to_dict() or {}
         
-        # First try secret manager with client's specified secret name
-        if get_secret_manager:
-            secret_name = data.get("klaviyo_secret_name") or f"klaviyo-api-key-{client_id}"
+        # First try standardized secret manager field (if available and enabled)
+        if secret_manager and SECRET_MANAGER_ENABLED:
+            # Check new standardized field
+            secret_name = data.get("klaviyo_api_key_secret")
+            if secret_name:
+                try:
+                    key = secret_manager.get_secret(secret_name)
+                    if key:
+                        return key.strip()
+                except Exception as e:
+                    logger.debug(f"Secret Manager lookup failed for {secret_name}: {e}")
+                    if not DEVELOPMENT_MODE:
+                        logger.warning(f"Secret Manager unavailable in production for {secret_name}")
+            
+            # Fallback to old field name
+            old_secret_name = data.get("klaviyo_secret_name") or f"klaviyo-api-key-{client_id}"
             try:
-                secret_manager = get_secret_manager()
-                key = secret_manager.get_secret(secret_name)
+                key = secret_manager.get_secret(old_secret_name)
                 if key:
+                    logger.info(f"Client {client_id} using old secret field - should migrate")
                     return key.strip()
             except Exception as e:
-                logger.debug(f"Secret Manager lookup failed for {secret_name}: {e}")
+                logger.debug(f"Secret Manager lookup failed for {old_secret_name}: {e}")
         
-        # Temporary legacy fallback to direct fields
+        # Fallback to legacy direct fields (always check these as backup)
         legacy_key = data.get("klaviyo_api_key") or data.get("klaviyo_private_key")
         if legacy_key:
-            logger.warning(f"Client {client_id} using legacy plaintext key - migrate to Secret Manager")
+            if DEVELOPMENT_MODE:
+                logger.info(f"Client {client_id} using legacy plaintext key in development mode")
+            else:
+                logger.warning(f"Client {client_id} using legacy plaintext key - migrate to Secret Manager")
             return legacy_key.strip()
+        
+        # Development mode fallback to environment variables
+        if DEVELOPMENT_MODE:
+            client_slug = data.get("client_slug", generate_client_slug(data.get("name", "")))
+            env_key_names = [
+                f"KLAVIYO_API_KEY_{client_slug.upper().replace('-', '_')}",
+                f"KLAVIYO_API_KEY_{client_id.upper()}",
+                "KLAVIYO_API_KEY"  # Global fallback for development
+            ]
+            
+            for env_key_name in env_key_names:
+                env_key = os.getenv(env_key_name)
+                if env_key:
+                    logger.info(f"Client {client_id} using development environment variable: {env_key_name}")
+                    return env_key.strip()
             
     except Exception as e:
         logger.error(f"Key resolution failed for client {client_id}: {e}")
@@ -154,34 +239,84 @@ def _resolve_client_key(db, client_id: str) -> Optional[str]:
     return None
 
 
-async def _store_client_klaviyo_key(db, client_id: str, api_key: str) -> None:
+async def _store_client_klaviyo_key(db, client_id: str, client_name: str, api_key: str, secret_manager: "SecretManagerService") -> str:
     """
     Store a client's Klaviyo API key in Secret Manager and update the client document
-    with the secret reference.
+    with standardized secret reference. Falls back to direct storage in development.
+    
+    Returns:
+        The generated client slug
     """
-    if not api_key or not get_secret_manager:
-        return
+    if not api_key:
+        return ""
     
     try:
-        # Store in Secret Manager
-        secret_name = f"klaviyo-api-key-{client_id}"
-        secret_manager = get_secret_manager()
-        secret_manager.create_secret(secret_name, api_key, {
-            "client_id": client_id,
-            "type": "klaviyo_api_key"
-        })
+        # Generate or get client slug
+        client_slug = generate_client_slug(client_name)
         
-        # Update client document with secret reference
+        # Try to store in Secret Manager first (if available and enabled)
+        secret_stored = False
+        secret_name = f"klaviyo-api-{client_slug}"
+        
+        if secret_manager and SECRET_MANAGER_ENABLED:
+            try:
+                secret_manager.create_secret(secret_name, api_key, {
+                    "client_id": client_id,
+                    "client_slug": client_slug,
+                    "client_name": client_name,
+                    "type": "klaviyo_api_key",
+                    "managed_by": "emailpilot"
+                })
+                secret_stored = True
+                logger.info(f"Stored Klaviyo API key for client {client_id} ({client_name}) in Secret Manager as {secret_name}")
+            except Exception as e:
+                logger.error(f"Failed to store in Secret Manager for client {client_id}: {e}")
+                if not DEVELOPMENT_MODE:
+                    # In production, Secret Manager failure is critical
+                    raise HTTPException(
+                        status_code=500, 
+                        detail=f"Failed to store API key securely: {str(e)}. Check Secret Manager permissions."
+                    )
+                else:
+                    logger.warning(f"Secret Manager unavailable in development, using fallback storage")
+        
+        # Update client document with appropriate fields
         client_ref = db.collection("clients").document(client_id)
-        client_ref.update({
-            "klaviyo_secret_name": secret_name,
-            # Remove any legacy plaintext fields
-            "klaviyo_api_key": firestore.DELETE_FIELD,
-            "klaviyo_private_key": firestore.DELETE_FIELD
-        })
+        update_data = {
+            "has_klaviyo_key": True,  # Flag for easy filtering
+            "client_slug": client_slug,  # Ensure slug is set
+        }
         
-        logger.info(f"Stored Klaviyo API key for client {client_id} in Secret Manager")
+        if secret_stored:
+            # Secret Manager successful - store reference and clean up legacy fields
+            update_data.update({
+                "klaviyo_api_key_secret": secret_name,  # Standardized field name
+                # Remove any legacy plaintext fields
+                "klaviyo_api_key": firestore.DELETE_FIELD,
+                "klaviyo_private_key": firestore.DELETE_FIELD,
+                "api_key_encrypted": firestore.DELETE_FIELD,  # Remove old encrypted field
+                "klaviyo_secret_name": firestore.DELETE_FIELD  # Remove old secret name field
+            })
+        else:
+            # Fallback storage (development mode or Secret Manager unavailable)
+            if DEVELOPMENT_MODE:
+                logger.warning(f"Storing API key directly for client {client_id} in development mode")
+                update_data["klaviyo_api_key"] = api_key  # Store directly in dev mode
+                update_data["storage_mode"] = "development_direct"
+            else:
+                # Production fallback - this should be rare and logged
+                logger.error(f"Production fallback storage for client {client_id} - THIS SHOULD NOT HAPPEN")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Secret Manager is required in production but is unavailable"
+                )
         
+        client_ref.update(update_data)
+        
+        return client_slug
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to store Klaviyo key for client {client_id}: {e}")
         raise
@@ -191,15 +326,29 @@ async def _store_client_klaviyo_key(db, client_id: str, api_key: str) -> None:
 # Admin/Utility endpoints
 # ----------------------------
 @router.get("/environment")
-async def get_environment_info():
+async def get_environment_info(settings: Settings = Depends(get_settings)):
     try:
         demo_mode = os.getenv("DEMO_MODE", "true").lower() == "true"
         environment = os.getenv("ENVIRONMENT", "development")
         debug = os.getenv("DEBUG", "false").lower() == "true"
         build_version = os.getenv("BUILD_VERSION", "dev")
         commit_sha = os.getenv("COMMIT_SHA", "unknown")
-        firestore_project = os.getenv("GOOGLE_CLOUD_PROJECT", getattr(settings, 'google_cloud_project', 'emailpilot-438321'))
+        firestore_project = os.getenv("GOOGLE_CLOUD_PROJECT", settings.google_cloud_project)
         api_base = os.getenv("API_BASE_URL", "http://localhost:8000")
+        
+        # Check Secret Manager availability
+        secret_manager_available = False
+        secret_manager_error = None
+        try:
+            from app.services.secrets import SecretManagerService
+            if firestore_project:
+                test_service = SecretManagerService(firestore_project)
+                # Quick test - try to list secrets
+                test_service.list_secrets()
+                secret_manager_available = True
+        except Exception as e:
+            secret_manager_error = str(e)
+            logger.warning(f"Secret Manager not available: {e}")
 
         return {
             "demoMode": demo_mode,
@@ -209,10 +358,13 @@ async def get_environment_info():
             "firestoreProject": firestore_project,
             "buildVersion": build_version,
             "commitSha": commit_sha,
-            "secretManagerEnabled": getattr(settings, "secret_manager_enabled", True),
+            "secretManagerEnabled": settings.secret_manager_enabled,
+            "secretManagerAvailable": secret_manager_available,
+            "secretManagerError": secret_manager_error,
+            "developmentMode": DEVELOPMENT_MODE,
             "features": {
                 "firestore": True,
-                "secretManager": getattr(settings, "secret_manager_enabled", True),
+                "secretManager": settings.secret_manager_enabled and secret_manager_available,
                 "calendar": True,
                 "performance": True,
                 "goals": True,
@@ -229,12 +381,15 @@ async def get_environment_info():
             "firestoreProject": "demo-project",
             "buildVersion": "dev",
             "commitSha": "unknown",
+            "secretManagerEnabled": False,
+            "secretManagerAvailable": False,
+            "developmentMode": True,
             "error": str(e),
         }
 
 
 @router.get("/clients")
-async def get_all_clients(request: Request) -> Dict[str, Any]:
+async def get_all_clients(request: Request, secret_manager: "SecretManagerService" = Depends(get_secret_manager_service)) -> Dict[str, Any]:
     get_current_user_from_session(request)
     try:
         db = get_db()
@@ -245,30 +400,56 @@ async def get_all_clients(request: Request) -> Dict[str, Any]:
             if not d.exists:
                 continue
             data = d.to_dict() or {}
-            resolved_key = _resolve_client_key(db, d.id)
+            resolved_key = _resolve_client_key(db, d.id, secret_manager)
             info: Dict[str, Any] = {
                 "id": d.id,
+                # Basic fields
                 "name": data.get("name", "Unknown"),
-                "metric_id": data.get("metric_id", ""),
+                "client_slug": data.get("client_slug", ""),
                 "description": data.get("description", ""),
-                "is_active": data.get("is_active", True),
-                "has_klaviyo_key": bool(resolved_key),
                 "contact_email": data.get("contact_email", ""),
                 "contact_name": data.get("contact_name", ""),
                 "website": data.get("website", ""),
-                "created_at": data.get("created_at", ""),
-                "updated_at": data.get("updated_at", ""),
+                "is_active": data.get("is_active", True),
+                
+                # API fields (NEVER return raw API keys)
+                "metric_id": data.get("metric_id", ""),
+                "klaviyo_account_id": data.get("klaviyo_account_id", ""),
+                "has_klaviyo_key": bool(resolved_key),
+                "klaviyo_key_preview": "",
+                
+                # Brand Manager fields
                 "client_voice": data.get("client_voice", ""),
                 "client_background": data.get("client_background", ""),
+                
+                # PM fields
                 "asana_project_link": data.get("asana_project_link", ""),
+                
+                # Segments fields
                 "affinity_segment_1_name": data.get("affinity_segment_1_name", ""),
                 "affinity_segment_1_definition": data.get("affinity_segment_1_definition", ""),
                 "affinity_segment_2_name": data.get("affinity_segment_2_name", ""),
                 "affinity_segment_2_definition": data.get("affinity_segment_2_definition", ""),
                 "affinity_segment_3_name": data.get("affinity_segment_3_name", ""),
                 "affinity_segment_3_definition": data.get("affinity_segment_3_definition", ""),
+                
+                # Growth fields
                 "key_growth_objective": data.get("key_growth_objective", "subscriptions"),
-                "klaviyo_key_preview": "",
+                "timezone": data.get("timezone", "UTC"),
+                
+                # Metadata fields
+                "created_at": data.get("created_at", ""),
+                "updated_at": data.get("updated_at", ""),
+                "created_by": data.get("created_by", ""),
+                "updated_by": data.get("updated_by", ""),
+                
+                # OAuth connection info (legacy)
+                "klaviyo_oauth_account_id": data.get("klaviyo_oauth_account_id"),
+                "oauth_connection_type": data.get("oauth_connection_type"),
+                "oauth_connected_by": data.get("oauth_connected_by"),
+                "oauth_connected_at": data.get("oauth_connected_at"),
+                "klaviyo_account_name": data.get("klaviyo_account_name"),
+                "klaviyo_account_email": data.get("klaviyo_account_email"),
             }
             if resolved_key:
                 info["klaviyo_key_preview"] = f"{resolved_key[:6]}...{resolved_key[-4:]}" if len(resolved_key) > 10 else "***"
@@ -314,7 +495,7 @@ async def get_all_clients(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/clients/{client_id}")
-async def get_client_details(client_id: str, request: Request) -> Dict[str, Any]:
+async def get_client_details(client_id: str, request: Request, secret_manager: "SecretManagerService" = Depends(get_secret_manager_service)) -> Dict[str, Any]:
     get_current_user_from_session(request)
     try:
         db = get_db()
@@ -323,30 +504,56 @@ async def get_client_details(client_id: str, request: Request) -> Dict[str, Any]
             raise HTTPException(status_code=404, detail="Client not found")
 
         data = doc.to_dict() or {}
-        resolved_key = _resolve_client_key(db, client_id)
+        resolved_key = _resolve_client_key(db, client_id, secret_manager)
         details: Dict[str, Any] = {
             "id": client_id,
+            # Basic fields
             "name": data.get("name", "Unknown"),
-            "metric_id": data.get("metric_id", ""),
+            "client_slug": data.get("client_slug", ""),
             "description": data.get("description", ""),
-            "is_active": data.get("is_active", True),
-            "has_klaviyo_key": bool(resolved_key),
             "contact_email": data.get("contact_email", ""),
             "contact_name": data.get("contact_name", ""),
             "website": data.get("website", ""),
-            "created_at": data.get("created_at", ""),
-            "updated_at": data.get("updated_at", ""),
+            "is_active": data.get("is_active", True),
+            
+            # API fields (NEVER return raw API keys)
+            "metric_id": data.get("metric_id", ""),
+            "klaviyo_account_id": data.get("klaviyo_account_id", ""),
+            "has_klaviyo_key": bool(resolved_key),
             "klaviyo_key_preview": f"{resolved_key[:6]}...{resolved_key[-4:]}" if (resolved_key and len(resolved_key) > 10) else ("***" if resolved_key else ""),
+            
+            # Brand Manager fields
             "client_voice": data.get("client_voice", ""),
             "client_background": data.get("client_background", ""),
+            
+            # PM fields
             "asana_project_link": data.get("asana_project_link", ""),
+            
+            # Segments fields
             "affinity_segment_1_name": data.get("affinity_segment_1_name", ""),
             "affinity_segment_1_definition": data.get("affinity_segment_1_definition", ""),
             "affinity_segment_2_name": data.get("affinity_segment_2_name", ""),
             "affinity_segment_2_definition": data.get("affinity_segment_2_definition", ""),
             "affinity_segment_3_name": data.get("affinity_segment_3_name", ""),
             "affinity_segment_3_definition": data.get("affinity_segment_3_definition", ""),
+            
+            # Growth fields
             "key_growth_objective": data.get("key_growth_objective", "subscriptions"),
+            "timezone": data.get("timezone", "UTC"),
+            
+            # Metadata fields
+            "created_at": data.get("created_at", ""),
+            "updated_at": data.get("updated_at", ""),
+            "created_by": data.get("created_by", ""),
+            "updated_by": data.get("updated_by", ""),
+            
+            # OAuth connection info (legacy)
+            "klaviyo_oauth_account_id": data.get("klaviyo_oauth_account_id"),
+            "oauth_connection_type": data.get("oauth_connection_type"),
+            "oauth_connected_by": data.get("oauth_connected_by"),
+            "oauth_connected_at": data.get("oauth_connected_at"),
+            "klaviyo_account_name": data.get("klaviyo_account_name"),
+            "klaviyo_account_email": data.get("klaviyo_account_email"),
         }
 
         goals_docs = list(db.collection("goals").where("client_id", "==", client_id).stream())
@@ -366,43 +573,76 @@ async def get_client_details(client_id: str, request: Request) -> Dict[str, Any]
 
 
 @router.post("/clients")
-async def create_client(client: ClientCreate, request: Request) -> Dict[str, Any]:
-    get_current_user_from_session(request)
+async def create_client(client: ClientCreate, request: Request, secret_manager: Optional["SecretManagerService"] = Depends(get_secret_manager_service)) -> Dict[str, Any]:
+    user = get_current_user_from_session(request)
     try:
         db = get_db()
         existing = list(db.collection("clients").where("name", "==", client.name).limit(1).stream())
         if existing:
             raise HTTPException(status_code=400, detail="Client name already exists")
 
+        # Generate client slug from name
+        client_slug = generate_client_slug(client.name)
+        current_time = datetime.utcnow().isoformat()
+        user_email = user.get("email", "unknown")
+        
+        # Store ALL client fields in a single Firestore document
         client_data = {
+            # Basic fields
             "name": client.name,
-            "metric_id": client.metric_id or "",
+            "client_slug": client_slug,
             "description": client.description or "",
-            "is_active": client.is_active,
             "contact_email": client.contact_email or "",
             "contact_name": client.contact_name or "",
             "website": client.website or "",
+            "is_active": client.is_active,
+            
+            # API fields (NO raw API key stored here)
+            "metric_id": client.metric_id or "",
+            "klaviyo_account_id": client.klaviyo_account_id or "",
+            "has_klaviyo_key": bool(client.klaviyo_api_key),
+            
+            # Brand Manager fields
             "client_voice": client.client_voice or "",
             "client_background": client.client_background or "",
+            
+            # PM fields
             "asana_project_link": client.asana_project_link or "",
+            
+            # Segments fields
             "affinity_segment_1_name": client.affinity_segment_1_name or "",
             "affinity_segment_1_definition": client.affinity_segment_1_definition or "",
             "affinity_segment_2_name": client.affinity_segment_2_name or "",
             "affinity_segment_2_definition": client.affinity_segment_2_definition or "",
             "affinity_segment_3_name": client.affinity_segment_3_name or "",
             "affinity_segment_3_definition": client.affinity_segment_3_definition or "",
+            
+            # Growth fields
             "key_growth_objective": client.key_growth_objective or "subscriptions",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "timezone": client.timezone or "UTC",
+            
+            # Metadata fields
+            "created_at": current_time,
+            "updated_at": current_time,
+            "created_by": user_email,
+            "updated_by": user_email,
         }
+        
+        # Create the client document
         doc_ref = db.collection("clients").add(client_data)
         doc_id = doc_ref[1].id
         
-        # Store Klaviyo API key in Secret Manager if provided
+        # Store Klaviyo API key in Secret Manager if provided (and update document with secret reference)
         if client.klaviyo_api_key:
-            await _store_client_klaviyo_key(db, doc_id, client.klaviyo_api_key)
+            client_slug = await _store_client_klaviyo_key(db, doc_id, client.name, client.klaviyo_api_key, secret_manager)
         
-        return {"status": "success", "message": "Client created successfully", "client_id": doc_id, "client_name": client.name}
+        return {
+            "status": "success", 
+            "message": "Client created successfully", 
+            "client_id": doc_id, 
+            "client_name": client.name,
+            "client_slug": client_slug
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -411,8 +651,8 @@ async def create_client(client: ClientCreate, request: Request) -> Dict[str, Any
 
 
 @router.put("/clients/{client_id}")
-async def update_client(client_id: str, update: ClientUpdate, request: Request) -> Dict[str, Any]:
-    get_current_user_from_session(request)
+async def update_client(client_id: str, update: ClientUpdate, request: Request, secret_manager: Optional["SecretManagerService"] = Depends(get_secret_manager_service)) -> Dict[str, Any]:
+    user = get_current_user_from_session(request)
     try:
         db = get_db()
         ref = db.collection("clients").document(client_id)
@@ -420,52 +660,84 @@ async def update_client(client_id: str, update: ClientUpdate, request: Request) 
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Client not found")
 
+        current_data = doc.to_dict() or {}
         update_data: Dict[str, Any] = {}
+        
+        # Handle name update (check for duplicates and regenerate slug if needed)
         if update.name is not None:
-            current_name = (doc.to_dict() or {}).get("name")
+            current_name = current_data.get("name")
             if update.name != current_name:
                 exists = list(db.collection("clients").where("name", "==", update.name).limit(1).stream())
                 if exists:
                     raise HTTPException(status_code=400, detail="Client name already exists")
-            update_data["name"] = update.name
+                update_data["name"] = update.name
+                # Regenerate slug when name changes
+                update_data["client_slug"] = generate_client_slug(update.name)
 
-        if update.metric_id is not None:
-            update_data["metric_id"] = update.metric_id
-        # Handle Klaviyo API key update
-        if update.klaviyo_api_key is not None:
-            if update.klaviyo_api_key == "":
-                # Remove the key by deleting the secret and clearing references
-                try:
-                    if get_secret_manager:
-                        secret_manager = get_secret_manager()
-                        secret_name = f"klaviyo-api-key-{client_id}"
-                        secret_manager.delete_secret(secret_name)
-                    update_data["klaviyo_secret_name"] = firestore.DELETE_FIELD
-                    update_data["klaviyo_api_key"] = firestore.DELETE_FIELD
-                    update_data["klaviyo_private_key"] = firestore.DELETE_FIELD
-                except Exception as e:
-                    logger.warning(f"Failed to delete secret for client {client_id}: {e}")
-            else:
-                # Store new key in Secret Manager
-                await _store_client_klaviyo_key(db, client_id, update.klaviyo_api_key)
+        # Handle all basic fields
         if update.description is not None:
             update_data["description"] = update.description
-        if update.is_active is not None:
-            update_data["is_active"] = update.is_active
         if update.contact_email is not None:
             update_data["contact_email"] = update.contact_email
         if update.contact_name is not None:
             update_data["contact_name"] = update.contact_name
         if update.website is not None:
             update_data["website"] = update.website
+        if update.is_active is not None:
+            update_data["is_active"] = update.is_active
 
-        # Brand/PM/Affinity/Growth
+        # Handle API fields
+        if update.metric_id is not None:
+            update_data["metric_id"] = update.metric_id
+        if update.klaviyo_account_id is not None:
+            update_data["klaviyo_account_id"] = update.klaviyo_account_id
+            
+        # Handle Klaviyo API key update
+        if update.klaviyo_api_key is not None:
+            if update.klaviyo_api_key == "":
+                # Remove the key by deleting the secret and clearing references
+                try:
+                    if secret_manager:
+                        # Try both old and new naming conventions
+                        current_slug = current_data.get("client_slug", generate_client_slug(current_data.get("name", "")))
+                        secret_names = [
+                            f"klaviyo-api-{current_slug}",  # New convention
+                            f"klaviyo-api-key-{client_id}",  # Old convention
+                            current_data.get("klaviyo_api_key_secret", "")  # Stored reference
+                        ]
+                        for secret_name in secret_names:
+                            if secret_name:
+                                try:
+                                    secret_manager.delete_secret(secret_name)
+                                except Exception:
+                                    pass  # Ignore if secret doesn't exist
+                    
+                    # Clear all API key references
+                    update_data["klaviyo_api_key_secret"] = firestore.DELETE_FIELD
+                    update_data["has_klaviyo_key"] = False
+                    update_data["klaviyo_secret_name"] = firestore.DELETE_FIELD  # Legacy field
+                    update_data["klaviyo_api_key"] = firestore.DELETE_FIELD  # Legacy field
+                    update_data["klaviyo_private_key"] = firestore.DELETE_FIELD  # Legacy field
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to delete secret for client {client_id}: {e}")
+            else:
+                # Store new key in Secret Manager
+                client_name = update.name or current_data.get("name", "")
+                await _store_client_klaviyo_key(db, client_id, client_name, update.klaviyo_api_key, secret_manager)
+                update_data["has_klaviyo_key"] = True
+
+        # Handle Brand Manager fields
         if update.client_voice is not None:
             update_data["client_voice"] = update.client_voice
         if update.client_background is not None:
             update_data["client_background"] = update.client_background
+
+        # Handle PM fields
         if update.asana_project_link is not None:
             update_data["asana_project_link"] = update.asana_project_link
+
+        # Handle Segments fields
         if update.affinity_segment_1_name is not None:
             update_data["affinity_segment_1_name"] = update.affinity_segment_1_name
         if update.affinity_segment_1_definition is not None:
@@ -478,12 +750,26 @@ async def update_client(client_id: str, update: ClientUpdate, request: Request) 
             update_data["affinity_segment_3_name"] = update.affinity_segment_3_name
         if update.affinity_segment_3_definition is not None:
             update_data["affinity_segment_3_definition"] = update.affinity_segment_3_definition
+
+        # Handle Growth fields
         if update.key_growth_objective is not None:
             update_data["key_growth_objective"] = update.key_growth_objective
+        if update.timezone is not None:
+            update_data["timezone"] = update.timezone
 
+        # Update metadata
         update_data["updated_at"] = datetime.utcnow().isoformat()
+        update_data["updated_by"] = user.get("email", "unknown")
+        
+        # Apply updates
         ref.update(update_data)
-        return {"status": "success", "message": "Client updated successfully", "client_id": client_id, "updated_fields": list(update_data.keys())}
+        
+        return {
+            "status": "success", 
+            "message": "Client updated successfully", 
+            "client_id": client_id, 
+            "updated_fields": list(update_data.keys())
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -514,12 +800,15 @@ async def delete_client(client_id: str, request: Request) -> Dict[str, Any]:
 
 
 @router.post("/clients/migrate-keys")
-async def migrate_legacy_keys(request: Request) -> Dict[str, Any]:
+async def migrate_legacy_keys(request: Request, secret_manager: Optional["SecretManagerService"] = Depends(get_secret_manager_service)) -> Dict[str, Any]:
     """Migrate all legacy plaintext Klaviyo keys to Secret Manager."""
     get_current_user_from_session(request)
     
-    if not get_secret_manager:
-        raise HTTPException(status_code=500, detail="Secret Manager service not available")
+    if not secret_manager or not SECRET_MANAGER_ENABLED:
+        raise HTTPException(
+            status_code=500, 
+            detail="Secret Manager service not available or disabled. Check GOOGLE_CLOUD_PROJECT and permissions."
+        )
     
     try:
         db = get_db()
@@ -542,10 +831,11 @@ async def migrate_legacy_keys(request: Request) -> Dict[str, Any]:
             
             if legacy_key and not has_secret:
                 try:
-                    await _store_client_klaviyo_key(db, client_id, legacy_key)
+                    client_name = data.get("name", "Unknown")
+                    await _store_client_klaviyo_key(db, client_id, client_name, legacy_key, secret_manager)
                     migrated.append({
                         "client_id": client_id,
-                        "client_name": data.get("name", "Unknown")
+                        "client_name": client_name
                     })
                 except Exception as e:
                     errors.append({
@@ -569,7 +859,7 @@ async def migrate_legacy_keys(request: Request) -> Dict[str, Any]:
 
 
 @router.post("/clients/{client_id}/test-klaviyo")
-async def test_klaviyo_connection(client_id: str, request: Request) -> Dict[str, Any]:
+async def test_klaviyo_connection(client_id: str, request: Request, secret_manager: Optional["SecretManagerService"] = Depends(get_secret_manager_service)) -> Dict[str, Any]:
     """Test Klaviyo connection using per-client API key from Secret Manager."""
     get_current_user_from_session(request)
     try:
@@ -579,7 +869,7 @@ async def test_klaviyo_connection(client_id: str, request: Request) -> Dict[str,
             raise HTTPException(status_code=404, detail="Client not found")
 
         # Use the same key resolution logic as performance.py
-        api_key = _resolve_client_key(db, client_id)
+        api_key = _resolve_client_key(db, client_id, secret_manager)
         if not api_key:
             return {
                 "status": "error", 
@@ -640,3 +930,138 @@ async def klaviyo_ping(request: Request) -> Dict[str, Any]:
         "note": "Use POST /api/admin/clients/{client_id}/test-klaviyo to test specific client connections",
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@router.get("/secret-manager/status")
+async def secret_manager_status(request: Request, secret_manager: Optional["SecretManagerService"] = Depends(get_secret_manager_service)) -> Dict[str, Any]:
+    """Check Secret Manager status and provide diagnostic information."""
+    get_current_user_from_session(request)
+    
+    try:
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+        environment = os.getenv("ENVIRONMENT", "development")
+        sm_enabled = os.getenv("SECRET_MANAGER_ENABLED", "true").lower() == "true"
+        
+        status = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "environment": environment,
+            "project_id": project_id,
+            "secret_manager_enabled": sm_enabled,
+            "secret_manager_available": secret_manager is not None,
+            "development_mode": DEVELOPMENT_MODE,
+            "status": "unknown",
+            "message": "",
+            "tests": {},
+            "recommendations": []
+        }
+        
+        if not sm_enabled:
+            status.update({
+                "status": "disabled",
+                "message": "Secret Manager is explicitly disabled via SECRET_MANAGER_ENABLED=false",
+                "recommendations": ["Enable Secret Manager by setting SECRET_MANAGER_ENABLED=true"]
+            })
+            return status
+        
+        if not project_id:
+            status.update({
+                "status": "error",
+                "message": "GOOGLE_CLOUD_PROJECT environment variable not set",
+                "recommendations": [
+                    "Set GOOGLE_CLOUD_PROJECT environment variable",
+                    "Example: export GOOGLE_CLOUD_PROJECT=your-project-id"
+                ]
+            })
+            return status
+        
+        if not secret_manager:
+            status.update({
+                "status": "error" if not DEVELOPMENT_MODE else "warning",
+                "message": "Secret Manager service not available - check authentication and permissions",
+                "recommendations": [
+                    "Run the diagnostic script: python check_secret_manager.py",
+                    "Check Google Cloud authentication: gcloud auth application-default login",
+                    "Verify IAM permissions for Secret Manager",
+                    "Enable Secret Manager API: gcloud services enable secretmanager.googleapis.com"
+                ]
+            })
+            return status
+        
+        # Test Secret Manager operations
+        tests = {}
+        
+        # Test 1: List secrets
+        try:
+            secrets = secret_manager.list_secrets()
+            tests["list_secrets"] = {
+                "status": "success",
+                "secret_count": len(secrets),
+                "message": f"Successfully listed {len(secrets)} secrets"
+            }
+        except Exception as e:
+            tests["list_secrets"] = {
+                "status": "error",
+                "error": str(e),
+                "message": "Failed to list secrets"
+            }
+        
+        # Test 2: Create test secret (if list succeeded)
+        if tests["list_secrets"]["status"] == "success":
+            test_secret_name = f"emailpilot-test-{int(datetime.utcnow().timestamp())}"
+            try:
+                secret_manager.create_secret(test_secret_name, "test-value", {"type": "diagnostic"})
+                
+                # Try to read it back
+                retrieved = secret_manager.get_secret(test_secret_name)
+                
+                # Clean up
+                secret_manager.delete_secret(test_secret_name)
+                
+                tests["create_secret"] = {
+                    "status": "success",
+                    "message": "Successfully created, read, and deleted test secret"
+                }
+            except Exception as e:
+                tests["create_secret"] = {
+                    "status": "error",
+                    "error": str(e),
+                    "message": "Failed to create test secret"
+                }
+        
+        status["tests"] = tests
+        
+        # Determine overall status
+        if all(test.get("status") == "success" for test in tests.values()):
+            status.update({
+                "status": "success",
+                "message": "Secret Manager is fully operational"
+            })
+        elif any(test.get("status") == "error" for test in tests.values()):
+            status.update({
+                "status": "error",
+                "message": "Secret Manager has operational issues",
+                "recommendations": [
+                    "Run full diagnostic: python check_secret_manager.py",
+                    "Check IAM permissions for secretmanager.admin role"
+                ]
+            })
+        else:
+            status.update({
+                "status": "warning",
+                "message": "Secret Manager partially operational"
+            })
+        
+        return status
+        
+    except Exception as e:
+        logger.exception("Error checking Secret Manager status")
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "error",
+            "message": f"Failed to check Secret Manager status: {str(e)}",
+            "error": str(e),
+            "recommendations": [
+                "Run diagnostic script: python check_secret_manager.py",
+                "Check server logs for detailed error information"
+            ]
+        }

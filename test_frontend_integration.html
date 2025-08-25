@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Integration Test</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="test-root"></div>
+    
+    <script>
+        const { useState, useEffect, useContext, createContext } = React;
+        
+        // Test schema validation
+        const testSchemaValidation = () => {
+            console.log('Testing schema validation...');
+            
+            // Test client normalization
+            const mockClientResponse = {
+                data: {
+                    clients: [
+                        { id: '1', name: 'Test Client', is_active: true, goals_count: 5 }
+                    ],
+                    total_clients: 1,
+                    active_clients: 1,
+                    clients_with_keys: 1
+                }
+            };
+            
+            const normalized = window.DataSchema.normalizeClientResponse(mockClientResponse);
+            console.assert(normalized.clients.length === 1, 'Client normalization failed');
+            console.assert(normalized.total_clients === 1, 'Total clients count failed');
+            
+            // Test goals normalization
+            const mockGoalsResponse = {
+                data: [
+                    { id: '1', goals_count: 5, avg_goal: 1000 }
+                ]
+            };
+            
+            const normalizedGoals = window.DataSchema.normalizeGoalsResponse(mockGoalsResponse);
+            console.assert(Array.isArray(normalizedGoals), 'Goals normalization failed');
+            console.assert(normalizedGoals.length === 1, 'Goals array length failed');
+            
+            console.log('✅ Schema validation tests passed');
+        };
+        
+        // Test theme context
+        const TestThemeProvider = ({ children }) => {
+            const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
+            const [theme, setTheme] = useState('light');
+            
+            const toggleTheme = () => {
+                setTheme(prev => prev === 'light' ? 'dark' : 'light');
+            };
+            
+            return React.createElement(
+                ThemeContext.Provider,
+                { value: { theme, toggleTheme } },
+                children
+            );
+        };
+        
+        const TestComponent = () => {
+            const [mounted, setMounted] = useState(true);
+            const [data, setData] = useState([]);
+            
+            useEffect(() => {
+                const abortController = new AbortController();
+                
+                // Simulate API call
+                const fetchData = async () => {
+                    try {
+                        const mockData = [
+                            { id: '1', name: 'Test', goals_count: 5 }
+                        ];
+                        
+                        if (!abortController.signal.aborted && mounted) {
+                            setData(mockData);
+                        }
+                    } catch (error) {
+                        if (!abortController.signal.aborted) {
+                            console.error('Fetch error:', error);
+                        }
+                    }
+                };
+                
+                fetchData();
+                
+                return () => {
+                    abortController.abort();
+                    setMounted(false);
+                };
+            }, [mounted]);
+            
+            // Test safe reduce operation
+            const totalGoals = Array.isArray(data) ? data.reduce((sum, item) => sum + (item.goals_count || 0), 0) : 0;
+            
+            return React.createElement('div', null,
+                React.createElement('h1', null, 'Frontend Integration Test'),
+                React.createElement('p', null, `Total Goals: ${totalGoals}`),
+                React.createElement('p', null, `Data Length: ${Array.isArray(data) ? data.length : 0}`)
+            );
+        };
+        
+        const App = () => {
+            return React.createElement(TestThemeProvider, null,
+                React.createElement(TestComponent)
+            );
+        };
+        
+        // Wait for schema to load
+        const initTests = () => {
+            if (window.DataSchema) {
+                testSchemaValidation();
+                
+                ReactDOM.render(
+                    React.createElement(App),
+                    document.getElementById('test-root')
+                );
+                
+                console.log('✅ Frontend integration test completed successfully');
+            } else {
+                console.log('Waiting for DataSchema...');
+                setTimeout(initTests, 100);
+            }
+        };
+        
+        // Run tests after page load
+        window.addEventListener('load', initTests);
+    </script>
+    
+    <script src="/static/schema.js"></script>
+</body>
+</html>

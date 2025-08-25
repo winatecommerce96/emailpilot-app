@@ -1,0 +1,609 @@
+{
+  "available_nodes": [
+    {
+      "id": "calendar-planner",
+      "type": "agent",
+      "impl": "agents.calendar_planner",
+      "description": "Expert calendar planner for email and SMS campaigns with 10 years experience",
+      "params": {
+        "tool_allowlist": []
+      }
+    },
+    {
+      "id": "rag",
+      "type": "agent",
+      "impl": "agents.rag",
+      "description": "RAG-based question answering agent",
+      "params": {
+        "tool_allowlist": [
+          "search",
+          "retrieve"
+        ],
+        "policy": {
+          "max_tool_calls": 5,
+          "timeout_seconds": 30,
+          "allowed_tools": "[\"search"
+        }
+      }
+    },
+    {
+      "id": "default",
+      "type": "agent",
+      "impl": "agents.default",
+      "description": "General-purpose task execution agent",
+      "params": {
+        "tool_allowlist": [],
+        "policy": {
+          "max_tool_calls": 15,
+          "timeout_seconds": 60
+        }
+      }
+    },
+    {
+      "id": "revenue-analyst",
+      "type": "agent",
+      "impl": "agents.revenue_analyst",
+      "description": "Analyzes revenue data and provides insights",
+      "params": {
+        "tool_allowlist": [
+          "klaviyo_revenue",
+          "firestore_ro",
+          "calculate"
+        ],
+        "policy": {
+          "max_tool_calls": 10,
+          "timeout_seconds": 45,
+          "allowed_tools": "[\"klaviyo_revenue"
+        }
+      }
+    },
+    {
+      "id": "campaign-planner",
+      "type": "agent",
+      "impl": "agents.campaign_planner",
+      "description": "Plans email campaigns based on data",
+      "params": {
+        "tool_allowlist": [],
+        "policy": {
+          "max_tool_calls": 20,
+          "timeout_seconds": 90,
+          "denied_tools": "[\"write"
+        }
+      }
+    },
+    {
+      "id": "copy-smith",
+      "type": "agent",
+      "impl": "agents.copy_smith",
+      "description": "Generates copy variants using AIDA, PAS, FOMO, and Story frameworks for A/B testing",
+      "params": {
+        "tool_allowlist": [
+          "klaviyo_data",
+          "brand_guidelines",
+          "personalization"
+        ],
+        "policy": {
+          "max_tool_calls": 12,
+          "timeout_seconds": 60,
+          "allowed_tools": "[\"klaviyo_data"
+        }
+      }
+    },
+    {
+      "id": "layout-lab",
+      "type": "agent",
+      "impl": "agents.layout_lab",
+      "description": "Creates mobile-first responsive design specifications and asset requirements",
+      "params": {
+        "tool_allowlist": [
+          "brand_assets",
+          "design_system",
+          "accessibility_check"
+        ],
+        "policy": {
+          "max_tool_calls": 10,
+          "timeout_seconds": 45,
+          "allowed_tools": "[\"brand_assets"
+        }
+      }
+    },
+    {
+      "id": "calendar-strategist",
+      "type": "agent",
+      "impl": "agents.calendar_strategist",
+      "description": "Optimizes campaign timing and creates strategic email calendar based on performance data",
+      "params": {
+        "tool_allowlist": [
+          "klaviyo_analytics",
+          "calendar_data",
+          "performance_data"
+        ],
+        "policy": {
+          "max_tool_calls": 15,
+          "timeout_seconds": 75,
+          "allowed_tools": "[\"klaviyo_analytics"
+        }
+      }
+    },
+    {
+      "id": "brand-brain",
+      "type": "agent",
+      "impl": "agents.brand_brain",
+      "description": "Ensures brand consistency, voice alignment, and creates compliant campaign briefs",
+      "params": {
+        "tool_allowlist": [
+          "brand_guidelines",
+          "compliance_check",
+          "voice_analysis"
+        ],
+        "policy": {
+          "max_tool_calls": 12,
+          "timeout_seconds": 50,
+          "allowed_tools": "[\"brand_guidelines"
+        }
+      }
+    },
+    {
+      "id": "gatekeeper",
+      "type": "agent",
+      "impl": "agents.gatekeeper",
+      "description": "Performs QA review for brand, legal, accessibility, and deliverability compliance",
+      "params": {
+        "tool_allowlist": [
+          "compliance_scanner",
+          "accessibility_checker",
+          "deliverability_analyzer"
+        ],
+        "policy": {
+          "max_tool_calls": 8,
+          "timeout_seconds": 40,
+          "allowed_tools": "[\"compliance_scanner"
+        }
+      }
+    },
+    {
+      "id": "truth-teller",
+      "type": "agent",
+      "impl": "agents.truth_teller",
+      "description": "Sets up analytics, measurement frameworks, and defines success criteria for campaigns",
+      "params": {
+        "tool_allowlist": [
+          "analytics_setup",
+          "kpi_calculator",
+          "dashboard_builder"
+        ],
+        "policy": {
+          "max_tool_calls": 10,
+          "timeout_seconds": 55,
+          "allowed_tools": "[\"analytics_setup"
+        }
+      }
+    },
+    {
+      "id": "audience-architect",
+      "type": "agent",
+      "impl": "agents.audience_architect",
+      "description": "Creates advanced audience segmentation and targeting strategies for optimal campaign performance",
+      "params": {
+        "tool_allowlist": [
+          "segmentation_engine",
+          "behavioral_data",
+          "predictive_modeling"
+        ],
+        "policy": {
+          "max_tool_calls": 15,
+          "timeout_seconds": 70,
+          "allowed_tools": "[\"segmentation_engine"
+        }
+      }
+    },
+    {
+      "id": "run-tool",
+      "type": "tool",
+      "impl": "tools.run_tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "id": "run-tool",
+      "type": "tool",
+      "impl": "tools.run_tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "id": "execute-tool",
+      "type": "tool",
+      "impl": "tools.execute_tool",
+      "description": "Execute the selected Klaviyo API tool"
+    },
+    {
+      "id": "call-mcp-tool",
+      "type": "tool",
+      "impl": "tools.call_mcp_tool",
+      "description": "Call an MCP tool and return the result"
+    },
+    {
+      "id": "execute-mcp-tool",
+      "type": "tool",
+      "impl": "tools.execute_mcp_tool",
+      "description": ""
+    },
+    {
+      "id": "execute-tool",
+      "type": "tool",
+      "impl": "tools.execute_tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "id": "execute-tool",
+      "type": "tool",
+      "impl": "tools.execute_tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "id": "-execute-openai-tool",
+      "type": "tool",
+      "impl": "tools._execute_openai_tool",
+      "description": "Execute tool using OpenAI function calling"
+    },
+    {
+      "id": "-execute-gemini-tool",
+      "type": "tool",
+      "impl": "tools._execute_gemini_tool",
+      "description": "Execute tool using Gemini function calling"
+    },
+    {
+      "id": "-execute-klaviyo-tool",
+      "type": "tool",
+      "impl": "tools._execute_klaviyo_tool",
+      "description": "Execute actual Klaviyo API operation"
+    },
+    {
+      "id": "call-mcp-tool",
+      "type": "tool",
+      "impl": "tools.call_mcp_tool",
+      "description": "Call the deployed MCP service via HTTP"
+    },
+    {
+      "id": "run-tool",
+      "type": "tool",
+      "impl": "tools.run_tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "id": "run-tool",
+      "type": "tool",
+      "impl": "tools.run_tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "id": "execute-tool",
+      "type": "tool",
+      "impl": "tools.execute_tool",
+      "description": "Execute the selected Klaviyo API tool"
+    },
+    {
+      "id": "call-mcp-tool",
+      "type": "tool",
+      "impl": "tools.call_mcp_tool",
+      "description": "Call an MCP tool and return the result"
+    },
+    {
+      "id": "execute-mcp-tool",
+      "type": "tool",
+      "impl": "tools.execute_mcp_tool",
+      "description": ""
+    },
+    {
+      "id": "execute-tool",
+      "type": "tool",
+      "impl": "tools.execute_tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "id": "execute-tool",
+      "type": "tool",
+      "impl": "tools.execute_tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "id": "-execute-openai-tool",
+      "type": "tool",
+      "impl": "tools._execute_openai_tool",
+      "description": "Execute tool using OpenAI function calling"
+    },
+    {
+      "id": "-execute-gemini-tool",
+      "type": "tool",
+      "impl": "tools._execute_gemini_tool",
+      "description": "Execute tool using Gemini function calling"
+    },
+    {
+      "id": "-execute-klaviyo-tool",
+      "type": "tool",
+      "impl": "tools._execute_klaviyo_tool",
+      "description": "Execute actual Klaviyo API operation"
+    },
+    {
+      "id": "call-mcp-tool",
+      "type": "tool",
+      "impl": "tools.call_mcp_tool",
+      "description": "Call the deployed MCP service via HTTP"
+    },
+    {
+      "id": "validate-pipeline",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:validate_pipeline",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": true
+    },
+    {
+      "id": "validate-and-update",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:validate_and_update",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": true
+    },
+    {
+      "id": "counts",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:counts",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "caps",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:caps",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "revenue",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:revenue",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "Runnable",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:Runnable",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "validation",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:validation",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "validate-pipeline",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:validate_pipeline",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": true
+    },
+    {
+      "id": "validate-and-update",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:validate_and_update",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": true
+    },
+    {
+      "id": "counts",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:counts",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "caps",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:caps",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "revenue",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:revenue",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "Runnable",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:Runnable",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "validation",
+      "type": "runnable",
+      "impl": "workflow.pipelines.rules:validation",
+      "description": "Runnable from workflow/pipelines/rules.py",
+      "exported": false
+    },
+    {
+      "id": "create-mcp-tool",
+      "type": "factory",
+      "impl": "multi-agent.integrations.langchain_core.agents.tools:create_mcp_tool",
+      "description": "\n    Create an MCP-backed tool.\n    \n    Args:\n        name: Tool name\n        description: Tool description\n        endpoint: MCP endpoint\n        method: HTTP method\n        config: Configuration\n    \n    Returns:\n        StructuredTool instance\n    ",
+      "returns": "StructuredTool",
+      "params": [
+        {
+          "name": "name",
+          "type": "str"
+        },
+        {
+          "name": "description",
+          "type": "str"
+        },
+        {
+          "name": "endpoint",
+          "type": "str"
+        },
+        {
+          "name": "method",
+          "type": "str"
+        },
+        {
+          "name": "config",
+          "type": "Optional[LangChainConfig]"
+        }
+      ]
+    },
+    {
+      "id": "create",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create",
+      "description": "\n    Create a Calendar Planner agent with specified tools\n    \n    Args:\n        params: Configuration including tool_allowlist, max_tool_calls, timeout\n        \n    Returns:\n        AgentExecutor configured for calendar planning\n    ",
+      "returns": "Runnable",
+      "params": [
+        {
+          "name": "params",
+          "type": "Dict[str, Any]"
+        }
+      ],
+      "creates_agent": true
+    },
+    {
+      "id": "create-klaviyo-campaigns-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_klaviyo_campaigns_tool",
+      "description": "Create tool for fetching Klaviyo campaigns",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-klaviyo-segments-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_klaviyo_segments_tool",
+      "description": "Create tool for fetching Klaviyo segments",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-firestore-ro-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_firestore_ro_tool",
+      "description": "Create tool for read-only Firestore access",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-calculate-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_calculate_tool",
+      "description": "Create calculation tool",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-generate-ideas-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_generate_ideas_tool",
+      "description": "Create tool for generating campaign ideas",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-mcp-tool",
+      "type": "factory",
+      "impl": "multi-agent.integrations.langchain_core.agents.tools:create_mcp_tool",
+      "description": "\n    Create an MCP-backed tool.\n    \n    Args:\n        name: Tool name\n        description: Tool description\n        endpoint: MCP endpoint\n        method: HTTP method\n        config: Configuration\n    \n    Returns:\n        StructuredTool instance\n    ",
+      "returns": "StructuredTool",
+      "params": [
+        {
+          "name": "name",
+          "type": "str"
+        },
+        {
+          "name": "description",
+          "type": "str"
+        },
+        {
+          "name": "endpoint",
+          "type": "str"
+        },
+        {
+          "name": "method",
+          "type": "str"
+        },
+        {
+          "name": "config",
+          "type": "Optional[LangChainConfig]"
+        }
+      ]
+    },
+    {
+      "id": "create",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create",
+      "description": "\n    Create a Calendar Planner agent with specified tools\n    \n    Args:\n        params: Configuration including tool_allowlist, max_tool_calls, timeout\n        \n    Returns:\n        AgentExecutor configured for calendar planning\n    ",
+      "returns": "Runnable",
+      "params": [
+        {
+          "name": "params",
+          "type": "Dict[str, Any]"
+        }
+      ],
+      "creates_agent": true
+    },
+    {
+      "id": "create-klaviyo-campaigns-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_klaviyo_campaigns_tool",
+      "description": "Create tool for fetching Klaviyo campaigns",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-klaviyo-segments-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_klaviyo_segments_tool",
+      "description": "Create tool for fetching Klaviyo segments",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-firestore-ro-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_firestore_ro_tool",
+      "description": "Create tool for read-only Firestore access",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-calculate-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_calculate_tool",
+      "description": "Create calculation tool",
+      "returns": "Tool",
+      "params": []
+    },
+    {
+      "id": "create-generate-ideas-tool",
+      "type": "factory",
+      "impl": "workflow.agents.calendar_planner:create_generate_ideas_tool",
+      "description": "Create tool for generating campaign ideas",
+      "returns": "Tool",
+      "params": []
+    }
+  ],
+  "metadata": {
+    "total_agents": 12,
+    "total_tools": 22,
+    "total_runnables": 14,
+    "total_factories": 14,
+    "langchain_agents": 12,
+    "langchain_tools": 11,
+    "mcp_tools": 0,
+    "other_tools": 11,
+    "runnables": 7,
+    "factories": 7
+  }
+}

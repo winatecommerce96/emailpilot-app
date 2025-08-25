@@ -1,0 +1,93 @@
+{
+  "brand": "YourBrand",
+  "month": "March 2025",
+  "started_at": "2025-08-22T16:51:49.922201",
+  "steps": [
+    {
+      "step": "MCP Servers",
+      "status": "success"
+    },
+    {
+      "step": "Calendar Generation",
+      "status": "success",
+      "artifacts": 3
+    },
+    {
+      "step": "Agent Analysis",
+      "status": "success",
+      "agents_used": [
+        "campaign_planner",
+        "revenue_analyst"
+      ]
+    }
+  ],
+  "calendar": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Plan a campaign calendar for YourBrand in March 2025"
+      }
+    ],
+    "tasks": [],
+    "current_task": null,
+    "artifacts": [
+      {
+        "task_id": "task_1",
+        "task_type": "analyze_metrics",
+        "timestamp": "2025-08-22T16:51:58.713855",
+        "status": "completed",
+        "tool": "analyze_metrics",
+        "completed_at": "2025-08-22T16:51:58.717312",
+        "result": "{\"brand\": \"YourBrand\", \"timeframe\": \"last_30_days\", \"metrics\": {\"open_rate\": 0.152, \"click_rate\": 0.065, \"conversion_rate\": 0.017, \"revenue\": 46764.31, \"sends\": 18036, \"best_performing_day\": \"Wednesday\", \"best_performing_time\": \"11:00 AM\"}, \"trends\": {\"open_rate_trend\": \"decreasing\", \"engagement_score\": 0.82}, \"analyzed_at\": \"2025-08-22T16:51:58.716515\"}"
+      },
+      {
+        "task_id": "task_2",
+        "task_type": "generate_calendar",
+        "timestamp": "2025-08-22T16:51:58.718599",
+        "status": "completed",
+        "tool": "generate_calendar",
+        "completed_at": "2025-08-22T16:51:58.721030",
+        "result": "{\"brand\": \"YourBrand\", \"month\": \"March 2025\", \"events\": [{\"id\": \"event_2\", \"date\": \"2025-08-04\", \"time\": \"15:00\", \"type\": \"newsletter\", \"subject\": \"YourBrand Special Offer\", \"status\": \"planned\", \"estimated_sends\": 2687}, {\"id\": \"event_3\", \"date\": \"2025-08-18\", \"time\": \"15:00\", \"type\": \"product_launch\", \"subject\": \"YourBrand Product Launch\", \"status\": \"planned\", \"estimated_sends\": 2753}, {\"id\": \"event_4\", \"date\": \"2025-08-18\", \"time\": \"16:00\", \"type\": \"promotional\", \"subject\": \"YourBrand Product Launch\", \"status\": \"planned\", \"estimated_sends\": 8054}, {\"id\": \"event_1\", \"date\": \"2025-08-27\", \"time\": \"10:00\", \"type\": \"newsletter\", \"subject\": \"YourBrand Special Offer\", \"status\": \"planned\", \"estimated_sends\": 3614}], \"total_campaigns\": 4, \"generated_at\": \"2025-08-22T16:51:58.720230\"}"
+      },
+      {
+        "task_id": "task_3",
+        "task_type": "optimize_timing",
+        "timestamp": "2025-08-22T16:51:58.722727",
+        "status": "completed",
+        "result": {
+          "best_day": "Tuesday",
+          "best_time": "10:00 AM",
+          "timezone": "EST"
+        }
+      }
+    ],
+    "brand": "YourBrand",
+    "month": "March 2025",
+    "run_context": {
+      "started_at": "2025-08-22T16:51:58.527326",
+      "environment": "development"
+    },
+    "error": "'NoneType' object has no attribute 'get'",
+    "completed": true
+  },
+  "agent_results": {
+    "campaign_planner": {
+      "status": "completed",
+      "response": "LLM not configured. Please set API key.",
+      "timestamp": "2025-08-22T16:51:58.726770"
+    },
+    "revenue_analyst": {
+      "status": "completed",
+      "response": "LLM not configured. Please set API key.",
+      "timestamp": "2025-08-22T16:51:58.726804"
+    }
+  },
+  "klaviyo_data": {
+    "source": "MCP servers",
+    "endpoints": [
+      "http://127.0.0.1:9090/metrics",
+      "http://127.0.0.1:9091/performance"
+    ]
+  },
+  "completed_at": "2025-08-22T16:51:58.726827"
+}

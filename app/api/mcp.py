@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from app.core.database import get_db
+from app.deps import get_db, get_secret_manager_service
 from app.core.auth import get_current_user
 from app.models.mcp_client import MCPClient, MCPUsage, MCPModelConfig
 from app.schemas.mcp_client import (
@@ -19,8 +19,8 @@ from app.schemas.mcp_client import (
     MCPTestResponse,
     ModelProvider
 )
-from app.services.secret_manager import get_secret_manager
-from app.services.mcp_service import get_mcp_service
+from app.services.secrets import SecretManagerService
+from app.services.mcp_service import get_mcp_service, MCPServiceManager
 import logging
 from sqlalchemy import func, and_
 import asyncio
@@ -39,7 +39,8 @@ async def list_mcp_clients(
     limit: int = 100,
     enabled_only: bool = False,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    secret_manager: SecretManagerService = Depends(get_secret_manager_service)
 ):
     """List all MCP clients"""
     query = db.query(MCPClient)
@@ -51,7 +52,6 @@ async def list_mcp_clients(
     
     # Convert to response model with has_key flags
     responses = []
-    secret_manager = get_secret_manager()
     
     for client in clients:
         api_keys = secret_manager.get_api_keys(client.id)
@@ -70,15 +70,16 @@ async def list_mcp_clients(
 async def get_mcp_client(
     client_id: str,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    secret_manager: SecretManagerService = Depends(get_secret_manager_service)
 ):
     """Get a specific MCP client"""
-    client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-    if not client:
+    client_doc = db.collection("clients").document(client_id).get()
+    if not client_doc.exists:
         raise HTTPException(status_code=404, detail="Client not found")
+    client = MCPClient(**client_doc.to_dict(), id=client_doc.id)
     
     # Check API key existence
-    secret_manager = get_secret_manager()
     api_keys = secret_manager.get_api_keys(client_id)
     
     return MCPClientResponse(
@@ -93,7 +94,8 @@ async def get_mcp_client(
 async def create_mcp_client(
     client_data: MCPClientCreate,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    secret_manager: SecretManagerService = Depends(get_secret_manager_service)
 ):
     """Create a new MCP client"""
     # Check if client already exists
@@ -109,7 +111,6 @@ async def create_mcp_client(
         )
     
     # Store API keys in Secret Manager
-    secret_manager = get_secret_manager()
     api_keys = {
         "klaviyo": client_data.klaviyo_api_key,
         "openai": client_data.openai_api_key,
@@ -155,12 +156,14 @@ async def update_mcp_client(
     client_id: str,
     client_data: MCPClientUpdate,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    secret_manager: SecretManagerService = Depends(get_secret_manager_service)
 ):
     """Update an MCP client"""
-    client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-    if not client:
+    client_doc = db.collection("clients").document(client_id).get()
+    if not client_doc.exists:
         raise HTTPException(status_code=404, detail="Client not found")
+    client = MCPClient(**client_doc.to_dict(), id=client_doc.id)
     
     # Update basic fields
     update_data = client_data.dict(exclude_unset=True)
@@ -178,7 +181,6 @@ async def update_mcp_client(
     
     # Update API keys if provided
     if api_key_updates:
-        secret_manager = get_secret_manager()
         secret_ids = secret_manager.store_api_keys(client_id, api_key_updates)
         for key, value in secret_ids.items():
             setattr(client, key, value)
@@ -203,15 +205,16 @@ async def update_mcp_client(
 async def delete_mcp_client(
     client_id: str,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    secret_manager: SecretManagerService = Depends(get_secret_manager_service)
 ):
     """Delete an MCP client"""
-    client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-    if not client:
+    client_doc = db.collection("clients").document(client_id).get()
+    if not client_doc.exists:
         raise HTTPException(status_code=404, detail="Client not found")
+    client = MCPClient(**client_doc.to_dict(), id=client_doc.id)
     
     # Delete API keys from Secret Manager
-    secret_manager = get_secret_manager()
     for provider in ["klaviyo", "openai", "gemini"]:
         secret_id = f"mcp-{client_id}-{provider}-key"
         secret_manager.delete_secret(secret_id)
@@ -231,14 +234,14 @@ async def test_mcp_connection(
     client_id: str,
     test_request: MCPTestRequest,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    mcp_service: MCPServiceManager = Depends(get_mcp_service)
 ):
     """Test MCP connection for a specific provider"""
-    client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-    if not client:
+    client_doc = db.collection("clients").document(client_id).get()
+    if not client_doc.exists:
         raise HTTPException(status_code=404, detail="Client not found")
-    
-    mcp_service = get_mcp_service()
+    client = MCPClient(**client_doc.to_dict(), id=client_doc.id)
     
     try:
         start_time = datetime.now()
@@ -291,7 +294,8 @@ async def test_mcp_connection(
 async def execute_mcp_tool(
     request: Dict[str, Any],
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    mcp_service: MCPServiceManager = Depends(get_mcp_service)
 ):
     """Execute an MCP tool"""
     client_id = request.get("client_id")
@@ -307,9 +311,10 @@ async def execute_mcp_tool(
         )
     
     # Check if client exists and is enabled
-    client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-    if not client:
+    client_doc = db.collection("clients").document(client_id).get()
+    if not client_doc.exists:
         raise HTTPException(status_code=404, detail="Client not found")
+    client = MCPClient(**client_doc.to_dict(), id=client_doc.id)
     
     if not client.enabled:
         raise HTTPException(status_code=403, detail="Client is disabled")
@@ -322,8 +327,6 @@ async def execute_mcp_tool(
         )
     
     # Execute tool
-    mcp_service = get_mcp_service()
-    
     try:
         result = await mcp_service.execute_tool(
             client_id=client_id,

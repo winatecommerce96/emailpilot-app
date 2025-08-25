@@ -1,0 +1,280 @@
+{
+  "client_id": "vlasic-labs",
+  "month": "2025-03",
+  "firestore_data": {
+    "client": {
+      "created_at": "2025-08-09 11:26:37.263224+00:00",
+      "description": "Pickles and related products",
+      "placed_order_metric_id": "SLCTyy",
+      "is_active": true,
+      "client_id": "vlasic-labs",
+      "api_key_secret": "projects/emailpilot-438321/secrets/klaviyo-api-vlasic-labs",
+      "updated_at": "2025-08-10 14:40:21.936000+00:00",
+      "name": "Vlasic Labs",
+      "active": true,
+      "has_klaviyo_key": true,
+      "goals": {
+        "seasonal_adjustments": {},
+        "calculation_method": "ai_suggested",
+        "trend_direction": "stable",
+        "last_updated": "2025-08-09 11:26:38.624827+00:00",
+        "yoy_growth_rate": 0,
+        "monthly_revenue_goal": 15000,
+        "confidence": "medium",
+        "notes": "Based on historical average"
+      },
+      "affinity_segments": [
+        "Tech Innovation",
+        "Product Testing",
+        "Early Adopters"
+      ],
+      "client_slug": "vlasic-labs",
+      "klaviyo_api_key_secret": "klaviyo-api-vlasic-labs",
+      "metric_id": "SLCTyy",
+      "klaviyo_secret_name": "klaviyo-api-vlasic-labs",
+      "klaviyo_private_key": "pk_419ce5f004d140f0d8f2ebd614bb0db654"
+    },
+    "campaigns": [],
+    "fetched_at": "2025-08-24T15:15:10.299965"
+  },
+  "client_info": {
+    "created_at": "2025-08-09 11:26:37.263224+00:00",
+    "description": "Pickles and related products",
+    "placed_order_metric_id": "SLCTyy",
+    "is_active": true,
+    "client_id": "vlasic-labs",
+    "api_key_secret": "projects/emailpilot-438321/secrets/klaviyo-api-vlasic-labs",
+    "updated_at": "2025-08-10 14:40:21.936000+00:00",
+    "name": "Vlasic Labs",
+    "active": true,
+    "has_klaviyo_key": true,
+    "goals": {
+      "seasonal_adjustments": {},
+      "calculation_method": "ai_suggested",
+      "trend_direction": "stable",
+      "last_updated": "2025-08-09 11:26:38.624827+00:00",
+      "yoy_growth_rate": 0,
+      "monthly_revenue_goal": 15000,
+      "confidence": "medium",
+      "notes": "Based on historical average"
+    },
+    "affinity_segments": [
+      "Tech Innovation",
+      "Product Testing",
+      "Early Adopters"
+    ],
+    "client_slug": "vlasic-labs",
+    "klaviyo_api_key_secret": "klaviyo-api-vlasic-labs",
+    "metric_id": "SLCTyy",
+    "klaviyo_secret_name": "klaviyo-api-vlasic-labs",
+    "klaviyo_private_key": "pk_419ce5f004d140f0d8f2ebd614bb0db654"
+  },
+  "campaign_plan": {
+    "brand": "Vlasic Labs",
+    "month": "2025-03",
+    "campaigns": [
+      {
+        "date": "2025-03-01",
+        "subject_line": "Welcome to Vlasic Labs - Discover Our Innovations!",
+        "target_segments": [
+          "New Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "20%",
+          "click_rate": "5%",
+          "revenue": "$500"
+        }
+      },
+      {
+        "date": "2025-03-05",
+        "subject_line": "Spring into Action with Our Latest Products!",
+        "target_segments": [
+          "All Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "25%",
+          "click_rate": "7%",
+          "revenue": "$800"
+        }
+      },
+      {
+        "date": "2025-03-10",
+        "subject_line": "Exclusive Offer: 20% Off Your Next Purchase!",
+        "target_segments": [
+          "Loyal Customers"
+        ],
+        "expected_metrics": {
+          "open_rate": "30%",
+          "click_rate": "10%",
+          "revenue": "$1,200"
+        }
+      },
+      {
+        "date": "2025-03-15",
+        "subject_line": "Behind the Scenes: How We Create Our Products",
+        "target_segments": [
+          "Engaged Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "22%",
+          "click_rate": "6%",
+          "revenue": "$600"
+        }
+      },
+      {
+        "date": "2025-03-20",
+        "subject_line": "Join Us for a Live Q&A Session!",
+        "target_segments": [
+          "All Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "18%",
+          "click_rate": "4%",
+          "revenue": "$300"
+        }
+      },
+      {
+        "date": "2025-03-25",
+        "subject_line": "Customer Spotlight: Your Stories Matter!",
+        "target_segments": [
+          "All Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "20%",
+          "click_rate": "5%",
+          "revenue": "$400"
+        }
+      },
+      {
+        "date": "2025-03-28",
+        "subject_line": "Last Chance: Spring Sale Ends Soon!",
+        "target_segments": [
+          "All Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "28%",
+          "click_rate": "9%",
+          "revenue": "$1,000"
+        }
+      },
+      {
+        "date": "2025-03-31",
+        "subject_line": "Thank You for Being Part of the Vlasic Family!",
+        "target_segments": [
+          "All Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "15%",
+          "click_rate": "3%",
+          "revenue": "$200"
+        }
+      }
+    ],
+    "generated_by": "ai",
+    "model": "gpt-4o-mini"
+  },
+  "email_templates": [
+    {
+      "campaign_id": "template_2025-03-01",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-05",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-10",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    }
+  ],
+  "send_schedule": {
+    "timezone": "America/New_York",
+    "optimized_times": {
+      "monday": "10:00",
+      "tuesday": "14:00",
+      "wednesday": "11:00",
+      "thursday": "15:00",
+      "friday": "09:00",
+      "saturday": "12:00",
+      "sunday": "18:00"
+    },
+    "frequency_cap": 3,
+    "quiet_hours": {
+      "start": "21:00",
+      "end": "08:00"
+    },
+    "recommendations": [
+      "Send promotional emails on Tuesday/Thursday",
+      "Newsletter works best on Wednesday morning",
+      "Avoid Mondays for sales campaigns"
+    ]
+  },
+  "timestamp": "2025-08-24T15:15:09.286403",
+  "errors": [
+    "No Klaviyo data available"
+  ],
+  "status": "completed"
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Analyze current JavaScript structure and identify Firebase/Google API calls to replace",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Create refactored script.js with FastAPI integration replacing Firebase calls",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Replace client management functions to use FastAPI endpoints",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Replace campaign data operations to use FastAPI endpoints",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Replace AI chat and document import functions to use FastAPI endpoints",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Preserve all UI logic, drag-drop functionality, and calendar rendering",
+    "status": "completed",
+    "id": "6"
+  }
+]

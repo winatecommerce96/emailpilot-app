@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix missing messaging-guard.js file (404 error) - incorrect path in HTML",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Debug /api/performance/mtd endpoint 500 error for client 0zv5Wgsp9qwXESE36pbK",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Fix auth.js setState undefined error at logout (line 112)",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Investigate CalendarView component loading issues",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Run final validation to ensure all errors are resolved",
+    "status": "completed",
+    "id": "5"
+  }
+]

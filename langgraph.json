@@ -1,0 +1,12 @@
+{
+  "dockerfile_lines": [],
+  "graphs": {
+    "calendar_workflow": "./graph/graph.py:calendar_graph",
+    "live_calendar": "./graph/live_graph.py:live_calendar_graph"
+  },
+  "env": ".env",
+  "python_version": "3.11",
+  "dependencies": [
+    "."
+  ]
+}

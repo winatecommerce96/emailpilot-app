@@ -1,0 +1,318 @@
+{
+  "agents": [
+    {
+      "file": "multi-agent/integrations/langchain_core/agents/calendar_planner.py",
+      "type": "agent",
+      "name": "calendar_planner",
+      "description": "Expert calendar planner for email and SMS campaigns with 10 years experience"
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "rag",
+      "description": "RAG-based question answering agent",
+      "tools": [
+        "search",
+        "retrieve"
+      ],
+      "policy": {
+        "max_tool_calls": 5,
+        "timeout_seconds": 30,
+        "allowed_tools": "[\"search"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "default",
+      "description": "General-purpose task execution agent",
+      "policy": {
+        "max_tool_calls": 15,
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "revenue_analyst",
+      "description": "Analyzes revenue data and provides insights",
+      "tools": [
+        "klaviyo_revenue",
+        "firestore_ro",
+        "calculate"
+      ],
+      "policy": {
+        "max_tool_calls": 10,
+        "timeout_seconds": 45,
+        "allowed_tools": "[\"klaviyo_revenue"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "campaign_planner",
+      "description": "Plans email campaigns based on data",
+      "policy": {
+        "max_tool_calls": 20,
+        "timeout_seconds": 90,
+        "denied_tools": "[\"write"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "copy_smith",
+      "description": "Generates copy variants using AIDA, PAS, FOMO, and Story frameworks for A/B testing",
+      "tools": [
+        "klaviyo_data",
+        "brand_guidelines",
+        "personalization"
+      ],
+      "policy": {
+        "max_tool_calls": 12,
+        "timeout_seconds": 60,
+        "allowed_tools": "[\"klaviyo_data"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "layout_lab",
+      "description": "Creates mobile-first responsive design specifications and asset requirements",
+      "tools": [
+        "brand_assets",
+        "design_system",
+        "accessibility_check"
+      ],
+      "policy": {
+        "max_tool_calls": 10,
+        "timeout_seconds": 45,
+        "allowed_tools": "[\"brand_assets"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "calendar_strategist",
+      "description": "Optimizes campaign timing and creates strategic email calendar based on performance data",
+      "tools": [
+        "klaviyo_analytics",
+        "calendar_data",
+        "performance_data"
+      ],
+      "policy": {
+        "max_tool_calls": 15,
+        "timeout_seconds": 75,
+        "allowed_tools": "[\"klaviyo_analytics"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "brand_brain",
+      "description": "Ensures brand consistency, voice alignment, and creates compliant campaign briefs",
+      "tools": [
+        "brand_guidelines",
+        "compliance_check",
+        "voice_analysis"
+      ],
+      "policy": {
+        "max_tool_calls": 12,
+        "timeout_seconds": 50,
+        "allowed_tools": "[\"brand_guidelines"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "gatekeeper",
+      "description": "Performs QA review for brand, legal, accessibility, and deliverability compliance",
+      "tools": [
+        "compliance_scanner",
+        "accessibility_checker",
+        "deliverability_analyzer"
+      ],
+      "policy": {
+        "max_tool_calls": 8,
+        "timeout_seconds": 40,
+        "allowed_tools": "[\"compliance_scanner"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "truth_teller",
+      "description": "Sets up analytics, measurement frameworks, and defines success criteria for campaigns",
+      "tools": [
+        "analytics_setup",
+        "kpi_calculator",
+        "dashboard_builder"
+      ],
+      "policy": {
+        "max_tool_calls": 10,
+        "timeout_seconds": 55,
+        "allowed_tools": "[\"analytics_setup"
+      }
+    },
+    {
+      "file": "multi-agent/integrations/langchain_core/admin/registry.py",
+      "type": "agent",
+      "name": "audience_architect",
+      "description": "Creates advanced audience segmentation and targeting strategies for optimal campaign performance",
+      "tools": [
+        "segmentation_engine",
+        "behavioral_data",
+        "predictive_modeling"
+      ],
+      "policy": {
+        "max_tool_calls": 15,
+        "timeout_seconds": 70,
+        "allowed_tools": "[\"segmentation_engine"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "run_tool",
+      "file": "app/api/tools.py",
+      "type": "tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "name": "run_tool",
+      "file": "app/api/tools.py",
+      "type": "tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "name": "execute_tool",
+      "file": "app/api/langchain_klaviyo.py",
+      "type": "tool",
+      "description": "Execute the selected Klaviyo API tool"
+    },
+    {
+      "name": "call_mcp_tool",
+      "file": "app/api/reports_mcp.py",
+      "type": "tool",
+      "description": "Call an MCP tool and return the result"
+    },
+    {
+      "name": "execute_mcp_tool",
+      "file": "app/api/mcp.py",
+      "type": "tool"
+    },
+    {
+      "name": "execute_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "name": "execute_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "name": "_execute_openai_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute tool using OpenAI function calling"
+    },
+    {
+      "name": "_execute_gemini_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute tool using Gemini function calling"
+    },
+    {
+      "name": "_execute_klaviyo_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute actual Klaviyo API operation"
+    },
+    {
+      "name": "call_mcp_tool",
+      "file": "app/services/performance_monitor.py",
+      "type": "tool",
+      "description": "Call the deployed MCP service via HTTP"
+    },
+    {
+      "name": "run_tool",
+      "file": "app/api/tools.py",
+      "type": "tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "name": "run_tool",
+      "file": "app/api/tools.py",
+      "type": "tool",
+      "description": "Execute a tool with given parameters"
+    },
+    {
+      "name": "execute_tool",
+      "file": "app/api/langchain_klaviyo.py",
+      "type": "tool",
+      "description": "Execute the selected Klaviyo API tool"
+    },
+    {
+      "name": "call_mcp_tool",
+      "file": "app/api/reports_mcp.py",
+      "type": "tool",
+      "description": "Call an MCP tool and return the result"
+    },
+    {
+      "name": "execute_mcp_tool",
+      "file": "app/api/mcp.py",
+      "type": "tool"
+    },
+    {
+      "name": "execute_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "name": "execute_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute MCP tool using the configured provider"
+    },
+    {
+      "name": "_execute_openai_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute tool using OpenAI function calling"
+    },
+    {
+      "name": "_execute_gemini_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute tool using Gemini function calling"
+    },
+    {
+      "name": "_execute_klaviyo_tool",
+      "file": "app/services/mcp_service.py",
+      "type": "tool",
+      "description": "Execute actual Klaviyo API operation"
+    },
+    {
+      "name": "call_mcp_tool",
+      "file": "app/services/performance_monitor.py",
+      "type": "tool",
+      "description": "Call the deployed MCP service via HTTP"
+    }
+  ],
+  "errors": [
+    "Could not import registry: attempted relative import with no known parent package",
+    "Could not import registry: attempted relative import with no known parent package"
+  ],
+  "summary": {
+    "total_agents": 12,
+    "total_tools": 22,
+    "langchain_agents": 12,
+    "langchain_tools": 11,
+    "mcp_tools": 0,
+    "other_tools": 11
+  }
+}

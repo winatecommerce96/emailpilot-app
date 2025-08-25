@@ -22,9 +22,13 @@ class KlaviyoClient:
         }
 
     async def _get(self, path: str, params: Dict[str, Any] | None = None) -> Dict[str, Any]:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
-            r = await client.get(f"{KLAVIYO_API_URL}{path}", headers=self._headers(), params=params or {})
-            r.raise_for_status()
+        url = path if path.startswith("http") else f"{KLAVIYO_API_URL}{path}"
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=8.0)) as client:
+            r = await client.get(url, headers=self._headers(), params=params or {})
+            if r.status_code >= 400:
+                detail = r.text
+                logging.error(f"Klaviyo GET {url} failed {r.status_code}: {detail}")
+                r.raise_for_status()
             return r.json()
 
     async def campaigns_summary(self) -> Dict[str, Any]:
@@ -73,3 +77,135 @@ class KlaviyoClient:
             return {"success": True, "accounts": len(data.get("data", []))}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    async def get_events(self, metric_id: str = None, since: str = None, until: str = None) -> Dict[str, Any]:
+        """
+        Get events data from Klaviyo for order monitoring.
+        
+        Args:
+            metric_id: Specific metric ID to filter (e.g., 'Placed Order')
+            since: ISO timestamp for start date
+            until: ISO timestamp for end date
+            
+        Returns:
+            Dict containing events data
+        """
+        try:
+            params = {"page[size]": 100}
+            
+            if metric_id:
+                params["filter"] = f"equals(metric_id,\"{metric_id}\")"
+            if since:
+                params["filter"] = f"greater-or-equal(datetime,{since})"
+            if until:
+                current_filter = params.get("filter", "")
+                time_filter = f"less-or-equal(datetime,{until})"
+                params["filter"] = f"{current_filter},{time_filter}" if current_filter else time_filter
+                
+            data = await self._get("/events/", params)
+            return data
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch events: {e}")
+            return {"data": [], "error": str(e)}
+
+    async def get_metrics(self) -> Dict[str, Any]:
+        """Get available metrics from Klaviyo"""
+        try:
+            data = await self._get("/metrics/")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to fetch metrics: {e}")
+            return {"data": [], "error": str(e)}
+
+    async def get_metric_by_name(self, metric_name: str) -> Dict[str, Any]:
+        """
+        Find a metric by name (e.g., 'Placed Order')
+        
+        Args:
+            metric_name: Name of the metric to find
+            
+        Returns:
+            Dict containing metric info or None if not found
+        """
+        try:
+            metrics_data = await self.get_metrics()
+            
+            for metric in metrics_data.get("data", []):
+                attributes = metric.get("attributes", {})
+                if attributes.get("name") == metric_name:
+                    return metric
+                    
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to find metric {metric_name}: {e}")
+            return None
+
+    async def get_order_events_by_date_range(self, start_date: str, end_date: str) -> Dict[str, Any]:
+        """
+        Get order events for a specific date range.
+        
+        Args:
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+            
+        Returns:
+            Dict containing order events and summary
+        """
+        try:
+            # Convert dates to ISO format for API
+            start_iso = f"{start_date}T00:00:00Z"
+            end_iso = f"{end_date}T23:59:59Z"
+            
+            # First, try to find the "Placed Order" metric
+            order_metric = await self.get_metric_by_name("Placed Order")
+            metric_id = order_metric.get("id") if order_metric else None
+            
+            # Get events for the date range
+            events_data = await self.get_events(
+                metric_id=metric_id,
+                since=start_iso,
+                until=end_iso
+            )
+            
+            # Process events to extract order information
+            events = events_data.get("data", [])
+            total_orders = len(events)
+            total_revenue = 0.0
+            
+            # Calculate revenue from events
+            for event in events:
+                properties = event.get("attributes", {}).get("properties", {})
+                # Look for common revenue/value fields
+                order_value = (
+                    properties.get("$value") or
+                    properties.get("Value") or
+                    properties.get("total") or
+                    properties.get("revenue") or 0
+                )
+                if isinstance(order_value, (int, float)):
+                    total_revenue += float(order_value)
+                elif isinstance(order_value, str):
+                    try:
+                        total_revenue += float(order_value.replace("$", "").replace(",", ""))
+                    except ValueError:
+                        pass  # Skip invalid values
+            
+            return {
+                "success": True,
+                "period": {"start": start_date, "end": end_date},
+                "orders": total_orders,
+                "revenue": total_revenue,
+                "events": events[:50],  # Limit events in response
+                "total_events": len(events)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get order events for {start_date} to {end_date}: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "orders": 0,
+                "revenue": 0.0
+            }

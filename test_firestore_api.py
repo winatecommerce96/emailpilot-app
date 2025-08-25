@@ -13,7 +13,7 @@ os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/Damon/klaviyo/klaviyo-aud
 
 # API Configuration
 API_BASE = 'https://emailpilot.ai'
-LOCAL_API = 'http://127.0.0.1:8000'
+LOCAL_API = 'http://localhost:8000'
 
 def test_api_health():
     """Test if API is running"""

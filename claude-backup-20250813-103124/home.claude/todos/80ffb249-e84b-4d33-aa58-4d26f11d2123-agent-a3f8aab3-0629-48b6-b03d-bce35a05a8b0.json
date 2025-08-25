@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Fix admin-oauth.html to load AdminOAuthConfig from /static/dist/ instead of /static/components/",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Add AdminOAuthConfig.js to the build script compilation list",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Add navigation menu to main index.html with links to admin pages",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Create auth.js utility for authentication state management",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Update index.html to include AdminOAuthConfig.js from dist folder",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Test OAuth integration and navigation functionality",
+    "status": "completed",
+    "id": "6"
+  }
+]

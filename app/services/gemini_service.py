@@ -10,13 +10,38 @@ import os
 from datetime import datetime, timedelta
 
 from app.schemas.calendar import CalendarEventResponse, AIResponse, AIAction
+from app.services.secrets import SecretManagerService, SecretNotFoundError
+from app.deps import get_secret_manager_service
 
 logger = logging.getLogger(__name__)
 
 class GeminiService:
-    def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY", "AIzaSyDZxn9-FekvRhcvRfneulDrebD0RFxUpvs")
+    def __init__(self, secret_manager: SecretManagerService):
+        # Try to get Gemini API key from Secret Manager first
+        self.secret_manager = secret_manager
+        self.api_key = self._get_gemini_api_key()
         self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent"
+    
+    def _get_gemini_api_key(self) -> str:
+        """Get Gemini API key from Secret Manager or environment"""
+        try:
+            if self.secret_manager:
+                api_key = self.secret_manager.get_secret("gemini-api-key")
+                if api_key:
+                    return api_key.strip()
+        except SecretNotFoundError:
+            logger.debug("Gemini API key not found in Secret Manager.")
+        except Exception as e:
+            logger.debug(f"Failed to get Gemini API key from Secret Manager: {e}")
+        
+        # Fallback to environment variable
+        env_key = os.getenv("GEMINI_API_KEY")
+        if env_key:
+            logger.warning("Using Gemini API key from environment variable - consider migrating to Secret Manager")
+            return env_key.strip()
+        
+        logger.error("No Gemini API key found in Secret Manager or environment")
+        return ""
 
     async def plan_campaign(
         self,

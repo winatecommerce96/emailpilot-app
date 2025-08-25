@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hidden Endpoints Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6">Testing Hidden Endpoint Components</h1>
+        
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Quick Actions Framework</h2>
+            <div id="quick-actions"></div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">System Health Dashboard</h2>
+            <div id="health-dashboard"></div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">Service Catalog</h2>
+            <div id="service-catalog"></div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">API Explorer</h2>
+            <div id="api-explorer"></div>
+        </div>
+
+        <div class="mt-8 p-4 bg-white rounded shadow">
+            <h3 class="font-semibold mb-2">Component Load Status:</h3>
+            <div id="status" class="text-sm space-y-1"></div>
+        </div>
+    </div>
+
+    <!-- Load components -->
+    <script src="/static/dist/QuickActionsFramework.js"></script>
+    <script src="/static/dist/SystemHealthDashboard.js"></script>
+    <script src="/static/dist/ServiceCatalogPanel.js"></script>
+    <script src="/static/dist/APIExplorer.js"></script>
+
+    <script>
+        // Check component loading
+        const status = document.getElementById('status');
+        const components = [
+            { name: 'QuickActionsFramework', exists: !!window.QuickActionsFramework },
+            { name: 'SystemHealthDashboard', exists: !!window.SystemHealthDashboard },
+            { name: 'ServiceCatalogPanel', exists: !!window.ServiceCatalogPanel },
+            { name: 'APIExplorer', exists: !!window.APIExplorer }
+        ];
+
+        components.forEach(comp => {
+            const div = document.createElement('div');
+            div.innerHTML = `${comp.exists ? '✅' : '❌'} ${comp.name}: ${comp.exists ? 'Loaded' : 'Not found'}`;
+            div.className = comp.exists ? 'text-green-600' : 'text-red-600';
+            status.appendChild(div);
+        });
+
+        // Render components if loaded
+        if (window.QuickActionsFramework) {
+            ReactDOM.render(
+                React.createElement(QuickActionsFramework),
+                document.getElementById('quick-actions')
+            );
+        }
+
+        if (window.SystemHealthDashboard) {
+            ReactDOM.render(
+                React.createElement(SystemHealthDashboard),
+                document.getElementById('health-dashboard')
+            );
+        }
+
+        if (window.ServiceCatalogPanel) {
+            ReactDOM.render(
+                React.createElement(ServiceCatalogPanel),
+                document.getElementById('service-catalog')
+            );
+        }
+
+        if (window.APIExplorer) {
+            ReactDOM.render(
+                React.createElement(APIExplorer),
+                document.getElementById('api-explorer')
+            );
+        }
+
+        // Test hidden endpoints
+        async function testHiddenEndpoints() {
+            const endpoints = [
+                '/api/admin/system/status',
+                '/api/mcp/health',
+                '/api/ai/stats',
+                '/api/agents/stats',
+                '/api/admin/services/catalog',
+                '/api/admin/notifications',
+                '/api/proxy/health',
+                '/api/goals/data-status'
+            ];
+
+            console.log('Testing hidden endpoints...');
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint);
+                    console.log(`${endpoint}: ${response.status} ${response.ok ? '✅' : '❌'}`);
+                } catch (error) {
+                    console.error(`${endpoint}: Failed - ${error.message}`);
+                }
+            }
+        }
+
+        // Run endpoint tests after page loads
+        setTimeout(testHiddenEndpoints, 1000);
+    </script>
+</body>
+</html>

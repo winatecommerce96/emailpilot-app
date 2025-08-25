@@ -1,0 +1,12 @@
+[
+  {
+    "content": "Make logo clickable to navigate to Dashboard",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Deploy the change",
+    "status": "completed",
+    "id": "2"
+  }
+]

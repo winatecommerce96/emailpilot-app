@@ -4,6 +4,9 @@ Handles both local .env file and Google Secret Manager for sensitive keys
 """
 import os
 import logging
+from fastapi import Depends
+from app.deps import get_secret_manager_service
+from app.services.secrets import SecretManagerService
 from pathlib import Path
 from typing import Dict, Optional, Any
 from datetime import datetime
@@ -32,17 +35,15 @@ LOCAL_VARS = {
 class EnvManager:
     """Manages environment variables with Secret Manager integration"""
     
-    def __init__(self):
+    def __init__(self, secret_manager: SecretManagerService):
         self.project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")
         self.use_secret_manager = os.getenv("SECRET_MANAGER_ENABLED", "true").lower() == "true"
         self.env_file_path = Path(__file__).parent.parent.parent / ".env"
-        self.secret_manager = None
+        self.secret_manager = secret_manager
         
         # Initialize Secret Manager if enabled
         if self.use_secret_manager:
             try:
-                from app.services.secret_manager import SecretManagerService
-                self.secret_manager = SecretManagerService(self.project_id)
                 logger.info("Secret Manager initialized successfully")
             except Exception as e:
                 logger.warning(f"Could not initialize Secret Manager: {e}")
@@ -264,9 +265,9 @@ class EnvManager:
 # Singleton instance
 _env_manager = None
 
-def get_env_manager() -> EnvManager:
+def get_env_manager(secret_manager: SecretManagerService = Depends(get_secret_manager_service)) -> EnvManager:
     """Get singleton instance of EnvManager"""
     global _env_manager
     if _env_manager is None:
-        _env_manager = EnvManager()
+        _env_manager = EnvManager(secret_manager=secret_manager)
     return _env_manager

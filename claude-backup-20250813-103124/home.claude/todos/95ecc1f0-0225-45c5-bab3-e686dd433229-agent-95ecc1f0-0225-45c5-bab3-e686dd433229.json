@@ -1,0 +1,26 @@
+[
+  {
+    "content": "Investigate MCP response structure",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Fix data retrieval logic",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Test enhanced API client integration",
+    "status": "completed",
+    "priority": "medium",
+    "id": "3"
+  },
+  {
+    "content": "Verify monthly monitor data flow",
+    "status": "completed",
+    "priority": "medium",
+    "id": "4"
+  }
+]

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Sidebar Fixed</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <style>
+        /* Dark mode variables */
+        [data-theme="dark"] {
+            --bg-primary: #111827;
+            --bg-secondary: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+        }
+        
+        /* Light mode variables */
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --text-primary: #111827;
+            --text-secondary: #4b5563;
+        }
+        
+        body {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container" class="flex h-screen">
+        <!-- Sidebar will be rendered here -->
+        <div id="sidebar-root"></div>
+        
+        <!-- Main content area -->
+        <div class="flex-1 p-8">
+            <h1 class="text-2xl font-bold mb-4">Admin Sidebar Fixed - Test Page</h1>
+            
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-4">Test Controls</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="font-medium mb-2">Active Tab:</h3>
+                        <p id="active-tab" class="text-sm text-gray-600 dark:text-gray-400">overview</p>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium mb-2">Test Data:</h3>
+                        <button onclick="toggleTestData()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Toggle Test Data
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium mb-2">Console Output:</h3>
+                        <div id="console-output" class="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs font-mono h-32 overflow-y-auto">
+                            Console logs will appear here...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the AdminSidebarFixed component -->
+    <script src="/static/dist/AdminSidebarFixed.js"></script>
+    <script src="/static/dist/admin-sidebar-patch.js"></script>
+    
+    <script>
+        // Capture console logs
+        const originalLog = console.log;
+        const consoleOutput = document.getElementById('console-output');
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            
+            const line = document.createElement('div');
+            line.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            consoleOutput.appendChild(line);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+
+        // Test data
+        let useTestData = false;
+        const testData = {
+            systemStatus: {
+                status: 'operational',
+                components: {
+                    mcp_service: { status: 'operational' },
+                    slack: { status: 'degraded' },
+                    secret_manager: { status: 'operational' },
+                    agent_service: { status: 'error' }
+                }
+            },
+            alertCounts: {
+                total: 5,
+                critical: 2,
+                warning: 3
+            },
+            aiModelsStatus: {
+                configured: 7,
+                total: 10
+            },
+            opsLogCount: 3
+        };
+
+        function toggleTestData() {
+            useTestData = !useTestData;
+            renderSidebar();
+        }
+
+        function handleTabChange(tabId) {
+            console.log('Tab changed to:', tabId);
+            document.getElementById('active-tab').textContent = tabId;
+        }
+
+        function renderSidebar() {
+            const props = {
+                activeTab: 'overview',
+                onTabChange: handleTabChange,
+                ...(useTestData ? testData : {})
+            };
+
+            console.log('Rendering sidebar with props:', props);
+
+            // Wait for component to be available
+            if (window.AdminSidebar) {
+                ReactDOM.render(
+                    React.createElement(window.AdminSidebar, props),
+                    document.getElementById('sidebar-root')
+                );
+                console.log('Sidebar rendered successfully');
+            } else {
+                console.log('AdminSidebar not available yet, retrying...');
+                setTimeout(renderSidebar, 100);
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, initializing sidebar...');
+            
+            // Set initial theme
+            const theme = localStorage.getItem('emailpilot-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            
+            // Start rendering
+            renderSidebar();
+        });
+    </script>
+</body>
+</html>

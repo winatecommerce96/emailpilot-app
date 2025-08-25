@@ -1,0 +1,47 @@
+[
+  {
+    "content": "Set up project structure and package.json for Node.js/Express backend",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Create core Fishbowl API service with authentication and rate limiting",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Build data models and TypeScript interfaces for all Fishbowl endpoints",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Implement marketing KPI calculation engine with Klaviyo-comparable metrics",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Create database schema and models for storing processed analytics",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Build API endpoints for frontend dashboard consumption",
+    "status": "completed",
+    "id": "6"
+  },
+  {
+    "content": "Implement background job processing for data refresh with Redis/Bull",
+    "status": "completed",
+    "id": "7"
+  },
+  {
+    "content": "Add comprehensive error handling, logging, and monitoring",
+    "status": "completed",
+    "id": "8"
+  },
+  {
+    "content": "Create sample data transformations and test suite",
+    "status": "completed",
+    "id": "9"
+  }
+]

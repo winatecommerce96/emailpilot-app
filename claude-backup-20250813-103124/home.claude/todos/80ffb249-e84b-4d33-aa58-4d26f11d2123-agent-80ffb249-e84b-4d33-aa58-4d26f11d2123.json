@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Fix 403 errors on OAuth config endpoints",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Move OAuth settings to a tab in the Admin section",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Test OAuth configuration saving functionality",
+    "status": "completed",
+    "id": "3"
+  }
+]

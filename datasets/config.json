@@ -1,0 +1,41 @@
+{
+  "datasets": {
+    "emailpilot-calendar": {
+      "name": "EmailPilot Calendar Test Dataset",
+      "description": "Test cases for the EmailPilot calendar workflow with various brands and campaign scenarios",
+      "file": "emailpilot-calendar.jsonl",
+      "format": "jsonl",
+      "schema": {
+        "input": {
+          "type": "object",
+          "properties": {
+            "messages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {"type": "string"},
+                  "content": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "expected": {
+          "type": "object",
+          "properties": {
+            "brand": {"type": "string"},
+            "month": {"type": "string"},
+            "goals": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "campaign_count": {"type": "integer"}
+          }
+        }
+      },
+      "examples": 10,
+      "version": "1.0.0"
+    }
+  }
+}

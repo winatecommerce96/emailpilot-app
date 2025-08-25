@@ -10,6 +10,7 @@ import logging
 
 # Google Cloud Firestore
 from google.cloud import firestore
+from app.services.client_key_resolver import get_client_key_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,9 @@ router = APIRouter(tags=["MCP Klaviyo Management"])
 
 # Initialize Firestore
 db = firestore.Client(project='emailpilot-438321')
+
+# Get key resolver
+key_resolver = get_client_key_resolver()
 
 class KlaviyoKeyUpdate(BaseModel):
     client_id: str
@@ -161,17 +165,14 @@ async def delete_klaviyo_key(client_id: str, request: Request) -> Dict[str, Any]
         logger.error(f"Error deleting Klaviyo key: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+import httpx
+
 @router.post("/keys/test/{client_id}")
 async def test_klaviyo_connection(client_id: str) -> Dict[str, Any]:
     """Test Klaviyo API connection for a client"""
     try:
-        doc = db.collection('clients').document(client_id).get()
-        
-        if not doc.exists:
-            raise HTTPException(status_code=404, detail="Client not found")
-        
-        data = doc.to_dict()
-        klaviyo_key = data.get("klaviyo_private_key")
+        # Get client Klaviyo key using Secret Manager
+        klaviyo_key = await key_resolver.get_client_klaviyo_key(client_id)
         
         if not klaviyo_key:
             return {
@@ -180,24 +181,34 @@ async def test_klaviyo_connection(client_id: str) -> Dict[str, Any]:
                 "client_id": client_id
             }
         
-        # Here you would actually test the Klaviyo API connection
-        # For now, we'll simulate a successful test
-        import random
-        test_result = random.choice([True, True, True, False])  # 75% success rate for demo
-        
-        if test_result:
+        # Test the Klaviyo API connection
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://a.klaviyo.com/api/v2/campaigns",
+                    params={"api_key": klaviyo_key}
+                )
+                response.raise_for_status() # Raise an exception for 4xx or 5xx status codes
+                
             return {
                 "status": "success",
                 "message": "Klaviyo API connection successful",
                 "client_id": client_id,
-                "response_time_ms": random.randint(100, 500)
+                "response_time_ms": response.elapsed.total_seconds() * 1000
             }
-        else:
+        except httpx.HTTPStatusError as e:
+            return {
+                "status": "error",
+                "message": f"Failed to connect to Klaviyo API: {e.response.status_code} {e.response.reason_phrase}",
+                "client_id": client_id,
+                "error": str(e)
+            }
+        except httpx.RequestError as e:
             return {
                 "status": "error",
                 "message": "Failed to connect to Klaviyo API",
                 "client_id": client_id,
-                "error": "Invalid API key or network error"
+                "error": str(e)
             }
         
     except HTTPException:

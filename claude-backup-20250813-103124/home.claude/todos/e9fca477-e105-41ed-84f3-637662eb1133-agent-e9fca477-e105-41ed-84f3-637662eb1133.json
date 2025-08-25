@@ -1,0 +1,14 @@
+[
+  {
+    "content": "Fix the trash can (delete client) functionality",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Fix the Google Doc authorization dialog not appearing",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  }
+]

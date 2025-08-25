@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Check current Clients implementation in the frontend",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Update frontend Clients component to fetch from Firestore API",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Verify backend API endpoint for clients data",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test live data fetching from Firestore",
+    "status": "in_progress",
+    "id": "4"
+  }
+]

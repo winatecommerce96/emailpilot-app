@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Get detailed campaigns for July 2024 with all metrics",
+    "status": "completed",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Get detailed campaigns for July 2025 with all metrics",
+    "status": "completed",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Get detailed flows for July 2024 with all metrics",
+    "status": "completed",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Get detailed flows for July 2025 with all metrics",
+    "status": "completed",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Calculate engagement rates for all data",
+    "status": "completed",
+    "priority": "medium",
+    "id": "5"
+  },
+  {
+    "content": "Create year-over-year comparison and summary",
+    "status": "in_progress",
+    "priority": "medium",
+    "id": "6"
+  }
+]

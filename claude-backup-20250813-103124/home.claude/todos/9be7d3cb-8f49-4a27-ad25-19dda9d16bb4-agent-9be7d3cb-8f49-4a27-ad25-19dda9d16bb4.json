@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Review proposed admin_clients.py fix",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Install httpx dependency for Klaviyo API calls",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Implement the enhanced admin_clients.py with Secret Manager integration",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test the fixed Client Management functionality",
+    "status": "completed",
+    "id": "4"
+  }
+]

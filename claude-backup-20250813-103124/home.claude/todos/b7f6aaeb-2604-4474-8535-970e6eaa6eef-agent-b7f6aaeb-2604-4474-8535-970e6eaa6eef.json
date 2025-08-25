@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Update app/api/performance.py with the new implementation",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Verify the router is included in main_firestore.py",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Install required dependencies (httpx, google-cloud-firestore)",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test the API endpoints",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Search for all Klaviyo references in the codebase",
+    "status": "completed",
+    "id": "5"
+  }
+]

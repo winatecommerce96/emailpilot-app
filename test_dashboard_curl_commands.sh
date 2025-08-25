@@ -1,4 +1,4 @@
-#\!/bin/bash
+#!/bin/bash
 # EmailPilot Dashboard API Test Suite - Curl Commands
 # Tests all the key endpoints that should work after fixes
 
@@ -8,7 +8,7 @@ set -e
 BASE_URL="${1:-http://localhost:8000}"
 TEST_CLIENT_ID="demo_client_1"
 
-echo "🧪 EmailPilot Dashboard API Testing"
+echo "🦀 EmailPilot Dashboard API Testing"
 echo "Testing against: $BASE_URL"
 echo "Client ID for tests: $TEST_CLIENT_ID"
 echo ""
@@ -42,7 +42,7 @@ test_endpoint() {
     
     # Split response and status code
     status_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | head -n -1)
+    body=$(echo "$response" | sed '$d')
     
     # Check status code
     if [ "$status_code" = "$expected_status" ]; then
@@ -81,6 +81,7 @@ test_endpoint() {
         return 1
     fi
 }
+
 
 echo "🔧 Testing Backend API Endpoints"
 echo "================================"

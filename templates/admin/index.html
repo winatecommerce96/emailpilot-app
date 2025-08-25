@@ -1,0 +1,16 @@
+{% extends "_base.html" %}
+{% set entry_name = 'admin' %}
+{% set active = 'admin' %}
+{% block title %}EmailPilot · Admin{% endblock %}
+{% block content %}
+  <div class="container">
+    <h1>Admin Tools</h1>
+    <ul>
+      <li><a href="/admin/services">Services</a></li>
+      <li><a href="/admin/clients">Client Management</a></li>
+      <li><a href="/admin/logs">Logs</a></li>
+    </ul>
+    <div id="admin-root" style="margin-top:12px;">Loading…</div>
+  </div>
+{% endblock %}
+

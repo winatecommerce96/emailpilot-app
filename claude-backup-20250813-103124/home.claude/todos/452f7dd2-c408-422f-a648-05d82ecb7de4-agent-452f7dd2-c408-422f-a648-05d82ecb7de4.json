@@ -1,0 +1,14 @@
+[
+  {
+    "content": "Add goal management capabilities (edit/create)",
+    "status": "pending",
+    "priority": "medium",
+    "id": "24"
+  },
+  {
+    "content": "Debug calendar components not loading in production",
+    "status": "completed",
+    "priority": "high",
+    "id": "44"
+  }
+]

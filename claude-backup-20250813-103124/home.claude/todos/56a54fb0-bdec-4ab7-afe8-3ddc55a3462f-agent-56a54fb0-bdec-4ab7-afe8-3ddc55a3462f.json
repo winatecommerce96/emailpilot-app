@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Verify main_firestore.py has admin router",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Check if deployment was run",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Deploy the fix to production",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Create Firestore-compatible admin endpoints",
+    "status": "completed",
+    "id": "4"
+  }
+]

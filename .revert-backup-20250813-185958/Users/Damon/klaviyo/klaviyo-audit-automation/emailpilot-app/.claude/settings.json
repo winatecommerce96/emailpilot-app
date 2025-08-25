@@ -1,0 +1,9 @@
+{
+  "model": "gpt-5",
+  "qa_strict": true,
+  "lint": {
+    "python": ["ruff", "mypy --strict"],
+    "javascript": ["tsc --noEmit", "eslint --max-warnings=0"]
+  },
+  "smoke_test_command": "make smoke"
+}

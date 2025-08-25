@@ -48,7 +48,7 @@ echo ""
 
 # Step 3: Test local deployment first
 echo "🧪 Testing local deployment..."
-if curl -s http://127.0.0.1:8000/api/mcp/health > /dev/null 2>&1; then
+if curl -s http://localhost:8000/api/mcp/health > /dev/null 2>&1; then
     echo "✅ Local MCP API is working"
 else
     echo "⚠️  Warning: Local MCP API not responding. Make sure the dev server is running."

@@ -1,0 +1,284 @@
+{
+  "client_id": "first-aid-supplies-online",
+  "month": "2025-03",
+  "firestore_data": {
+    "client": {
+      "created_at": "2025-08-09 11:26:35.840726+00:00",
+      "description": "Medical and first aid supplies",
+      "placed_order_metric_id": "N8Uiwv",
+      "is_active": true,
+      "client_id": "first-aid-supplies-online",
+      "api_key_secret": "projects/emailpilot-438321/secrets/klaviyo-api-first-aid-supplies-online",
+      "updated_at": "2025-08-10 14:40:21.647000+00:00",
+      "name": "First Aid Supplies Online",
+      "active": true,
+      "has_klaviyo_key": true,
+      "goals": {
+        "seasonal_adjustments": {},
+        "calculation_method": "ai_suggested",
+        "trend_direction": "stable",
+        "last_updated": "2025-08-09 11:26:38.323526+00:00",
+        "yoy_growth_rate": 0,
+        "monthly_revenue_goal": 15000,
+        "confidence": "medium",
+        "notes": "Based on recent performance trends"
+      },
+      "affinity_segments": [
+        "Safety Products",
+        "Emergency Prep",
+        "Healthcare Pros"
+      ],
+      "client_slug": "first-aid-supplies-online",
+      "klaviyo_api_key_secret": "klaviyo-api-first-aid-supplies-online",
+      "metric_id": "N8Uiwv",
+      "klaviyo_secret_name": "klaviyo-api-first-aid-supplies-online",
+      "klaviyo_private_key": "pk_2206f367852b8f54c834d3030e69919468"
+    },
+    "campaigns": [],
+    "fetched_at": "2025-08-24T15:14:04.234164"
+  },
+  "client_info": {
+    "created_at": "2025-08-09 11:26:35.840726+00:00",
+    "description": "Medical and first aid supplies",
+    "placed_order_metric_id": "N8Uiwv",
+    "is_active": true,
+    "client_id": "first-aid-supplies-online",
+    "api_key_secret": "projects/emailpilot-438321/secrets/klaviyo-api-first-aid-supplies-online",
+    "updated_at": "2025-08-10 14:40:21.647000+00:00",
+    "name": "First Aid Supplies Online",
+    "active": true,
+    "has_klaviyo_key": true,
+    "goals": {
+      "seasonal_adjustments": {},
+      "calculation_method": "ai_suggested",
+      "trend_direction": "stable",
+      "last_updated": "2025-08-09 11:26:38.323526+00:00",
+      "yoy_growth_rate": 0,
+      "monthly_revenue_goal": 15000,
+      "confidence": "medium",
+      "notes": "Based on recent performance trends"
+    },
+    "affinity_segments": [
+      "Safety Products",
+      "Emergency Prep",
+      "Healthcare Pros"
+    ],
+    "client_slug": "first-aid-supplies-online",
+    "klaviyo_api_key_secret": "klaviyo-api-first-aid-supplies-online",
+    "metric_id": "N8Uiwv",
+    "klaviyo_secret_name": "klaviyo-api-first-aid-supplies-online",
+    "klaviyo_private_key": "pk_2206f367852b8f54c834d3030e69919468"
+  },
+  "campaign_plan": {
+    "brand": "First Aid Supplies Online",
+    "month": "2025-03",
+    "campaigns": [
+      {
+        "date": "2025-03-01",
+        "subject_line": "Kick Off March with Essential First Aid Supplies!",
+        "target_segments": [
+          "New Customers",
+          "General Audience"
+        ],
+        "expected_metrics": {
+          "open_rate": "20%",
+          "click_rate": "5%",
+          "revenue": "$500"
+        }
+      },
+      {
+        "date": "2025-03-05",
+        "subject_line": "Spring into Safety: First Aid Kits for Every Adventure",
+        "target_segments": [
+          "Outdoor Enthusiasts",
+          "Families"
+        ],
+        "expected_metrics": {
+          "open_rate": "22%",
+          "click_rate": "6%",
+          "revenue": "$600"
+        }
+      },
+      {
+        "date": "2025-03-10",
+        "subject_line": "March Madness Sale: 15% Off All First Aid Supplies!",
+        "target_segments": [
+          "Returning Customers"
+        ],
+        "expected_metrics": {
+          "open_rate": "25%",
+          "click_rate": "7%",
+          "revenue": "$800"
+        }
+      },
+      {
+        "date": "2025-03-15",
+        "subject_line": "Are You Prepared? Essential First Aid Tips Inside!",
+        "target_segments": [
+          "General Audience"
+        ],
+        "expected_metrics": {
+          "open_rate": "18%",
+          "click_rate": "4%",
+          "revenue": "$300"
+        }
+      },
+      {
+        "date": "2025-03-20",
+        "subject_line": "First Aid for Pets: Keep Your Furry Friends Safe!",
+        "target_segments": [
+          "Pet Owners"
+        ],
+        "expected_metrics": {
+          "open_rate": "21%",
+          "click_rate": "5%",
+          "revenue": "$400"
+        }
+      },
+      {
+        "date": "2025-03-25",
+        "subject_line": "Last Chance: March Madness Sale Ends Soon!",
+        "target_segments": [
+          "All Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "30%",
+          "click_rate": "10%",
+          "revenue": "$1,000"
+        }
+      },
+      {
+        "date": "2025-03-28",
+        "subject_line": "Spring Cleaning: Refresh Your First Aid Kit!",
+        "target_segments": [
+          "Families",
+          "Homeowners"
+        ],
+        "expected_metrics": {
+          "open_rate": "19%",
+          "click_rate": "5%",
+          "revenue": "$350"
+        }
+      },
+      {
+        "date": "2025-03-30",
+        "subject_line": "Join Our First Aid Webinar: Learn Life-Saving Skills!",
+        "target_segments": [
+          "General Audience",
+          "Health Enthusiasts"
+        ],
+        "expected_metrics": {
+          "open_rate": "23%",
+          "click_rate": "8%",
+          "revenue": "$450"
+        }
+      }
+    ],
+    "generated_by": "ai",
+    "model": "gpt-4o-mini"
+  },
+  "email_templates": [
+    {
+      "campaign_id": "template_2025-03-01",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-05",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-10",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    }
+  ],
+  "send_schedule": {
+    "timezone": "America/New_York",
+    "optimized_times": {
+      "monday": "10:00",
+      "tuesday": "14:00",
+      "wednesday": "11:00",
+      "thursday": "15:00",
+      "friday": "09:00",
+      "saturday": "12:00",
+      "sunday": "18:00"
+    },
+    "frequency_cap": 3,
+    "quiet_hours": {
+      "start": "21:00",
+      "end": "08:00"
+    },
+    "recommendations": [
+      "Send promotional emails on Tuesday/Thursday",
+      "Newsletter works best on Wednesday morning",
+      "Avoid Mondays for sales campaigns"
+    ]
+  },
+  "timestamp": "2025-08-24T15:14:03.197758",
+  "errors": [
+    "No Klaviyo data available"
+  ],
+  "status": "completed"
+}

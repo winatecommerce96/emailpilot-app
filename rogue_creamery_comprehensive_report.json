@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-08-20T16:10:50.104504",
+  "client": "Rogue Creamery",
+  "period": "Last 7 Days",
+  "revenue_data": {
+    "campaign_total": 10351.66,
+    "flow_total": 3787.17,
+    "total": 14138.83,
+    "total_orders": 105,
+    "metric_id": "TPWsCU",
+    "timeframe": "last_7_days",
+    "client_id": "rogue-creamery"
+  },
+  "ai_analysis": "\nPERFORMANCE ASSESSMENT: Good\n\nRogue Creamery generated $14,138.83 in email-attributed revenue over 7 days.\n\nKEY INSIGHTS:\n\u2022 Campaigns (73%) are driving majority of revenue - strong promotional performance\n\u2022 Flow automation (27%) has optimization potential\n\u2022 Average order value of $134.66 indicates healthy basket size\n\nTOP 3 ACTION ITEMS:\n1. Optimize abandoned cart flow to increase automation revenue\n2. Test holiday cheese gift bundle campaigns\n3. Implement post-purchase upsell flow for cheese accessories\n",
+  "test_results": {
+    "direct_api": "\u2705 Success",
+    "firestore": "\u274c Failed",
+    "ai_analysis": "\u2705 Success"
+  },
+  "status": "SUCCESS"
+}

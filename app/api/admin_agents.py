@@ -33,7 +33,7 @@ def get_current_user_from_session(request: Request):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
-@router.get("/agents/config")
+@router.get("/config")
 async def get_agent_configuration(request: Request):
     """Get current agent configuration and instructions"""
     user = get_current_user_from_session(request)
@@ -61,7 +61,7 @@ async def get_agent_configuration(request: Request):
         logger.error(f"Error loading agent configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/agents/config")
+@router.post("/config")
 async def update_agent_configuration(request: Request, config_data: Dict[str, Any]):
     """Update agent configuration and instructions"""
     user = get_current_user_from_session(request)
@@ -94,7 +94,49 @@ async def update_agent_configuration(request: Request, config_data: Dict[str, An
         logger.error(f"Error updating agent configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/agents/instructions/{agent_name}")
+@router.post("/agents")
+async def add_agent(request: Request, agent_data: Dict[str, Any]):
+    """Add a new agent"""
+    user = get_current_user_from_session(request)
+    
+    try:
+        agent_name = agent_data.get("name")
+        instructions = agent_data.get("instructions")
+        
+        if not agent_name or not instructions:
+            raise HTTPException(status_code=400, detail="Agent name and instructions are required")
+        
+        # Load current custom configuration
+        if CUSTOM_INSTRUCTIONS_FILE.exists():
+            with open(CUSTOM_INSTRUCTIONS_FILE, 'r') as f:
+                config = json.load(f)
+        else:
+            config = {"agents": {}}
+        
+        # Add new agent
+        if "agents" not in config:
+            config["agents"] = {}
+        
+        config["agents"][agent_name] = instructions
+        config["last_updated"] = datetime.now().isoformat()
+        config["updated_by"] = user.get("email")
+        
+        # Save updated configuration
+        with open(CUSTOM_INSTRUCTIONS_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        logger.info(f"New agent '{agent_name}' added by {user.get('email')}")
+        
+        return {
+            "status": "success",
+            "agent_name": agent_name,
+            "message": f"Agent '{agent_name}' added successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error adding agent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/instructions/{agent_name}")
 async def get_agent_instructions(request: Request, agent_name: str):
     """Get instructions for a specific agent"""
     user = get_current_user_from_session(request)
@@ -127,7 +169,7 @@ async def get_agent_instructions(request: Request, agent_name: str):
         logger.error(f"Error loading agent instructions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/agents/instructions/{agent_name}")
+@router.put("/instructions/{agent_name}")
 async def update_agent_instructions(
     request: Request, 
     agent_name: str, 
@@ -172,7 +214,7 @@ async def update_agent_instructions(
         logger.error(f"Error updating agent instructions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/agents/test")
+@router.post("/test")
 async def test_agent_configuration(request: Request, test_data: Dict[str, Any]):
     """Test agent configuration with sample data"""
     user = get_current_user_from_session(request)
@@ -214,7 +256,7 @@ async def test_agent_configuration(request: Request, test_data: Dict[str, Any]):
         logger.error(f"Error testing agent configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/agents/performance")
+@router.get("/performance")
 async def get_agent_performance_metrics(request: Request):
     """Get performance metrics for agents"""
     user = get_current_user_from_session(request)
@@ -264,7 +306,7 @@ async def get_agent_performance_metrics(request: Request):
         logger.error(f"Error loading performance metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/agents/templates")
+@router.get("/templates")
 async def get_instruction_templates(request: Request):
     """Get instruction templates for different campaign types"""
     user = get_current_user_from_session(request)
@@ -322,7 +364,7 @@ async def get_instruction_templates(request: Request):
     
     return templates
 
-@router.post("/agents/templates/apply")
+@router.post("/templates/apply")
 async def apply_instruction_template(
     request: Request,
     template_data: Dict[str, Any]
@@ -377,7 +419,7 @@ async def apply_instruction_template(
         logger.error(f"Error applying template: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/agents/reset")
+@router.post("/reset")
 async def reset_to_default_instructions(request: Request):
     """Reset all agent instructions to default"""
     user = get_current_user_from_session(request)

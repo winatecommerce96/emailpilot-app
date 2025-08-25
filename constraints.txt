@@ -1,0 +1,21 @@
+# LangChain/LangGraph dependency constraints
+# These versions are known to work together without conflicts
+langchain==0.3.14
+langgraph==0.2.55
+langchain-core==0.3.28
+langchain-openai==0.2.10
+langchain-anthropic==0.3.6
+langchain-google-genai==2.0.7
+langchain-community==0.3.14
+httpx==0.28.1
+pydantic==2.11.7
+pydantic-settings==2.10.1
+google-cloud-firestore==2.21.0
+google-cloud-secret-manager==2.16.0
+tenacity==8.3.0
+tiktoken==0.7.0
+faiss-cpu==1.8.0.post1
+sentence-transformers==2.7.0
+numpy==1.26.4
+typer==0.15.1
+rich==13.9.4

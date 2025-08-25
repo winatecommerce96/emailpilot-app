@@ -1,4 +1,4 @@
-#\!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Comprehensive test script for EmailPilot Dashboard fixes verification
 Tests all backend API endpoints and provides frontend integration checks

@@ -1,13 +1,9 @@
 #!/bin/bash
 
-# Initialize database with Alembic
-echo "Initializing database..."
-python -c "
-from app.core.database import Base, engine
-Base.metadata.create_all(bind=engine)
-print('Database tables created successfully')
-"
+export PYTHONPATH=.
+export LITELLM_MASTER_KEY="$(openssl rand -hex 16)"
+export ANTHROPIC_API_KEY="YOUR_ANTHROPIC_API_KEY_HERE"
 
 # Start the application
 echo "Starting EmailPilot API..."
-uvicorn main:app --host 0.0.0.0 --port 8080
+uvicorn main_firestore:app --host 0.0.0.0 --port 8000

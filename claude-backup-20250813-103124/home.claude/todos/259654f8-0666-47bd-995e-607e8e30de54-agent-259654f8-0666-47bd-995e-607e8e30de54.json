@@ -1,0 +1,32 @@
+[
+  {
+    "content": "Review current secret manager implementation",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Update app/services/secret_manager.py with strict remote-only implementation",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Update app/services/firestore.py with Firestore client builder",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Update app/core/config.py to use remote-only secrets",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Create test scripts for secret loading and Firestore connectivity",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Verify implementation with local testing",
+    "status": "completed",
+    "id": "6"
+  }
+]

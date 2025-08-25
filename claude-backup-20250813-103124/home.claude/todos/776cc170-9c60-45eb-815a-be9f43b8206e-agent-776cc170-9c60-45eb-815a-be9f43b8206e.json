@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Test live EmailPilot.ai API endpoints",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Check frontend JavaScript console errors",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Verify authentication flow is working",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Fix data retrieval and display issues",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Deploy to correct Cloud Run service (emailpilot-api)",
+    "status": "completed",
+    "id": "5"
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix google-cloud-storage conflict (need <3.0.0dev, have 3.2.0)",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Fix anyio conflict (need >=4.5, have 3.7.1)",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Fix python-multipart conflict (need >=0.0.9, have 0.0.6)",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Try to find a compatible set of versions for all packages",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Verify all packages work correctly after fixes",
+    "status": "completed",
+    "id": "5"
+  }
+]

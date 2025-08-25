@@ -1,0 +1,207 @@
+{
+  "name": "emailpilot-calendar",
+  "description": "Test dataset for emailpilot-calendar workflow",
+  "examples": [
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Create a March 2025 campaign calendar for FashionBrand focusing on spring collection launch"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "FashionBrand",
+        "month": "March 2025",
+        "goals": [
+          "Launch spring collection",
+          "Drive seasonal sales"
+        ],
+        "campaign_count": 12
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Plan email campaigns for TechStartup in April 2025 to promote new product features"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "TechStartup",
+        "month": "April 2025",
+        "goals": [
+          "Promote new features",
+          "Increase user engagement"
+        ],
+        "campaign_count": 10
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Design a Mother's Day campaign strategy for JewelryStore in May 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "JewelryStore",
+        "month": "May 2025",
+        "goals": [
+          "Mother's Day promotion",
+          "Increase gift sales"
+        ],
+        "campaign_count": 15
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Create summer sale calendar for OutdoorGear in June 2025 with focus on camping equipment"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "OutdoorGear",
+        "month": "June 2025",
+        "goals": [
+          "Summer sale",
+          "Clear inventory",
+          "Promote camping gear"
+        ],
+        "campaign_count": 14
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Plan back-to-school campaigns for OfficeSupplies in August 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "OfficeSupplies",
+        "month": "August 2025",
+        "goals": [
+          "Back-to-school promotion",
+          "Target students and parents"
+        ],
+        "campaign_count": 16
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Create Black Friday and Cyber Monday strategy for ElectronicsHub in November 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "ElectronicsHub",
+        "month": "November 2025",
+        "goals": [
+          "Black Friday sales",
+          "Cyber Monday deals",
+          "Q4 revenue boost"
+        ],
+        "campaign_count": 20
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Design holiday gift guide campaigns for HomeDecor in December 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "HomeDecor",
+        "month": "December 2025",
+        "goals": [
+          "Holiday gift guides",
+          "Year-end clearance",
+          "Customer appreciation"
+        ],
+        "campaign_count": 18
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Plan Valentine's Day email series for ChocolateShop in February 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "ChocolateShop",
+        "month": "February 2025",
+        "goals": [
+          "Valentine's Day sales",
+          "Gift promotions",
+          "Loyalty rewards"
+        ],
+        "campaign_count": 12
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Create a product launch calendar for BeautyBrand's new skincare line in January 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "BeautyBrand",
+        "month": "January 2025",
+        "goals": [
+          "New product launch",
+          "Build awareness",
+          "Drive pre-orders"
+        ],
+        "campaign_count": 10
+      }
+    },
+    {
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Design a customer re-engagement campaign for FitnessClub in September 2025"
+          }
+        ]
+      },
+      "expected": {
+        "brand": "FitnessClub",
+        "month": "September 2025",
+        "goals": [
+          "Re-engage inactive members",
+          "Promote fall classes",
+          "Membership renewal"
+        ],
+        "campaign_count": 8
+      }
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "created_at": "2025-08-22",
+    "num_examples": 10
+  }
+}

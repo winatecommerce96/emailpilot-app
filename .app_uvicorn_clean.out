@@ -1,0 +1,285 @@
+INFO:app.deps.firestore:Using Firestore credentials from Secret Manager
+INFO:firebase_calendar_integration:Firebase initialized for project: emailpilot-438321
+INFO:main_firestore:LangChain admin API available
+INFO:main_firestore:Service OAuth module available (Asana/Klaviyo)
+INFO:main_firestore:✅ Klaviyo OAuth integration module loaded successfully
+INFO:main_firestore:Agent routers not available (optional feature)
+INFO:main_firestore:✅ Calendar Orchestrator router loaded successfully
+INFO:main_firestore:✅ MCP Direct Klaviyo API integration enabled
+INFO:main_firestore:✅ LangChain Natural Language interface for Klaviyo enabled
+WARNING:main_firestore:LangChain Debug interface not available: expected an indented block after 'if' statement on line 337 (langchain_debug.py, line 338)
+INFO:main_firestore:✅ Klaviyo Feedback and Validation system enabled
+INFO:main_firestore:✅ Image proxy router enabled for CORS-safe avatar loading
+INFO:main_firestore:✅ Authentication enabled with Google OAuth, Email/Password, and Guest access
+INFO:main_firestore:🔗 Auth compatibility shim enabled under /api/auth
+INFO:main_firestore:✅ Service integrations enabled (Asana/Klaviyo OAuth)
+INFO:main_firestore:✅ Klaviyo OAuth integration enabled with auto-client creation at /api/integrations/klaviyo
+INFO:main_firestore:✅ Unified Agents router enabled - Single Source of Truth for all agents
+INFO:main_firestore:✅ LangChain enabled - Primary AI interface
+INFO:main_firestore:✅ LangChain Orchestration API enabled - Variable discovery & MCP coordination
+INFO:main_firestore:✅ Agent Configuration router enabled
+INFO:main_firestore:✅ External Tools router enabled
+INFO:     Started server process [24531]
+INFO:     Waiting for application startup.
+INFO:main_firestore:🚀 Starting up with Google Cloud Project ID: emailpilot-438321
+INFO:main_firestore:✅ Secret Manager health check passed (test secret not found as expected).
+INFO:main_firestore:✅ Firestore health check passed
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://localhost:8000 (Press CTRL+C to quit)
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50729 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:50730 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:50731 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50731 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:50730 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50729 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:     ::1:50732 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50732 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50729 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50732 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50803 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:50805 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:50807 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50811 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:50803 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:50805 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:     ::1:50807 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50805 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50805 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50805 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50838 - "GET /static/standalone-calendar/index.html HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50839 - "GET /static/standalone-calendar/lite.css HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:main_firestore:DEV_TELEMETRY: asset_404 path=/static/dist/StandaloneCalendar.js status=404
+INFO:     ::1:50840 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:     ::1:50844 - "GET /static/standalone-calendar/index.html HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:     ::1:50844 - "GET /static/standalone-calendar/lite.css HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:main_firestore:DEV_TELEMETRY: asset_404 path=/static/dist/StandaloneCalendar.js status=404
+INFO:     ::1:50844 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50893 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:50894 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:50895 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:     ::1:50895 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:50894 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50893 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50899 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:     ::1:50899 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50899 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50899 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50934 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50935 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50936 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:50934 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:     ::1:50939 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50935 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:     ::1:50940 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:50934 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50934 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50934 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:50988 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:50989 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:50991 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:     ::1:50989 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50991 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:50988 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:     ::1:50994 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:     ::1:50994 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50994 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:50994 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:main_firestore:DEV_TELEMETRY: asset_404 path=/static/dist/StandaloneCalendar.js status=404
+INFO:     ::1:51020 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:     ::1:51026 - "GET /static/standalone-calendar/index.html HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:     ::1:51026 - "GET /static/standalone-calendar/lite.css HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:main_firestore:DEV_TELEMETRY: asset_404 path=/static/dist/StandaloneCalendar.js status=404
+INFO:     ::1:51027 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:     ::1:51027 - "GET /static/standalone-calendar/index.html HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:main_firestore:DEV_TELEMETRY: asset_404 path=/static/dist/StandaloneCalendar.js status=404
+INFO:     ::1:51027 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:51063 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:51064 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:51065 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:51069 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:51063 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:51065 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:51065 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:     ::1:51063 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:51063 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:51063 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:51127 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:51129 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:51130 - "GET /health HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:51127 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:     ::1:51129 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:     ::1:51130 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:     ::1:51131 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:51129 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:51129 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:51129 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:51170 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:51185 - "GET /static/standalone-calendar/index.html HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:     ::1:51185 - "GET /static/standalone-calendar/lite.css HTTP/1.1" 304 Not Modified
+INFO:app.middleware.security:request
+INFO:     ::1:51186 - "GET /static/dist/StandaloneCalendar.js HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:     ::1:51186 - "POST /api/admin/langchain/mcp/servers/klaviyo_revenue/health HTTP/1.1" 404 Not Found
+INFO:     ::1:51185 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:51195 - "GET /health HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:app.middleware.security:request
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:     ::1:51186 - "POST /api/admin/langchain/mcp/servers/performance_api/health HTTP/1.1" 404 Not Found
+INFO:app.middleware.security:request
+INFO:     ::1:51185 - "GET /api/admin/langchain/runs HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:51198 - "GET /health HTTP/1.1" 200 OK
+INFO:     ::1:51195 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.middleware.security:request
+INFO:     ::1:51186 - "POST /api/admin/langchain/mcp/servers/multi_agent/health HTTP/1.1" 404 Not Found
+INFO:httpx:HTTP Request: GET http://127.0.0.1:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: OPTIONS http://127.0.0.1:9090/clients/test/revenue/last7 "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:51186 - "GET /api/admin/klaviyo/status HTTP/1.1" 200 OK
+INFO:app.api.mcp_chat_direct:Returning direct Klaviyo API tools
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET http://localhost:9090/healthz "HTTP/1.1 200 OK"
+INFO:app.middleware.security:request
+INFO:     ::1:51186 - "GET /api/mcp/tools HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [24531]

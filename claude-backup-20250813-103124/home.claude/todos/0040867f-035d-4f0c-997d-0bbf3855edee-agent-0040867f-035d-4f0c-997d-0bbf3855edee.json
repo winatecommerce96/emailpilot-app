@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Test connection to Colorado Hemp Honey Klaviyo account",
+    "status": "in_progress",
+    "priority": "high",
+    "id": "1"
+  },
+  {
+    "content": "Get the 'Placed Order' metric ID from metrics list",
+    "status": "pending",
+    "priority": "high",
+    "id": "2"
+  },
+  {
+    "content": "Get total revenue for July 2024 using metric-aggregates",
+    "status": "pending",
+    "priority": "high",
+    "id": "3"
+  },
+  {
+    "content": "Get total revenue for July 2025 using metric-aggregates",
+    "status": "pending",
+    "priority": "high",
+    "id": "4"
+  },
+  {
+    "content": "Get campaign performance summary for both periods",
+    "status": "pending",
+    "priority": "medium",
+    "id": "5"
+  },
+  {
+    "content": "Get flow performance summary for both periods",
+    "status": "pending",
+    "priority": "medium",
+    "id": "6"
+  }
+]

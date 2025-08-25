@@ -1,0 +1,253 @@
+{
+  "client_id": "test-fashion-001",
+  "month": "2025-03",
+  "klaviyo_metrics": {
+    "campaigns": [
+      {
+        "id": "camp_001_test-fashion-001",
+        "name": "Spring Sale - 2025-03",
+        "status": "sent",
+        "sent_at": "2025-03-15T10:00:00Z",
+        "stats": {
+          "open_rate": 0.25,
+          "click_rate": 0.05,
+          "revenue": 15000
+        }
+      },
+      {
+        "id": "camp_002_test-fashion-001",
+        "name": "New Arrivals - 2025-03",
+        "status": "scheduled",
+        "scheduled_for": "2025-03-20T14:00:00Z",
+        "stats": {}
+      }
+    ],
+    "segments": [
+      {
+        "id": "seg_vip",
+        "name": "VIP Customers",
+        "size": 1200
+      },
+      {
+        "id": "seg_new",
+        "name": "New Subscribers",
+        "size": 450
+      },
+      {
+        "id": "seg_inactive",
+        "name": "Inactive",
+        "size": 300
+      }
+    ],
+    "metrics": {
+      "total_revenue": 45000,
+      "avg_open_rate": 0.23,
+      "avg_click_rate": 0.04,
+      "total_sent": 25000
+    },
+    "mock_data": true
+  },
+  "campaign_plan": {
+    "brand": "test-fashion-001",
+    "month": "2025-03",
+    "campaigns": [
+      {
+        "date": "2025-03-01",
+        "subject_line": "Spring Collection Launch - Be the First to Shop!",
+        "target_segments": [
+          "VIP Customers"
+        ],
+        "expected_metrics": {
+          "open_rate": "25%",
+          "revenue": "$10,000"
+        }
+      },
+      {
+        "date": "2025-03-05",
+        "subject_line": "Welcome to Our Fashion Family - Exclusive Offer Inside!",
+        "target_segments": [
+          "New Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "30%",
+          "revenue": "$5,000"
+        }
+      },
+      {
+        "date": "2025-03-10",
+        "subject_line": "Last Chance: Spring Sale Ends Soon!",
+        "target_segments": [
+          "VIP Customers",
+          "Inactive"
+        ],
+        "expected_metrics": {
+          "open_rate": "28%",
+          "revenue": "$8,000"
+        }
+      },
+      {
+        "date": "2025-03-12",
+        "subject_line": "New Arrivals Just for You!",
+        "target_segments": [
+          "New Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "32%",
+          "revenue": "$4,000"
+        }
+      },
+      {
+        "date": "2025-03-15",
+        "subject_line": "Exclusive VIP Access: Shop Our Bestsellers!",
+        "target_segments": [
+          "VIP Customers"
+        ],
+        "expected_metrics": {
+          "open_rate": "27%",
+          "revenue": "$6,000"
+        }
+      },
+      {
+        "date": "2025-03-20",
+        "subject_line": "Spring Fashion Trends You Can't Miss!",
+        "target_segments": [
+          "Inactive"
+        ],
+        "expected_metrics": {
+          "open_rate": "22%",
+          "revenue": "$3,000"
+        }
+      },
+      {
+        "date": "2025-03-25",
+        "subject_line": "Flash Sale: 24 Hours Only!",
+        "target_segments": [
+          "VIP Customers",
+          "New Subscribers"
+        ],
+        "expected_metrics": {
+          "open_rate": "29%",
+          "revenue": "$7,000"
+        }
+      },
+      {
+        "date": "2025-03-30",
+        "subject_line": "Thank You for Being with Us - Special Gift Inside!",
+        "target_segments": [
+          "VIP Customers",
+          "Inactive"
+        ],
+        "expected_metrics": {
+          "open_rate": "24%",
+          "revenue": "$5,000"
+        }
+      }
+    ],
+    "generated_by": "ai",
+    "model": "gpt-4o-mini"
+  },
+  "email_templates": [
+    {
+      "campaign_id": "template_2025-03-01",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-05",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    },
+    {
+      "campaign_id": "template_2025-03-10",
+      "subject": null,
+      "preview_text": "Don't miss out on None",
+      "body_sections": [
+        {
+          "type": "header",
+          "content": null
+        },
+        {
+          "type": "hero_image",
+          "alt": "Campaign Hero"
+        },
+        {
+          "type": "text",
+          "content": "Lorem ipsum content..."
+        },
+        {
+          "type": "cta",
+          "text": "Shop Now",
+          "url": "https://example.com"
+        }
+      ],
+      "segment": null
+    }
+  ],
+  "send_schedule": {
+    "timezone": "America/New_York",
+    "optimized_times": {
+      "monday": "10:00",
+      "tuesday": "14:00",
+      "wednesday": "11:00",
+      "thursday": "15:00",
+      "friday": "09:00",
+      "saturday": "12:00",
+      "sunday": "18:00"
+    },
+    "frequency_cap": 3,
+    "quiet_hours": {
+      "start": "21:00",
+      "end": "08:00"
+    },
+    "recommendations": [
+      "Send promotional emails on Tuesday/Thursday",
+      "Newsletter works best on Wednesday morning",
+      "Avoid Mondays for sales campaigns"
+    ]
+  },
+  "timestamp": "2025-08-24T14:10:40.147466",
+  "errors": [
+    "Client test-fashion-001 not found"
+  ],
+  "status": "completed"
+}

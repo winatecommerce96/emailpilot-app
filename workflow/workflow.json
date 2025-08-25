@@ -1,0 +1,119 @@
+{
+  "name": "emailpilot_calendar",
+  "metadata": {
+    "version": "0.2.0",
+    "description": "Email/SMS calendar builder with LCEL pipelines and LangGraph orchestration",
+    "author": "EmailPilot Team",
+    "created": "2025-01-22",
+    "updated": "2025-01-22",
+    "tags": ["calendar", "planning", "langchain", "langgraph", "lcel"]
+  },
+  "state": {
+    "brand": "str",
+    "month": "str",
+    "inputs": "Dict[str, Any]",
+    "candidates": "List[Dict[str, Any]]",
+    "calendar": "Dict[str, Any]",
+    "valid": "bool",
+    "approvals": "Dict[str, Any]",
+    "errors": "List[str]",
+    "run_id": "str",
+    "user_id": "Optional[str]",
+    "cache_enabled": "bool"
+  },
+  "nodes": [
+    {
+      "id": "ingest",
+      "type": "python_fn",
+      "impl": "nodes.ingest:run",
+      "params": {
+        "timeout": 30,
+        "retries": 2,
+        "validation": "strict"
+      }
+    },
+    {
+      "id": "generate",
+      "type": "agent",
+      "impl": "agents.calendar_planner:create",
+      "params": {
+        "tool_allowlist": [
+          "tools.klaviyo_campaigns",
+          "tools.klaviyo_segments",
+          "tools.firestore_ro",
+          "tools.calculate",
+          "tools.generate_campaign_ideas"
+        ],
+        "max_tool_calls": 20,
+        "timeout": 120,
+        "model": "gpt-4-turbo-preview",
+        "temperature": 0.7
+      }
+    },
+    {
+      "id": "validate",
+      "type": "python_fn",
+      "impl": "pipelines.rules:validate_pipeline",
+      "params": {
+        "rules": {
+          "min_campaigns": 20,
+          "min_sms": 4,
+          "max_weekly_sends": 2,
+          "revenue_distribution": {
+            "two_segments": {"primary": 70, "secondary": 30},
+            "three_segments": {"primary": 70, "secondary": 15, "tertiary": 15}
+          }
+        },
+        "strict": true
+      }
+    },
+    {
+      "id": "review",
+      "type": "human_gate",
+      "impl": "nodes.human_review:run",
+      "params": {
+        "preview_format": "json",
+        "timeout": 3600,
+        "notification": "slack"
+      }
+    },
+    {
+      "id": "publish",
+      "type": "python_fn",
+      "impl": "nodes.publish:run",
+      "params": {
+        "target": "firestore",
+        "collection": "calendars",
+        "backup": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "ingest",
+      "to": "generate"
+    },
+    {
+      "from": "generate",
+      "to": "validate"
+    },
+    {
+      "from": "validate",
+      "to": "review",
+      "condition": "state.get('valid', False)"
+    },
+    {
+      "from": "validate",
+      "to": "generate",
+      "condition": "not state.get('valid', False)"
+    },
+    {
+      "from": "review",
+      "to": "publish"
+    }
+  ],
+  "checkpointer": {
+    "type": "sqlite",
+    "dsn": "sqlite:///emailpilot_workflow.db"
+  }
+}

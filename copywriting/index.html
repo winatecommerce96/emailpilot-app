@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmailPilot - Copywriting Module</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        .variant-section {
+            transition: all 0.3s ease;
+        }
+        .variant-section.expanded {
+            background-color: #F0F9FF;
+            border-color: #3B82F6;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3B82F6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chat-message {
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .grade-badge {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .full-body-copy {
+            white-space: pre-wrap;
+            font-family: Georgia, serif;
+            line-height: 1.6;
+        }
+        .editable-section {
+            border: 2px dashed transparent;
+            padding: 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .editable-section:hover {
+            border-color: #CBD5E1;
+            background-color: #F8FAFC;
+        }
+        .editable-section:focus {
+            outline: none;
+            border-color: #3B82F6;
+            background-color: #EFF6FF;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        const CopywritingApp = () => {
+            const [isDialogOpen, setIsDialogOpen] = useState(false);
+            const [briefContent, setBriefContent] = useState('');
+            const [originalBrief, setOriginalBrief] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [variants, setVariants] = useState([]);
+            const [expandedVariant, setExpandedVariant] = useState(null);
+            const [selectedClientId, setSelectedClientId] = useState('');
+            const [clientName, setClientName] = useState('');
+            const [clients, setClients] = useState([]);
+            const [isLoadingClients, setIsLoadingClients] = useState(false);
+            const [agents, setAgents] = useState([]);
+            const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+            const [selectedAgents, setSelectedAgents] = useState([]);
+            const [models, setModels] = useState([]);
+            const [selectedModel, setSelectedModel] = useState('');
+            const [isLoadingModels, setIsLoadingModels] = useState(false);
+            const [modelExecutionStatus, setModelExecutionStatus] = useState('');
+            const [modelError, setModelError] = useState(null);
+            
+            // Review state
+            const [reviewData, setReviewData] = useState(null);
+            const [isReviewing, setIsReviewing] = useState(false);
+            
+            // Chat state
+            const [chatMessages, setChatMessages] = useState([]);
+            const [chatInput, setChatInput] = useState('');
+            const [isChatting, setIsChatting] = useState(false);
+            const chatEndRef = useRef(null);
+            
+            // Refinement Assistant state
+            const [refinementInput, setRefinementInput] = useState('');
+            const [isRefining, setIsRefining] = useState(false);
+            const [refinementHistory, setRefinementHistory] = useState({});
+            const [originalVariants, setOriginalVariants] = useState({});
+            const [serviceHealthy, setServiceHealthy] = useState(true);
+            const [checkingHealth, setCheckingHealth] = useState(false);
+            
+            // Prompt editing state
+            const [editingAgentId, setEditingAgentId] = useState(null);
+            const [editingPrompt, setEditingPrompt] = useState('');
+            const [agentPrompts, setAgentPrompts] = useState({});
+            const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
+            const [savingPrompt, setSavingPrompt] = useState(false);
+
+            // Service health check and auto-start
+            const ensureModelsService = async () => {
+                setCheckingHealth(true);
+                try {
+                    // Check health
+                    const healthResponse = await fetch('http://localhost:8002/health');
+                    const health = await healthResponse.json();
+                    
+                    if (health.ok) {
+                        setServiceHealthy(true);
+                        return true;
+                    }
+                    
+                    // Try to start service
+                    await fetch('http://localhost:8002/start', { method: 'POST' });
+                    
+                    // Poll for health with exponential backoff
+                    for (let i = 0; i < 5; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+                        const retryResponse = await fetch('http://localhost:8002/health');
+                        const retryHealth = await retryResponse.json();
+                        
+                        if (retryHealth.ok) {
+                            setServiceHealthy(true);
+                            return true;
+                        }
+                    }
+                    
+                    throw new Error('AI Model Selection service unavailable');
+                } catch (error) {
+                    console.error('Service health check failed:', error);
+                    setServiceHealthy(false);
+                    alert('AI Model Selection service is unavailable. Please try again in a moment.');
+                    return false;
+                } finally {
+                    setCheckingHealth(false);
+                }
+            };
+
+            // Open dialog with health check
+            const handleOpenDialog = async () => {
+                const healthy = await ensureModelsService();
+                if (healthy) {
+                    setIsDialogOpen(true);
+                }
+            };
+
+            // Fetch clients, agents, and models when dialog opens
+            useEffect(() => {
+                if (isDialogOpen) {
+                    if (clients.length === 0) fetchClients();
+                    if (agents.length === 0) fetchAgents();
+                    if (models.length === 0) fetchModels();
+                }
+            }, [isDialogOpen]);
+
+            // Scroll to bottom of chat
+            useEffect(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [chatMessages]);
+
+            const fetchClients = async () => {
+                setIsLoadingClients(true);
+                try {
+                    const response = await fetch('http://localhost:8002/api/clients');
+                    if (response.ok) {
+                        const data = await response.json();
+                        setClients(data.clients || []);
+                    }
+                } catch (error) {
+                    console.error('Error fetching clients:', error);
+                } finally {
+                    setIsLoadingClients(false);
+                }
+            };
+
+            const fetchAgents = async () => {
+                setIsLoadingAgents(true);
+                try {
+                    const response = await fetch('http://localhost:8002/api/agents');
+                    if (response.ok) {
+                        const data = await response.json();
+                        setAgents(data.agents || []);
+                    }
+                } catch (error) {
+                    console.error('Error fetching agents:', error);
+                } finally {
+                    setIsLoadingAgents(false);
+                }
+            };
+
+            const fetchModels = async () => {
+                setIsLoadingModels(true);
+                setModelError(null);
+                try {
+                    const response = await fetch('http://localhost:8002/api/models');
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Check if we have an error message from backend
+                        if (data.error) {
+                            setModelError(data.message || "Unable to fetch models at this time. Try again later.");
+                            setModels([]);
+                        } else {
+                            setModels(data.models || []);
+                            
+                            // Check for persisted model in sessionStorage
+                            const persistedModel = sessionStorage.getItem('selectedModel');
+                            if (persistedModel && data.models?.some(m => m.id === persistedModel)) {
+                                setSelectedModel(persistedModel);
+                            } else {
+                                // Set default model if no persisted model
+                                const defaultModel = data.models?.find(m => m.default);
+                                if (defaultModel) {
+                                    setSelectedModel(defaultModel.id);
+                                    sessionStorage.setItem('selectedModel', defaultModel.id);
+                                }
+                            }
+                        }
+                    } else {
+                        console.error('Failed to fetch models:', response.status);
+                        setModelError("Unable to fetch models at this time. Try again later.");
+                        setModels([]);
+                    }
+                } catch (error) {
+                    console.error('Error fetching models:', error);
+                    setModelError("Unable to fetch models at this time. Try again later.");
+                    setModels([]);
+                } finally {
+                    setIsLoadingModels(false);
+                }
+            };
+
+            const toggleAgentSelection = (agentId) => {
+                setSelectedAgents(prev => {
+                    if (prev.includes(agentId)) {
+                        return prev.filter(id => id !== agentId);
+                    } else {
+                        return [...prev, agentId];
+                    }
+                });
+            };
+            
+            // Prompt editing functions
+            const handleEditPrompt = async (agentId, e) => {
+                e.stopPropagation(); // Prevent agent selection toggle
+                
+                const agent = agents.find(a => a.id === agentId);
+                if (!agent) return;
+                
+                setEditingAgentId(agentId);
+                
+                // Try to load existing prompt from backend or use cached
+                if (agentPrompts[agentId]) {
+                    setEditingPrompt(agentPrompts[agentId]);
+                } else {
+                    // Fetch agent prompt from backend
+                    try {
+                        const response = await fetch(`http://localhost:8002/api/agents/${agentId}/prompt`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            setEditingPrompt(data.prompt || agent.prompt_template || '');
+                        } else {
+                            // Use default prompt template
+                            setEditingPrompt(agent.prompt_template || 
+                                `You are ${agent.name}. ${agent.description || ''}\n\nYour role: ${agent.role || 'AI Assistant'}\n\n{user_input}`);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching prompt:', error);
+                        setEditingPrompt(agent.prompt_template || '');
+                    }
+                }
+                
+                setIsPromptEditorOpen(true);
+            };
+            
+            const handleSavePrompt = async () => {
+                if (!editingAgentId) return;
+                
+                setSavingPrompt(true);
+                try {
+                    // Save to backend
+                    const response = await fetch(`http://localhost:8002/api/agents/${editingAgentId}/prompt`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt: editingPrompt })
+                    });
+                    
+                    if (response.ok) {
+                        // Cache the prompt locally
+                        setAgentPrompts(prev => ({
+                            ...prev,
+                            [editingAgentId]: editingPrompt
+                        }));
+                        
+                        // Show success feedback
+                        const agent = agents.find(a => a.id === editingAgentId);
+                        console.log(`✅ Prompt updated for ${agent?.name || editingAgentId}`);
+                    } else {
+                        // Fallback: just cache locally
+                        setAgentPrompts(prev => ({
+                            ...prev,
+                            [editingAgentId]: editingPrompt
+                        }));
+                    }
+                    
+                    setIsPromptEditorOpen(false);
+                    setEditingAgentId(null);
+                    setEditingPrompt('');
+                } catch (error) {
+                    console.error('Error saving prompt:', error);
+                    // Still cache locally on error
+                    setAgentPrompts(prev => ({
+                        ...prev,
+                        [editingAgentId]: editingPrompt
+                    }));
+                    setIsPromptEditorOpen(false);
+                } finally {
+                    setSavingPrompt(false);
+                }
+            };
+            
+            const handleCancelPromptEdit = () => {
+                setIsPromptEditorOpen(false);
+                setEditingAgentId(null);
+                setEditingPrompt('');
+            };
+
+            const handleSubmitBrief = async () => {
+                if (!briefContent.trim() || !selectedClientId) {
+                    alert('Please select a client and enter a campaign brief');
+                    return;
+                }
+
+                const selectedClient = clients.find(c => c.id === selectedClientId);
+                const selectedClientName = selectedClient ? selectedClient.name : selectedClientId;
+
+                setIsLoading(true);
+                setIsDialogOpen(false);
+                setOriginalBrief(briefContent);
+                setReviewData(null);
+                setChatMessages([]);
+                setModelExecutionStatus('Invoking AI models...');
+
+                try {
+                    const response = await fetch('http://localhost:8002/api/generate-copy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            brief_content: briefContent,
+                            client_id: selectedClientId,
+                            client_name: selectedClientName,
+                            campaign_type: 'email',
+                            selected_agents: selectedAgents,
+                            selected_model: selectedModel,
+                            custom_prompts: agentPrompts // Include custom prompts if edited
+                        }),
+                    });
+
+                    if (!response.ok) throw new Error('Failed to generate copy');
+
+                    const data = await response.json();
+                    setVariants(data.variants);
+                    setClientName(data.client_name);
+                    // Store original versions for reset functionality
+                    const originals = {};
+                    data.variants.forEach(v => {
+                        originals[v.variant_id] = { ...v };
+                    });
+                    setOriginalVariants(originals);
+                    // Auto-expand first variant
+                    if (data.variants.length > 0) {
+                        setExpandedVariant(data.variants[0].variant_id);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error generating copy. Please try again.');
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleVariantClick = (variantId) => {
+                setExpandedVariant(expandedVariant === variantId ? null : variantId);
+                setReviewData(null); // Clear review when switching variants
+                setRefinementInput(''); // Clear refinement input when switching
+            };
+            
+            // Apply JSON patch operations to a variant
+            const applyPatches = (variant, patches) => {
+                const updatedVariant = { ...variant };
+                
+                for (const patch of patches) {
+                    const { op, path, value } = patch;
+                    
+                    // Parse the path (e.g., "/subject_line" -> "subject_line")
+                    const field = path.startsWith('/') ? path.substring(1) : path;
+                    
+                    if (op === 'replace') {
+                        if (field in updatedVariant) {
+                            updatedVariant[field] = value;
+                            console.log(`Applied patch: ${op} ${field} = "${value}"`);
+                        } else {
+                            console.warn(`Field ${field} not found in variant`);
+                        }
+                    }
+                    // Could extend to support 'add', 'remove', 'copy', 'move', 'test' operations
+                }
+                
+                return updatedVariant;
+            };
+            
+            const handleRefineSubmit = async (variantId) => {
+                if (!refinementInput.trim()) return;
+                
+                const currentVariant = variants.find(v => v.variant_id === variantId);
+                if (!currentVariant) return;
+                
+                setIsRefining(true);
+                const instruction = refinementInput;
+                
+                try {
+                    const response = await fetch('http://localhost:8002/api/refine', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            variant: currentVariant,
+                            instruction: instruction,
+                            model: selectedModel || 'gpt-3.5-turbo',
+                            agent_id: selectedAgent || 'default',
+                            client_id: selectedClientId
+                        }),
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed to refine copy');
+                    
+                    const data = await response.json();
+                    
+                    // Apply patches if provided (new refinement API)
+                    let refinementApplied = false;
+                    if (data.patch && data.patch.length > 0) {
+                        // Apply JSON patches to the current variant
+                        const patchedVariant = applyPatches(currentVariant, data.patch);
+                        setVariants(prev => prev.map(v => 
+                            v.variant_id === variantId ? patchedVariant : v
+                        ));
+                        refinementApplied = true;
+                        
+                        // Log patch application for telemetry
+                        console.log(`Refinement applied: ${data.patch.length} patches using ${data.agent_id || selectedAgent} agent and ${data.model || selectedModel} model`);
+                    }
+                    // Fallback to full replacement if no patches
+                    else if (data.refined_variant) {
+                        setVariants(prev => prev.map(v => 
+                            v.variant_id === variantId ? data.refined_variant : v
+                        ));
+                        refinementApplied = true;
+                    }
+                    
+                    // Add to refinement history for both patch and full replacement
+                    if (refinementApplied) {
+                        const history = refinementHistory[variantId] || [];
+                        const historyEntry = data.history_entry || {
+                            instruction: instruction,
+                            timestamp: new Date().toISOString(),
+                            model: data.model || selectedModel || 'gpt-3.5-turbo',
+                            agent_id: data.agent_id || selectedAgent,
+                            patches_applied: data.patch ? data.patch.length : 0
+                        };
+                        history.push(historyEntry);
+                        setRefinementHistory(prev => ({ ...prev, [variantId]: history }));
+                        
+                        // Clear input after successful refinement
+                        setRefinementInput('');
+                    }
+                } catch (error) {
+                    console.error('Error refining copy:', error);
+                    alert('Error refining copy. Please try again.');
+                } finally {
+                    setIsRefining(false);
+                }
+            };
+            
+            const handleResetToOriginal = (variantId) => {
+                const original = originalVariants[variantId];
+                if (original) {
+                    setVariants(prev => prev.map(v => 
+                        v.variant_id === variantId ? { ...original } : v
+                    ));
+                    // Clear refinement history for this variant
+                    setRefinementHistory(prev => ({ ...prev, [variantId]: [] }));
+                }
+            };
+
+            const handleAIReview = async (variant) => {
+                setIsReviewing(true);
+                try {
+                    const response = await fetch('http://localhost:8002/api/review', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            variant: variant,
+                            original_brief: originalBrief,
+                            client_id: selectedClientId
+                        }),
+                    });
+
+                    if (!response.ok) throw new Error('Failed to review copy');
+
+                    const data = await response.json();
+                    setReviewData(data);
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error reviewing copy. Please try again.');
+                } finally {
+                    setIsReviewing(false);
+                }
+            };
+
+            const handleChatSubmit = async () => {
+                if (!chatInput.trim() || !expandedVariant) return;
+
+                const currentVariant = variants.find(v => v.variant_id === expandedVariant);
+                if (!currentVariant) return;
+
+                const userMessage = { role: 'user', content: chatInput };
+                setChatMessages(prev => [...prev, userMessage]);
+                setChatInput('');
+                setIsChatting(true);
+
+                try {
+                    const response = await fetch('http://localhost:8002/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: chatInput,
+                            current_variant: currentVariant,
+                            context: { client_id: selectedClientId }
+                        }),
+                    });
+
+                    if (!response.ok) throw new Error('Failed to chat');
+
+                    const data = await response.json();
+                    
+                    // Add AI response to chat
+                    const aiMessage = { role: 'assistant', content: data.reply };
+                    setChatMessages(prev => [...prev, aiMessage]);
+
+                    // Update variant if edited
+                    if (data.edited_variant) {
+                        setVariants(prev => prev.map(v => 
+                            v.variant_id === expandedVariant ? data.edited_variant : v
+                        ));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    const errorMessage = { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' };
+                    setChatMessages(prev => [...prev, errorMessage]);
+                } finally {
+                    setIsChatting(false);
+                }
+            };
+
+            const handleEditableChange = (variantId, field, value) => {
+                setVariants(prev => prev.map(v => 
+                    v.variant_id === variantId ? { ...v, [field]: value } : v
+                ));
+            };
+
+            const getGradeColor = (grade) => {
+                if (grade?.includes('A')) return 'text-green-600';
+                if (grade?.includes('B')) return 'text-blue-600';
+                if (grade?.includes('C')) return 'text-yellow-600';
+                return 'text-gray-600';
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-gray-900">EmailPilot Copywriting</h1>
+                                    <p className="text-sm text-gray-500">AI-Powered Email Copy Generation</p>
+                                </div>
+                                <button
+                                    onClick={handleOpenDialog}
+                                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                    disabled={checkingHealth}
+                                >
+                                    {checkingHealth ? 'Checking service...' : 'New Campaign Brief'}
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {isLoading && (
+                            <div className="flex flex-col items-center justify-center py-20">
+                                <div className="loading-spinner mb-4"></div>
+                                <p className="text-gray-600 text-lg font-medium">Generating copy variants...</p>
+                                {modelExecutionStatus && (
+                                    <div className="mt-4 space-y-2 text-center">
+                                        <p className="text-sm text-blue-600 font-medium">{modelExecutionStatus}</p>
+                                        {selectedModel && (
+                                            <p className="text-xs text-gray-500">Using model: {selectedModel}</p>
+                                        )}
+                                        {selectedAgents.length > 0 && (
+                                            <p className="text-xs text-gray-500">Agents: {selectedAgents.join(', ')}</p>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-md">
+                                    <p className="text-sm text-amber-800">
+                                        <strong>⏱️ This typically takes 30-90 seconds</strong><br/>
+                                        We're generating 5 complete email variants with full body copy,
+                                        each optimized for a different copywriting framework.
+                                    </p>
+                                </div>
+                                <div className="mt-4 text-xs text-gray-500 max-w-md text-center">
+                                    <div className="animate-pulse">Processing your brief with AI...</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isLoading && variants.length === 0 && !isDialogOpen && (
+                            <div className="text-center py-20">
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">No campaigns yet</h3>
+                                <p className="text-gray-500 mb-4">Get started by submitting a campaign brief</p>
+                                <button
+                                    onClick={handleOpenDialog}
+                                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                                    disabled={checkingHealth}
+                                >
+                                    {checkingHealth ? 'Checking service...' : 'Create New Campaign'}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* All Variants Display */}
+                        {!isLoading && variants.length > 0 && (
+                            <div className="space-y-6">
+                                <div className="mb-6">
+                                    <h2 className="text-xl font-semibold text-gray-900">Campaign Variants</h2>
+                                    <p className="text-gray-600">Client: {clientName}</p>
+                                    <p className="text-sm text-gray-500 mt-1">Click any variant to expand and edit</p>
+                                </div>
+
+                                {/* Variants List */}
+                                <div className="space-y-4">
+                                    {variants.map((variant) => (
+                                        <div
+                                            key={variant.variant_id}
+                                            className={`variant-section bg-white rounded-lg shadow-md border-2 transition-all ${
+                                                expandedVariant === variant.variant_id ? 'expanded border-blue-500' : 'border-gray-200'
+                                            }`}
+                                        >
+                                            {/* Variant Header - Always Visible */}
+                                            <div
+                                                onClick={() => handleVariantClick(variant.variant_id)}
+                                                className="p-6 cursor-pointer hover:bg-gray-50"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className="text-2xl font-bold text-gray-400">#{variant.variant_id}</div>
+                                                        <div>
+                                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                                {variant.framework} Framework
+                                                            </h3>
+                                                            <p className="text-sm text-gray-500">
+                                                                {variant.creativity_level} Creativity
+                                                                {variant.uses_emoji && ' • Uses Emoji'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        {reviewData && expandedVariant === variant.variant_id && (
+                                                            <span className={`grade-badge ${getGradeColor(reviewData.letter_grade)}`}>
+                                                                {reviewData.letter_grade}
+                                                            </span>
+                                                        )}
+                                                        <svg
+                                                            className={`w-5 h-5 text-gray-400 transition-transform ${
+                                                                expandedVariant === variant.variant_id ? 'rotate-180' : ''
+                                                            }`}
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+
+                                                {/* Preview when collapsed */}
+                                                {expandedVariant !== variant.variant_id && (
+                                                    <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Subject:</span> {variant.subject_line_a}
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">CTA:</span> {variant.cta_copy}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Expanded Content - Full Email */}
+                                            {expandedVariant === variant.variant_id && (
+                                                <div className="border-t border-gray-200">
+                                                    <div className="p-6 space-y-6">
+                                                        {/* Editable Fields */}
+                                                        <div className="grid grid-cols-2 gap-6">
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                    Subject Line A
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={variant.subject_line_a}
+                                                                    onChange={(e) => handleEditableChange(variant.variant_id, 'subject_line_a', e.target.value)}
+                                                                    className="editable-section w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                    Subject Line B
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={variant.subject_line_b}
+                                                                    onChange={(e) => handleEditableChange(variant.variant_id, 'subject_line_b', e.target.value)}
+                                                                    className="editable-section w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                Preview Text
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                value={variant.preview_text}
+                                                                onChange={(e) => handleEditableChange(variant.variant_id, 'preview_text', e.target.value)}
+                                                                className="editable-section w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                            />
+                                                        </div>
+
+                                                        {/* Full Email Body */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                                Full Email Body
+                                                            </label>
+                                                            <div className="bg-white border border-gray-300 rounded-lg p-6">
+                                                                <textarea
+                                                                    value={variant.full_email_body}
+                                                                    onChange={(e) => handleEditableChange(variant.variant_id, 'full_email_body', e.target.value)}
+                                                                    className="full-body-copy w-full min-h-[400px] p-4 border-0 resize-none focus:outline-none"
+                                                                    placeholder="Full email content..."
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Metadata */}
+                                                        <div className="grid grid-cols-3 gap-4 text-sm bg-gray-50 p-4 rounded-lg">
+                                                            <div>
+                                                                <span className="font-medium text-gray-600">Hero Image:</span>
+                                                                <p className="text-gray-900">{variant.hero_image_filename}</p>
+                                                                <p className="text-gray-500 text-xs">{variant.hero_image_note}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-medium text-gray-600">A/B Test Idea:</span>
+                                                                <p className="text-gray-900">{variant.ab_test_idea}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="font-medium text-gray-600">SMS Variant:</span>
+                                                                <p className="text-gray-900">{variant.secondary_message}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* AI Review Button */}
+                                                        <div className="flex justify-end">
+                                                            <button
+                                                                onClick={() => handleAIReview(variant)}
+                                                                disabled={isReviewing}
+                                                                className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
+                                                            >
+                                                                {isReviewing ? (
+                                                                    <>
+                                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                        <span>Reviewing...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                        </svg>
+                                                                        <span>AI Review</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Review Results */}
+                                                        {reviewData && expandedVariant === variant.variant_id && (
+                                                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 space-y-4">
+                                                                <div className="flex items-center justify-between">
+                                                                    <h4 className="text-lg font-semibold text-purple-900">AI Review Results</h4>
+                                                                    <span className={`text-3xl font-bold ${getGradeColor(reviewData.letter_grade)}`}>
+                                                                        {reviewData.letter_grade}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-2 gap-6">
+                                                                    <div>
+                                                                        <h5 className="font-medium text-purple-800 mb-2">✨ Strengths</h5>
+                                                                        <ul className="space-y-1">
+                                                                            {reviewData.strengths.map((strength, idx) => (
+                                                                                <li key={idx} className="text-sm text-gray-700 flex items-start">
+                                                                                    <span className="text-green-500 mr-2">✓</span>
+                                                                                    {strength}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h5 className="font-medium text-purple-800 mb-2">💡 Improvements</h5>
+                                                                        <ul className="space-y-1">
+                                                                            {reviewData.improvements.map((improvement, idx) => (
+                                                                                <li key={idx} className="text-sm text-gray-700 flex items-start">
+                                                                                    <span className="text-yellow-500 mr-2">→</span>
+                                                                                    {improvement}
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="bg-white p-4 rounded-md">
+                                                                    <h5 className="font-medium text-purple-800 mb-2">📋 Brief Alignment</h5>
+                                                                    <p className="text-sm text-gray-700">{reviewData.brief_alignment}</p>
+                                                                </div>
+
+                                                                <div className="bg-purple-100 p-4 rounded-md">
+                                                                    <p className="text-sm text-purple-900 italic">{reviewData.encouragement}</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* AI Copy Refinement Assistant - Appears beneath email version */}
+                                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 mt-6">
+                                                            <div className="flex items-center justify-between mb-4">
+                                                                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                                                                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                                                                    </svg>
+                                                                    AI Copy Refinement Assistant
+                                                                </h4>
+                                                                <span className="text-xs text-gray-500">
+                                                                    Refine this version with AI
+                                                                </span>
+                                                            </div>
+                                                            
+                                                            {/* Refinement Input */}
+                                                            <div className="space-y-3">
+                                                                <div className="relative">
+                                                                    <textarea
+                                                                        value={refinementInput}
+                                                                        onChange={(e) => setRefinementInput(e.target.value)}
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter' && e.metaKey) {
+                                                                                handleRefineSubmit(variant.variant_id);
+                                                                            }
+                                                                        }}
+                                                                        placeholder="Enter refinement instructions... (e.g., 'Make the subject line more urgent' or 'Shorten the CTA to 3 words')"
+                                                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                                                        rows={refinementInput.split('\n').length > 2 ? 4 : 2}
+                                                                        disabled={isRefining}
+                                                                    />
+                                                                    <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+                                                                        ⌘+Enter to refine
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                {/* Action Buttons */}
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex space-x-2">
+                                                                        <button
+                                                                            onClick={() => handleRefineSubmit(variant.variant_id)}
+                                                                            disabled={isRefining || !refinementInput.trim()}
+                                                                            className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                                                                                isRefining || !refinementInput.trim()
+                                                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                                                                            }`}
+                                                                        >
+                                                                            {isRefining ? (
+                                                                                <>
+                                                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                                    <span>Refining...</span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                                                    </svg>
+                                                                                    <span>Refine Copy</span>
+                                                                                </>
+                                                                            )}
+                                                                        </button>
+                                                                        
+                                                                        {refinementHistory[variant.variant_id]?.length > 0 && (
+                                                                            <button
+                                                                                onClick={() => handleResetToOriginal(variant.variant_id)}
+                                                                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                                                            >
+                                                                                Reset to Original
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    
+                                                                    <div className="text-sm text-gray-500">
+                                                                        Model: {models.find(m => m.id === selectedModel)?.name || 'Default'}
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                {/* Refinement History */}
+                                                                {refinementHistory[variant.variant_id]?.length > 0 && (
+                                                                    <div className="mt-4 bg-white bg-opacity-60 rounded-lg p-4">
+                                                                        <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                                                                            <svg className="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                            </svg>
+                                                                            Refinement History
+                                                                        </h5>
+                                                                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                                            {refinementHistory[variant.variant_id].slice(-3).reverse().map((item, idx) => (
+                                                                                <div key={idx} className="flex items-start space-x-2 text-sm">
+                                                                                    <span className="text-green-500">✓</span>
+                                                                                    <div className="flex-1">
+                                                                                        <span className="text-gray-700">"{item.instruction}"</span>
+                                                                                        <span className="text-gray-400 ml-2">
+                                                                                            {new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* AI Chat Interface */}
+                                {expandedVariant && (
+                                    <div className="bg-white rounded-lg shadow-lg border border-gray-200 mt-8">
+                                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg">
+                                            <h3 className="text-lg font-semibold flex items-center">
+                                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                                                </svg>
+                                                AI Copy Refinement Assistant
+                                            </h3>
+                                            <p className="text-sm text-blue-100 mt-1">Ask me to refine any part of the selected variant</p>
+                                        </div>
+
+                                        <div className="h-64 overflow-y-auto p-4 bg-gray-50">
+                                            {chatMessages.length === 0 ? (
+                                                <div className="text-center text-gray-500 py-8">
+                                                    <p>Start a conversation to refine your copy</p>
+                                                    <p className="text-sm mt-2">Try: "Make the subject line shorter" or "Add more urgency to the CTA"</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {chatMessages.map((msg, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className={`chat-message flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                                                        >
+                                                            <div
+                                                                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                                                                    msg.role === 'user'
+                                                                        ? 'bg-blue-600 text-white'
+                                                                        : 'bg-white border border-gray-200 text-gray-800'
+                                                                }`}
+                                                            >
+                                                                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div ref={chatEndRef} />
+                                        </div>
+
+                                        <div className="border-t border-gray-200 p-4">
+                                            <div className="flex space-x-2">
+                                                <input
+                                                    type="text"
+                                                    value={chatInput}
+                                                    onChange={(e) => setChatInput(e.target.value)}
+                                                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleChatSubmit()}
+                                                    placeholder="Type your refinement request..."
+                                                    disabled={isChatting}
+                                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
+                                                <button
+                                                    onClick={handleChatSubmit}
+                                                    disabled={!chatInput.trim() || isChatting}
+                                                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isChatting ? (
+                                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                    ) : (
+                                                        'Send'
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Brief Input Dialog */}
+                    {isDialogOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                                <div className="p-6">
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Campaign Brief</h2>
+                                    
+                                    {/* Model Selection Dropdown */}
+                                    <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                                            <svg className="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                            </svg>
+                                            AI Model Selection
+                                        </h3>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Select AI Model <span className="text-red-500">*</span>
+                                        </label>
+                                        {isLoadingModels ? (
+                                            <div className="flex items-center justify-center py-2">
+                                                <div className="loading-spinner w-6 h-6"></div>
+                                                <span className="ml-2 text-sm text-gray-500">Loading models...</span>
+                                            </div>
+                                        ) : models.length === 0 ? (
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                                                <p className="text-sm text-yellow-800">
+                                                    {modelError || "No models available — please check your MCP configuration"}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={selectedModel}
+                                                onChange={(e) => {
+                                                    setSelectedModel(e.target.value);
+                                                    // Persist model selection
+                                                    sessionStorage.setItem('selectedModel', e.target.value);
+                                                }}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                required
+                                            >
+                                                <option value="">-- Select a Model --</option>
+                                                {models.map((model) => (
+                                                    <option key={model.id} value={model.id}>
+                                                        {model.name} ({model.provider})
+                                                        {model.description && ` - ${model.description}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        {selectedModel && models.length > 0 && (
+                                            <p className="text-xs text-purple-600 mt-2">
+                                                ✓ Model selected: {models.find(m => m.id === selectedModel)?.name}
+                                            </p>
+                                        )}
+                                    </div>
+                                    
+                                    {/* AI Agents Section with Checkboxes */}
+                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                                            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            </svg>
+                                            Available AI Agents
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mb-3">Select agents to participate in copy generation:</p>
+                                        {isLoadingAgents ? (
+                                            <div className="text-center py-4">Loading agents...</div>
+                                        ) : agents.length > 0 ? (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {agents.map((agent) => (
+                                                    <div 
+                                                        key={agent.id} 
+                                                        className={`bg-white border rounded-md p-3 cursor-pointer transition-all ${
+                                                            selectedAgents.includes(agent.id) 
+                                                                ? 'border-blue-500 bg-blue-50' 
+                                                                : 'border-gray-200 hover:border-blue-300'
+                                                        }`}
+                                                        onClick={() => toggleAgentSelection(agent.id)}
+                                                    >
+                                                        <div className="flex items-start">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedAgents.includes(agent.id)}
+                                                                onChange={() => toggleAgentSelection(agent.id)}
+                                                                className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            />
+                                                            <div className="ml-3 flex-1">
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex-1">
+                                                                        <h4 className="text-sm font-medium text-gray-900">{agent.name}</h4>
+                                                                        {agent.description && (
+                                                                            <p className="text-xs text-gray-500 mt-1">{agent.description}</p>
+                                                                        )}
+                                                                        {agent.role && (
+                                                                            <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                                                                                {agent.role}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => handleEditPrompt(agent.id, e)}
+                                                                        className="ml-2 p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                                                        title="Edit agent prompt"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                                                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                        </svg>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-500">No agents available</p>
+                                        )}
+                                        {selectedAgents.length > 0 && (
+                                            <div className="mt-3 p-2 bg-blue-100 rounded">
+                                                <p className="text-sm text-blue-800 font-medium">
+                                                    {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} selected
+                                                </p>
+                                                <p className="text-xs text-blue-600 mt-1">
+                                                    These agents will collaborate to generate your copy
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Client Selection */}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Select Client <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            value={selectedClientId}
+                                            onChange={(e) => setSelectedClientId(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                            required
+                                        >
+                                            <option value="">-- Select a Client --</option>
+                                            {clients.map((client) => (
+                                                <option key={client.id} value={client.id}>
+                                                    {client.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Brief Content */}
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Campaign Brief
+                                        </label>
+                                        <textarea
+                                            value={briefContent}
+                                            onChange={(e) => setBriefContent(e.target.value)}
+                                            placeholder="Enter your campaign brief..."
+                                            rows="8"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-end space-x-3">
+                                        <button
+                                            onClick={() => {
+                                                setIsDialogOpen(false);
+                                                setBriefContent('');
+                                                setSelectedClientId('');
+                                                setSelectedAgents([]);
+                                                setModelExecutionStatus('');
+                                            }}
+                                            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleSubmitBrief}
+                                            disabled={!briefContent.trim() || !selectedClientId || !selectedModel}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                        >
+                                            Generate Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Prompt Editor Modal */}
+                    {isPromptEditorOpen && editingAgentId && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                                <div className="p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-2xl font-bold text-gray-900">
+                                            Edit Agent Prompt
+                                        </h2>
+                                        <button
+                                            onClick={handleCancelPromptEdit}
+                                            className="text-gray-400 hover:text-gray-600"
+                                        >
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="mb-4">
+                                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                            {agents.find(a => a.id === editingAgentId)?.name}
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mb-4">
+                                            Customize the prompt template for this agent. Use {'{user_input}'} as a placeholder for the campaign brief.
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Prompt Template
+                                        </label>
+                                        <textarea
+                                            value={editingPrompt}
+                                            onChange={(e) => setEditingPrompt(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            rows="15"
+                                            placeholder="Enter the prompt template..."
+                                        />
+                                        <div className="mt-2 text-xs text-gray-500">
+                                            <p className="font-medium mb-1">Available variables:</p>
+                                            <ul className="space-y-1">
+                                                <li>• {'{user_input}'} - The campaign brief content</li>
+                                                <li>• {'{client_name}'} - The selected client name</li>
+                                                <li>• {'{campaign_type}'} - The type of campaign (email, sms, etc.)</li>
+                                                <li>• {'{brand_voice}'} - Brand voice from client settings</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6">
+                                        <p className="text-sm text-yellow-800">
+                                            <strong>Note:</strong> Changes will apply immediately to new generations but won't affect existing drafts.
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="flex justify-end space-x-3">
+                                        <button
+                                            onClick={handleCancelPromptEdit}
+                                            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleSavePrompt}
+                                            disabled={savingPrompt}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                                        >
+                                            {savingPrompt ? (
+                                                <>
+                                                    <div className="loading-spinner w-4 h-4 mr-2"></div>
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                'Save Prompt'
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<CopywritingApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

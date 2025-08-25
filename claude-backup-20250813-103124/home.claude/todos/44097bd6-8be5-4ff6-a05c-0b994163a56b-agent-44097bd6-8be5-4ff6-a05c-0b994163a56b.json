@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Investigate year 1901 display issue in Goals data",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Fix incorrect year values (stored as 1 instead of full year)",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Update all existing goals with corrected year values",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test the Goals dashboard displays correct years",
+    "status": "completed",
+    "id": "4"
+  }
+]

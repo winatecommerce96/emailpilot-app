@@ -1,0 +1,54 @@
+openapi: 3.0.3
+info:
+  title: Performance Jobs API (Test)
+  version: '1.0.0'
+  description: Weekly/Monthly performance vs goals stored in Firestore
+servers:
+  - url: http://localhost:9091
+paths:
+  /healthz:
+    get:
+      summary: Health
+      responses:
+        '200':
+          description: OK
+  /jobs/weekly:
+    post:
+      summary: Compute weekly performance for a client (last 7 days)
+      parameters:
+        - name: client_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: slug
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /jobs/monthly:
+    post:
+      summary: Compute monthly performance for a client (month-to-date or specific month)
+      parameters:
+        - name: client_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: slug
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: false
+          schema:
+            type: string
+          description: YYYY-MM (defaults to current month)
+      responses:
+        '200':
+          description: OK

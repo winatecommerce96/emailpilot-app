@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Examine CalendarViewLocal.js to understand component registration",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Check source components in frontend/public/components/ for proper exports",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Verify compiled components in frontend/public/dist/ are properly built",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Fix component initialization order and dependency issues",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test that all calendar components load properly on window object",
+    "status": "completed",
+    "id": "5"
+  }
+]

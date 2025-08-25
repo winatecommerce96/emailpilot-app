@@ -1,0 +1,169 @@
+Here’s a single, copy-pasteable prompt for GPT-5 that focuses on the exact failures you’re seeing and fixes them end-to-end. It forces robust MPA asset handling (manifest-driven), repairs the static mount, removes brittle script tags, eliminates the null-container crash, and proves the result with hard tests. It also preserves the Debug Dock + telemetry.
+
+— BEGIN PROMPT FOR GPT-5 —
+
+You are the lead front-end + integration engineer for EmailPilot. The current build is failing to start cleanly and pages are riddled with 404s and a null-container error. Fix this now by enforcing a manifest-driven MPA, repairing the server static mount, removing hard-coded asset tags, and guaranteeing a valid mount container. Act autonomously; do not ask for approval to move/rename files or delete brittle code.
+
+The concrete failures to fix (from logs)
+	1.	FastAPI/Starlette crash:
+
+RuntimeError: Directory 'frontend/dist' does not exist
+app.mount("/static/dist", StaticFiles(directory="frontend/dist"), name="static_dist")
+
+	2.	Frontend crash:
+
+Uncaught TypeError: Cannot set properties of null (setting 'className') at (index):14
+
+	3.	Massive asset 404s (examples):
+
+GET /static/dist/styles.css 404
+... ThemeProvider.js 404, component-loader.js 404, CalendarView*.js 404, app.js 404 ...
+
+	4.	Legacy “component check after 3 seconds” shows undefined everywhere.
+
+Non-negotiable outcomes
+	•	No SPA router (we remain an MPA).
+	•	No CDN dependencies; all assets are locally built and served.
+	•	Zero 404s for /static/dist/* assets on any page load.
+	•	No null-container errors; scripts run only after the correct element exists.
+	•	Debug Dock continues working and posts telemetry to /api/dev/telemetry.
+	•	Playwright tests fail the build if any console error/warn occurs or any asset/network ≥400.
+
+Execute this plan in order
+
+1) Enforce a single build + outDir that matches the server mount
+	•	Create/standardize Vite config at frontend/vite.config.ts:
+
+import { defineConfig } from 'vite'
+export default defineConfig({
+  root: 'frontend',
+  build: {
+    outDir: 'dist',
+    manifest: true,
+    assetsDir: '',
+    emptyOutDir: true,
+  },
+  base: '/static/dist/',
+})
+
+	•	Ensure frontend/package.json has:
+
+{
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  }
+}
+
+	•	Run the build from repo root with npm --prefix frontend run build (document this).
+
+2) Make the server mount bulletproof
+	•	In main_firestore.py (or the server entry), resolve absolute path and mount only if it exists; otherwise log a clear warning and do not crash:
+
+from pathlib import Path
+from starlette.staticfiles import StaticFiles
+import logging
+
+FRONTEND_DIR = Path(__file__).parent / "frontend"
+DIST_DIR = FRONTEND_DIR / "dist"
+
+if DIST_DIR.exists():
+    app.mount("/static/dist", StaticFiles(directory=str(DIST_DIR)), name="static_dist")
+    logging.info("Static dist mounted at /static/dist -> %s", DIST_DIR)
+else:
+    logging.warning("Static dist not found at %s. Run `npm --prefix frontend run build`.", DIST_DIR)
+
+3) Manifest-driven asset injection (no hard-coded filenames)
+	•	Implement a tiny manifest helper (server/assets.py) and register it with your templating engine (Jinja2/Starlette/FASTAPI):
+
+import json
+from pathlib import Path
+
+def vite_tags(entry: str, dist_dir: Path) -> str:
+    manifest = json.loads((dist_dir / "manifest.json").read_text())
+    item = manifest[entry]
+    tags = [f'<script type="module" src="/static/dist/{item["file"]}"></script>']
+    for css in item.get("css", []):
+        tags.append(f'<link rel="stylesheet" href="/static/dist/{css}">')
+    return "\n".join(tags)
+
+	•	In templates, replace every <script src="/static/dist/*.js"> and <link href="/static/dist/*.css"> with:
+
+{{ vite_tags('src/pages/clients.ts', dist_dir) | safe }}
+
+(Use the real entry key(s) you define. Each page gets its own entry file.)
+
+4) Remove brittle legacy script tags and globals
+	•	Delete all <script src="/static/dist/*.js"> and styles.css references that are not manifest-driven.
+	•	Delete any “component check after 3 seconds” diagnostics and any reliance on window.* component globals.
+	•	Replace with page-specific entry modules under frontend/src/pages/:
+	•	clients.ts, calendar.ts, reports.ts, settings.ts, admin/*.ts
+	•	Each entry imports its own CSS: import '../styles/base.css' (and page CSS), so Vite emits hashed CSS and the manifest helper injects it.
+
+5) Fix the null-container error
+	•	Standardize one mount container id per template. In templates/_base.html:
+
+<body>
+  <!-- other layout -->
+  <main id="app-main" data-route="{{ route_name }}">
+    {% block content %}{% endblock %}
+  </main>
+  <!-- Debug Dock inline script remains here -->
+</body>
+
+	•	No inline DOM writes before the element exists. All page scripts must be included via manifest tags which are at the end of body and compiled with type="module" (implicit defer).
+	•	If any theme/bootstrap scripts need to set className, do it after DOMContentLoaded:
+
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('app-main');
+  if (el) el.className = (el.className || '') + ' theme-default';
+});
+
+6) Keep the failsafe Debug Dock + telemetry
+	•	Ensure the zero-dependency inline Debug Dock script is in _base.html above any page entries so it always runs.
+	•	Confirm it posts to /api/dev/telemetry and never throws.
+	•	Add hooks to log 404s for assets (network status ≥400) so you’ll see them in server logs (DEV_TELEMETRY:).
+
+7) Sanity checks + CI guardrails
+	•	Add a preflight script scripts/guard_assets.py that fails the build if any template contains hard-coded /static/dist/ assets.
+	•	Add a grep guard in CI: no references to styles.css unless emitted by manifest.
+
+8) Tests to prove it works (Playwright)
+
+Create tests/e2e/mpa-assets.spec.ts:
+	•	Start server with built assets.
+	•	For routes /, /clients, /calendar, /reports, /settings, /admin/*:
+	•	Assert no console.error/console.warn.
+	•	Assert no network ≥400 (assets + page HTML).
+	•	Assert that the HTML contains exactly one #app-main.
+	•	Add tests/e2e/debug-telemetry.spec.ts:
+	•	Visit /?debug=1 and trigger a controlled fetch 404 to confirm a Debug Dock event and DEV_TELEMETRY log.
+
+Commands (make these work end-to-end)
+
+# Build front-end assets into frontend/dist (the directory the server mounts)
+npm --prefix frontend ci
+npm --prefix frontend run build
+
+# Start server without crashing even if dist is missing (should WARN, not crash)
+uvicorn main_firestore:app --reload
+
+# Run tests
+npx playwright test
+
+Definition of Done (do not report success until all pass)
+	•	Server starts without StaticFiles crash; /static/dist is mounted when frontend/dist exists.
+	•	All templates use manifest-driven tags; there are no hard-coded /static/dist/*.js or styles.css links.
+	•	Authenticated loads across all primary routes: zero console errors/warnings; zero asset 404s.
+	•	The “null container” error is eliminated; no script manipulates DOM nodes before they exist.
+	•	Debug Dock visible with ?debug=1 and telemetry hitting /api/dev/telemetry.
+	•	Playwright suites pass and enforce the no-error/no-404 policy.
+
+Proceed now:
+	1.	Create/fix Vite config and build to frontend/dist.
+	2.	Make server mount robust and non-crashing when dist is missing.
+	3.	Replace all hard-coded asset tags with manifest injection.
+	4.	Standardize #app-main container and remove inline DOM writes prior to DOM ready.
+	5.	Keep Debug Dock enabled.
+	6.	Add tests + guardrails; run them and output a final report with a diff summary, sample telemetry lines, and Playwright green results.

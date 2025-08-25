@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub Dashboard - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        // API configuration
+        const API_BASE = window.location.origin;
+        
+        function HubDashboard() {
+            const [selectedGraph, setSelectedGraph] = useState('emailpilot_calendar');
+            const [environment, setEnvironment] = useState('dev');
+            const [recentRuns, setRecentRuns] = useState([]);
+            const [serviceStatus, setServiceStatus] = useState({});
+            const [runContext, setRunContext] = useState(() => {
+                // Load from localStorage
+                const saved = localStorage.getItem('hub_run_context');
+                return saved ? JSON.parse(saved) : {
+                    brand: 'Buca di Beppo',
+                    month: new Date().toISOString().slice(0, 7),
+                    client_id: 'client_001',
+                    workflow: 'emailpilot_calendar'
+                };
+            });
+            const [loading, setLoading] = useState(true);
+            
+            // Auto-refresh interval
+            const intervalRef = useRef(null);
+            
+            useEffect(() => {
+                // Initial load
+                loadServiceStatus();
+                loadRecentRuns();
+                
+                // Set up auto-refresh
+                intervalRef.current = setInterval(() => {
+                    loadServiceStatus();
+                    loadRecentRuns();
+                }, 10000); // Every 10 seconds
+                
+                return () => {
+                    if (intervalRef.current) {
+                        clearInterval(intervalRef.current);
+                    }
+                };
+            }, [selectedGraph]);
+            
+            useEffect(() => {
+                // Save context to localStorage when it changes
+                localStorage.setItem('hub_run_context', JSON.stringify(runContext));
+            }, [runContext]);
+            
+            async function loadServiceStatus() {
+                try {
+                    const response = await fetch(`${API_BASE}/api/hub/status`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setServiceStatus(data);
+                    }
+                } catch (error) {
+                    console.error('Failed to load service status:', error);
+                    setServiceStatus({
+                        studio: { available: false },
+                        langsmith: { connected: false },
+                        editor: { available: false }
+                    });
+                } finally {
+                    setLoading(false);
+                }
+            }
+            
+            async function loadRecentRuns() {
+                try {
+                    const response = await fetch(`${API_BASE}/api/hub/recent-runs?graph=${selectedGraph}&limit=5`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setRecentRuns(data);
+                    }
+                } catch (error) {
+                    console.error('Failed to load recent runs:', error);
+                }
+            }
+            
+            async function saveContext() {
+                try {
+                    const response = await fetch(`${API_BASE}/api/hub/context`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(runContext)
+                    });
+                    if (response.ok) {
+                        alert('Context saved successfully');
+                    }
+                } catch (error) {
+                    alert('Failed to save context');
+                }
+            }
+            
+            function openInStudio() {
+                const params = new URLSearchParams({
+                    graph: selectedGraph,
+                    run: recentRuns[0]?.run_id || 'new',
+                    brand: runContext.brand,
+                    month: runContext.month,
+                    env: environment
+                });
+                const studioUrl = `http://localhost:8123?${params}`;
+                window.open(studioUrl, '_blank');
+            }
+            
+            function viewInLangSmith() {
+                const smithUrl = recentRuns[0]?.smith_run_url || 
+                    `https://smith.langchain.com/projects/${serviceStatus.langsmith?.project || 'emailpilot-calendar'}`;
+                window.open(smithUrl, '_blank');
+            }
+            
+            function openWorkflowEditor() {
+                window.open(`${API_BASE}/static/workflow_editor.html`, '_blank');
+            }
+            
+            function openFileConsole() {
+                const params = new URLSearchParams({
+                    client: runContext.client_id,
+                    workflow: runContext.workflow
+                });
+                window.open(`${API_BASE}/static/file-console/?${params}`, '_blank');
+            }
+            
+            function getStatusColor(status) {
+                if (status === true || status === 'success' || status === '✓ Success') {
+                    return 'text-green-600';
+                } else if (status === false || status === 'failed' || status === '✗ Failed') {
+                    return 'text-red-600';
+                } else if (status === 'running' || status === '⚡ Running') {
+                    return 'text-yellow-600';
+                }
+                return 'text-gray-400';
+            }
+            
+            return (
+                <div className="min-h-screen">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b">
+                        <div className="px-6 py-4">
+                            <div className="flex items-center justify-between">
+                                <h1 className="text-2xl font-bold text-gray-900">Workflow Hub Dashboard</h1>
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-500">Environment:</span>
+                                    <select 
+                                        value={environment}
+                                        onChange={(e) => setEnvironment(e.target.value)}
+                                        className="px-3 py-1 border rounded-lg text-sm"
+                                    >
+                                        <option value="dev">Development</option>
+                                        <option value="staging">Staging</option>
+                                        <option value="prod">Production</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+                    
+                    <div className="flex" style={{ height: 'calc(100vh - 73px)' }}>
+                        {/* Left Panel */}
+                        <div className="w-80 bg-white border-r p-6 overflow-y-auto">
+                            <div className="space-y-6">
+                                {/* Graph Selector */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Active Graph</label>
+                                    <select 
+                                        value={selectedGraph}
+                                        onChange={(e) => setSelectedGraph(e.target.value)}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="emailpilot_calendar">emailpilot_calendar</option>
+                                        <option value="campaign_optimizer">campaign_optimizer</option>
+                                        <option value="revenue_analyzer">revenue_analyzer</option>
+                                    </select>
+                                </div>
+                                
+                                {/* Recent Runs */}
+                                <div>
+                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Recent Runs</h3>
+                                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                                        {recentRuns.map((run, idx) => (
+                                            <div key={run.run_id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-sm font-medium">{run.run_id}</span>
+                                                    <span className={`text-xs ${getStatusColor(run.status)}`}>
+                                                        {run.status === 'success' ? '✓' : run.status === 'failed' ? '✗' : '⚡'} {run.status}
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                    {run.graph} • {new Date(run.created_at).toLocaleString()}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {recentRuns.length === 0 && (
+                                            <div className="text-gray-400 text-center py-4">No recent runs</div>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {/* Service Status */}
+                                <div>
+                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Service Status</h3>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between p-2">
+                                            <span className="text-sm">LangGraph Studio</span>
+                                            <span className={serviceStatus.studio?.available ? 'text-green-600' : 'text-red-600'}>
+                                                {serviceStatus.studio?.available ? '● Online' : '● Offline'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between p-2">
+                                            <span className="text-sm">LangSmith</span>
+                                            <span className={serviceStatus.langsmith?.connected ? 'text-green-600' : 'text-red-600'}>
+                                                {serviceStatus.langsmith?.connected ? '● Connected' : '● Disconnected'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between p-2">
+                                            <span className="text-sm">Workflow Editor</span>
+                                            <span className={serviceStatus.editor?.available ? 'text-green-600' : 'text-red-600'}>
+                                                {serviceStatus.editor?.available ? '● Available' : '● Unavailable'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Center Panel */}
+                        <div className="flex-1 p-8 overflow-y-auto">
+                            <div className="max-w-2xl mx-auto">
+                                <h2 className="text-xl font-semibold mb-6">Quick Actions</h2>
+                                
+                                {/* Action Buttons */}
+                                <div className="grid grid-cols-2 gap-4 mb-8">
+                                    <button 
+                                        onClick={openInStudio}
+                                        disabled={!serviceStatus.studio?.available}
+                                        className={`p-6 bg-white rounded-lg border hover:border-blue-500 hover:shadow-lg transition-all ${
+                                            !serviceStatus.studio?.available ? 'opacity-50 cursor-not-allowed' : ''
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-2xl">🎨</span>
+                                            <span className={`text-xs ${serviceStatus.studio?.available ? 'text-green-600' : 'text-red-600'}`}>
+                                                {serviceStatus.studio?.available ? 'Available' : 'Offline'}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-semibold text-left">Open in Studio</h3>
+                                        <p className="text-sm text-gray-600 text-left mt-1">
+                                            Visual debugging and step-through
+                                        </p>
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={viewInLangSmith}
+                                        disabled={!serviceStatus.langsmith?.connected}
+                                        className={`p-6 bg-white rounded-lg border hover:border-blue-500 hover:shadow-lg transition-all ${
+                                            !serviceStatus.langsmith?.connected ? 'opacity-50 cursor-not-allowed' : ''
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-2xl">📊</span>
+                                            <span className={`text-xs ${serviceStatus.langsmith?.connected ? 'text-green-600' : 'text-red-600'}`}>
+                                                {serviceStatus.langsmith?.connected ? 'Connected' : 'Disconnected'}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-semibold text-left">View in LangSmith</h3>
+                                        <p className="text-sm text-gray-600 text-left mt-1">
+                                            Traces and performance metrics
+                                        </p>
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={openWorkflowEditor}
+                                        className="p-6 bg-white rounded-lg border hover:border-blue-500 hover:shadow-lg transition-all"
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-2xl">✏️</span>
+                                            <span className="text-xs text-green-600">Available</span>
+                                        </div>
+                                        <h3 className="font-semibold text-left">Workflow Editor</h3>
+                                        <p className="text-sm text-gray-600 text-left mt-1">
+                                            Schema editing and code generation
+                                        </p>
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={openFileConsole}
+                                        className="p-6 bg-white rounded-lg border hover:border-blue-500 hover:shadow-lg transition-all"
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-2xl">📁</span>
+                                            <span className="text-xs text-green-600">Available</span>
+                                        </div>
+                                        <h3 className="font-semibold text-left">File Console</h3>
+                                        <p className="text-sm text-gray-600 text-left mt-1">
+                                            RAG and file management
+                                        </p>
+                                    </button>
+                                </div>
+                                
+                                {/* Deep Link Preview */}
+                                {!loading && (
+                                    <div className="bg-gray-100 rounded-lg p-4">
+                                        <h3 className="text-sm font-medium text-gray-700 mb-2">Deep Link Preview</h3>
+                                        <div className="space-y-2">
+                                            <div className="text-xs font-mono bg-white p-2 rounded break-all">
+                                                Studio: http://localhost:8123?graph={selectedGraph}&run={recentRuns[0]?.run_id || 'new'}&brand={encodeURIComponent(runContext.brand)}&month={runContext.month}&env={environment}
+                                            </div>
+                                            <div className="text-xs font-mono bg-white p-2 rounded break-all">
+                                                LangSmith: {recentRuns[0]?.smith_run_url || `https://smith.langchain.com/projects/${serviceStatus.langsmith?.project}`}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* Right Panel */}
+                        <div className="w-80 bg-white border-l p-6 overflow-y-auto">
+                            <h3 className="text-lg font-semibold mb-4">Run Context</h3>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Brand/Client</label>
+                                    <input 
+                                        type="text" 
+                                        value={runContext.brand}
+                                        onChange={(e) => setRunContext({...runContext, brand: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg" 
+                                        placeholder="Enter brand name"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Target Month</label>
+                                    <input 
+                                        type="month" 
+                                        value={runContext.month}
+                                        onChange={(e) => setRunContext({...runContext, month: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+                                    <select 
+                                        value={runContext.client_id}
+                                        onChange={(e) => setRunContext({...runContext, client_id: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="client_001">client_001 - Buca di Beppo</option>
+                                        <option value="client_002">client_002 - Test Brand</option>
+                                        <option value="client_003">client_003 - Client XYZ</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Workflow</label>
+                                    <select 
+                                        value={runContext.workflow}
+                                        onChange={(e) => setRunContext({...runContext, workflow: e.target.value})}
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                    >
+                                        <option value="emailpilot_calendar">Email Calendar</option>
+                                        <option value="campaign_optimizer">Campaign Optimizer</option>
+                                        <option value="revenue_analyzer">Revenue Analyzer</option>
+                                    </select>
+                                </div>
+                                
+                                <div className="pt-4 space-y-2">
+                                    <button 
+                                        onClick={saveContext}
+                                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                    >
+                                        Save Context
+                                    </button>
+                                    <button 
+                                        onClick={() => setRunContext({
+                                            brand: '',
+                                            month: new Date().toISOString().slice(0, 7),
+                                            client_id: 'client_001',
+                                            workflow: 'emailpilot_calendar'
+                                        })}
+                                        className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                                    >
+                                        Reset to Defaults
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {/* Context JSON Preview */}
+                            <div className="mt-6">
+                                <h4 className="text-sm font-medium text-gray-700 mb-2">Context JSON</h4>
+                                <pre className="text-xs bg-gray-100 p-3 rounded overflow-x-auto">
+{JSON.stringify({
+    run_id: recentRuns[0]?.run_id || 'new',
+    graph: selectedGraph,
+    brand: runContext.brand,
+    month: runContext.month,
+    env: environment,
+    client_id: runContext.client_id,
+    workflow: runContext.workflow
+}, null, 2)}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        
+        // Render the app
+        ReactDOM.render(<HubDashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>

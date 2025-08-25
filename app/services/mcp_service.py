@@ -1,22 +1,49 @@
 """
-Enhanced MCP Service with multi-model support
+Enhanced MCP Service with multi-model support.
+
+This module provides two primary entry points:
+- MCPServiceManager: manages provider-backed MCP execution for tools.
+- MCPService: a lightweight compatibility shim used by existing APIs
+  that only need to "check connection" semantics.
+
+Notes:
+- The project primarily uses Firestore; avoid SQLAlchemy here.
+- Secrets are fetched from Google Secret Manager using a stable
+  naming convention: mcp-{client_id}-{provider}-key.
 """
 import os
 import json
 import asyncio
 import subprocess
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
+from types import SimpleNamespace
 from datetime import datetime
-import httpx
-import openai
-import google.generativeai as genai
-from anthropic import Anthropic
 import logging
-from app.services.secret_manager import get_secret_manager
-from app.models.mcp_client import MCPClient, MCPUsage, MCPModelConfig
-from app.core.database import get_db
-from sqlalchemy.orm import Session
 import time
+
+# Import AI Orchestrator as primary interface
+try:
+    from app.core.ai_orchestrator import get_ai_orchestrator, ai_complete
+    AI_ORCHESTRATOR_AVAILABLE = True
+except ImportError:
+    AI_ORCHESTRATOR_AVAILABLE = False
+    logger.warning("AI Orchestrator not available, using direct SDK imports")
+
+# Fallback to direct SDK imports if orchestrator not available
+if not AI_ORCHESTRATOR_AVAILABLE:
+    import openai
+    import google.generativeai as genai
+    from anthropic import Anthropic
+else:
+    # Create dummy imports for type hints
+    openai = None
+    genai = None
+    Anthropic = None
+from fastapi import Depends
+import httpx
+
+from app.deps import get_secret_manager_service, get_db
+from app.services.secrets import SecretManagerService
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +51,8 @@ logger = logging.getLogger(__name__)
 class MCPServiceManager:
     """Manages MCP connections for multiple AI providers"""
     
-    def __init__(self):
-        self.secret_manager = get_secret_manager()
+    def __init__(self, secret_manager: SecretManagerService):
+        self.secret_manager = secret_manager
         self.mcp_instances = {}  # client_id -> MCPInstance
         self.model_configs = self._load_model_configs()
     
@@ -142,23 +169,36 @@ class MCPServiceManager:
             }
         }
     
-    async def get_mcp_instance(self, client_id: str, provider: str = None) -> 'MCPInstance':
-        """Get or create an MCP instance for a client"""
+    async def get_mcp_instance(self, client_id: str, db = Depends(get_db), provider: str = None) -> 'MCPInstance':
+        """Get or create an MCP instance for a client (Firestore-backed)."""
         cache_key = f"{client_id}:{provider or 'default'}"
         
         if cache_key not in self.mcp_instances:
-            # Load client configuration
-            db = next(get_db())
-            client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-            if not client:
+            # Load client meta from Firestore
+            client_doc = db.collection("clients").document(client_id).get()
+            if not client_doc.exists:
                 raise ValueError(f"Client {client_id} not found")
-            
-            # Get API keys from Secret Manager
-            api_keys = self.secret_manager.get_api_keys(client_id)
-            
+
+            client_data = client_doc.to_dict() or {}
+
+            # Optional per-client MCP config
+            mcp_doc = db.collection("mcp_clients").document(client_id).get()
+            mcp_data = mcp_doc.to_dict() if mcp_doc.exists else {}
+
+            # Minimal client config used by this service
+            client = SimpleNamespace(
+                id=client_id,
+                name=client_data.get("name", client_id),
+                read_only=bool(mcp_data.get("read_only", True)),
+                default_model_provider=mcp_data.get("default_model_provider", "claude"),
+            )
+
+            # Load API keys from Secret Manager (best-effort)
+            api_keys = self._load_api_keys(client_id)
+
             # Determine provider
             provider = provider or client.default_model_provider
-            
+
             # Create instance based on provider
             instance = MCPInstance(
                 client_id=client_id,
@@ -177,6 +217,7 @@ class MCPServiceManager:
         client_id: str,
         tool_name: str,
         parameters: Dict[str, Any],
+        db = Depends(get_db),
         provider: str = None,
         model: str = None
     ) -> Dict[str, Any]:
@@ -185,7 +226,7 @@ class MCPServiceManager:
         
         try:
             # Get MCP instance
-            instance = await self.get_mcp_instance(client_id, provider)
+            instance = await self.get_mcp_instance(client_id, db, provider)
             
             # Execute tool based on provider
             result = await instance.execute_tool(tool_name, parameters, model)
@@ -236,47 +277,42 @@ class MCPServiceManager:
         status: str,
         error_message: str = None
     ):
-        """Track usage metrics"""
-        db = next(get_db())
-        
-        # Calculate cost
-        model_config = self.model_configs.get(provider, {}).get("models", {}).get(model, {})
-        input_cost = (request_tokens / 1000) * model_config.get("input_cost_per_1k", 0)
-        output_cost = (response_tokens / 1000) * model_config.get("output_cost_per_1k", 0)
-        total_cost = input_cost + output_cost
-        
-        # Create usage record
-        usage = MCPUsage(
-            client_id=client_id,
-            model_provider=provider,
-            model_name=model,
-            tool_name=tool_name,
-            request_tokens=request_tokens,
-            response_tokens=response_tokens,
-            total_tokens=request_tokens + response_tokens,
-            latency_ms=latency_ms,
-            estimated_cost=total_cost,
-            request_id=f"{client_id}:{provider}:{tool_name}:{datetime.now().isoformat()}",
-            status=status,
-            error_message=error_message,
-            completed_at=datetime.now()
-        )
-        
-        db.add(usage)
-        
-        # Update client stats
-        client = db.query(MCPClient).filter(MCPClient.id == client_id).first()
-        if client:
-            client.total_requests += 1
-            client.total_tokens_used += request_tokens + response_tokens
-            client.last_used_at = datetime.now()
-        
-        db.commit()
+        """Track usage metrics in Firestore (best-effort; non-blocking)."""
+        try:
+            db = get_db()
+
+            # Calculate rough cost
+            model_config = self.model_configs.get(provider, {}).get("models", {}).get(model, {})
+            input_cost = (request_tokens / 1000) * model_config.get("input_cost_per_1k", 0)
+            output_cost = (response_tokens / 1000) * model_config.get("output_cost_per_1k", 0)
+            total_cost = input_cost + output_cost
+
+            usage_doc = {
+                "client_id": client_id,
+                "model_provider": provider,
+                "model_name": model,
+                "tool_name": tool_name,
+                "request_tokens": request_tokens,
+                "response_tokens": response_tokens,
+                "total_tokens": request_tokens + response_tokens,
+                "latency_ms": latency_ms,
+                "estimated_cost": total_cost,
+                "request_id": f"{client_id}:{provider}:{tool_name}:{datetime.now().isoformat()}",
+                "status": status,
+                "error_message": error_message,
+                "completed_at": datetime.now().isoformat(),
+                "created_at": datetime.now().isoformat(),
+            }
+
+            db.collection("clients").document(client_id).collection("mcp_usage").add(usage_doc)
+        except Exception as e:
+            # Do not raise; logging only
+            logging.getLogger(__name__).warning(f"Failed to track MCP usage: {e}")
     
-    async def test_connection(self, client_id: str, provider: str) -> Dict[str, Any]:
+    async def test_connection(self, client_id: str, provider: str, db = Depends(get_db)) -> Dict[str, Any]:
         """Test MCP connection for a specific provider"""
         try:
-            instance = await self.get_mcp_instance(client_id, provider)
+            instance = await self.get_mcp_instance(client_id, db, provider)
             result = await instance.test_connection()
             return {
                 "success": True,
@@ -299,7 +335,7 @@ class MCPInstance:
     def __init__(
         self,
         client_id: str,
-        client_config: MCPClient,
+        client_config,
         provider: str,
         api_keys: Dict[str, str],
         model_configs: Dict[str, Any]
@@ -323,27 +359,39 @@ class MCPInstance:
     
     def _init_provider_client(self):
         """Initialize provider-specific API client"""
-        if self.provider == "claude":
-            # Use existing MCP server process
-            self.mcp_process = None
-            api_key = self.api_keys.get("klaviyo")  # Klaviyo key for MCP server
-            if api_key:
-                self.anthropic_client = Anthropic(api_key=api_key)
-            else:
-                self.anthropic_client = None
+        # Try to use AI Orchestrator first
+        if AI_ORCHESTRATOR_AVAILABLE:
+            self.orchestrator = get_ai_orchestrator()
+            self.use_orchestrator = True
+            logger.info(f"Using AI Orchestrator for provider {self.provider}")
+        else:
+            self.orchestrator = None
+            self.use_orchestrator = False
             
-        elif self.provider == "openai":
-            api_key = self.api_keys.get("openai")
-            if not api_key:
-                raise ValueError("OpenAI API key not configured")
-            self.openai_client = openai.OpenAI(api_key=api_key)
-            
-        elif self.provider == "gemini":
-            api_key = self.api_keys.get("gemini")
-            if not api_key:
-                raise ValueError("Gemini API key not configured")
-            genai.configure(api_key=api_key)
-            self.gemini_client = genai
+            # Fallback to direct SDK initialization
+            if self.provider == "claude":
+                # Use existing MCP server process
+                self.mcp_process = None
+                api_key = self.api_keys.get("klaviyo")  # Klaviyo key for MCP server
+                if api_key and Anthropic:
+                    self.anthropic_client = Anthropic(api_key=api_key)
+                else:
+                    self.anthropic_client = None
+                
+            elif self.provider == "openai":
+                api_key = self.api_keys.get("openai")
+                if not api_key:
+                    raise ValueError("OpenAI API key not configured")
+                if openai:
+                    self.openai_client = openai.OpenAI(api_key=api_key)
+                
+            elif self.provider == "gemini":
+                api_key = self.api_keys.get("gemini")
+                if not api_key:
+                    raise ValueError("Gemini API key not configured")
+                if genai:
+                    genai.configure(api_key=api_key)
+                    self.gemini_client = genai
     
     async def execute_tool(
         self,
@@ -354,6 +402,11 @@ class MCPInstance:
         """Execute MCP tool using the configured provider"""
         model = model or self.default_model
         
+        # Use orchestrator if available
+        if self.use_orchestrator:
+            return await self._execute_with_orchestrator(tool_name, parameters, model)
+        
+        # Fallback to direct provider execution
         if self.provider == "claude":
             return await self._execute_claude_mcp(tool_name, parameters, model)
         elif self.provider == "openai":
@@ -362,6 +415,54 @@ class MCPInstance:
             return await self._execute_gemini_tool(tool_name, parameters, model)
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
+    
+    async def _execute_with_orchestrator(
+        self,
+        tool_name: str,
+        parameters: Dict[str, Any],
+        model: str
+    ) -> Dict[str, Any]:
+        """Execute tool using AI Orchestrator"""
+        # Build prompt for tool execution
+        prompt = f"""Execute the following Klaviyo MCP tool:
+
+Tool: {tool_name}
+Parameters: {json.dumps(parameters, indent=2)}
+
+Provide a structured response with the tool execution result."""
+        
+        messages = [{"role": "user", "content": prompt}]
+        
+        try:
+            # Use orchestrator for completion
+            response = await ai_complete(
+                messages=messages,
+                provider=self.provider,
+                model=model,
+                temperature=0.3,  # Lower temperature for tool execution
+                max_tokens=2000
+            )
+            
+            # Parse response and execute actual tool
+            result = await self._execute_klaviyo_tool(tool_name, parameters)
+            
+            return {
+                "result": result,
+                "ai_response": response,
+                "request_tokens": 0,  # Orchestrator handles token tracking
+                "response_tokens": 0
+            }
+        except Exception as e:
+            logger.error(f"Orchestrator execution failed: {e}")
+            # Fall back to direct execution if orchestrator fails
+            if self.provider == "claude":
+                return await self._execute_claude_mcp(tool_name, parameters, model)
+            elif self.provider == "openai":
+                return await self._execute_openai_tool(tool_name, parameters, model)
+            elif self.provider == "gemini":
+                return await self._execute_gemini_tool(tool_name, parameters, model)
+            else:
+                raise
     
     async def _execute_claude_mcp(
         self,
@@ -426,7 +527,7 @@ class MCPInstance:
         function_call = response.choices[0].message.get("function_call", {})
         
         # Execute actual Klaviyo API call
-        result = await self._execute_klaviyo_tool(tool_name, json.loads(function_call.get("arguments", "{}")))
+        result = await self._execute_klaviyo_tool(tool_name, json.loads(function_call.get("arguments", "{{}}")))
         
         return {
             "result": result,
@@ -584,12 +685,70 @@ class MCPInstance:
         return {}
 
 
+    def _load_api_keys(self, client_id: str) -> Dict[str, Optional[str]]:
+        """Load provider API keys from Secret Manager by convention.
+
+        Secret IDs:
+          - mcp-{client_id}-klaviyo-key
+          - mcp-{client_id}-openai-key
+          - mcp-{client_id}-gemini-key
+        """
+        keys: Dict[str, Optional[str]] = {"klaviyo": None, "openai": None, "gemini": None}
+        try:
+            keys["klaviyo"] = self.secret_manager.get_secret(f"mcp-{client_id}-klaviyo-key")
+        except Exception:
+            pass
+        try:
+            keys["openai"] = self.secret_manager.get_secret(f"mcp-{client_id}-openai-key")
+        except Exception:
+            pass
+        try:
+            keys["gemini"] = self.secret_manager.get_secret(f"mcp-{client_id}-gemini-key")
+        except Exception:
+            pass
+        return keys
+
+
+class MCPService:
+    """Compatibility shim used by existing APIs.
+
+    Currently supports a single method used by calendar_planning_ai:
+    - check_client_connection(client_id) -> dict
+    """
+
+    def __init__(self, db=None):
+        self.db = db or get_db()
+        # Lazily initialize the manager with a real SecretManager
+        self._manager: Optional[MCPServiceManager] = None
+
+    def _get_manager(self) -> MCPServiceManager:
+        if self._manager is None:
+            secret_manager = get_secret_manager_service()
+            self._manager = get_mcp_service(secret_manager)
+        return self._manager
+
+    async def check_client_connection(self, client_id: str) -> Dict[str, Any]:
+        try:
+            # Determine preferred provider from Firestore config
+            provider = "claude"
+            mcp_doc = self.db.collection("mcp_clients").document(client_id).get()
+            if mcp_doc.exists:
+                provider = (mcp_doc.to_dict() or {}).get("default_model_provider", "claude")
+
+            mgr = self._get_manager()
+            result = await mgr.test_connection(client_id, provider, db=self.db)
+            return {"connected": bool(result.get("success")), **result}
+        except Exception as e:
+            logging.getLogger(__name__).error(f"MCP connection check failed for {client_id}: {e}")
+            return {"connected": False, "success": False, "error": str(e)}
+
+
 # Singleton instance
 _mcp_service = None
 
-def get_mcp_service() -> MCPServiceManager:
+def get_mcp_service(secret_manager: SecretManagerService = Depends(get_secret_manager_service)) -> MCPServiceManager:
     """Get singleton instance of MCPServiceManager"""
     global _mcp_service
     if _mcp_service is None:
-        _mcp_service = MCPServiceManager()
+        _mcp_service = MCPServiceManager(secret_manager=secret_manager)
     return _mcp_service

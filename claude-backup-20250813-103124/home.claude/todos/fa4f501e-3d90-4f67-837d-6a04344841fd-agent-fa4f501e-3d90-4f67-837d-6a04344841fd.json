@@ -1,0 +1,37 @@
+[
+  {
+    "content": "Remove SQLite/SQLAlchemy dependencies from config.py",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Update Secret Manager to not require DATABASE_URL",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Ensure all endpoints use Firestore client only",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test authentication with Firestore-only setup",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Resolve Firestore DNS connectivity issue",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Create emailpilot-google-credentials secret in Secret Manager",
+    "status": "completed",
+    "id": "6"
+  },
+  {
+    "content": "Fix missing get_secret_manager function",
+    "status": "completed",
+    "id": "7"
+  }
+]

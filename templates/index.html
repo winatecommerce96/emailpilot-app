@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% set entry_name = 'index' %}
+{% set active = 'home' %}
+{% block title %}EmailPilot · Home{% endblock %}
+{% block content %}
+  <div class="container">
+    <h1>Welcome</h1>
+    <p>This server-rendered MPA replaces the prior SPA. Navigation uses simple links. Scripts progressively enhance content.</p>
+    <div id="home-stats" aria-busy="true">Loading status…</div>
+  </div>
+{% endblock %}
+

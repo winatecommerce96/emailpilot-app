@@ -10,7 +10,7 @@ def test_models_api():
     """Test the MCP models API endpoint"""
     
     # API endpoint - note the double path due to router configuration
-    url = "http://127.0.0.1:8000/api/mcp/api/mcp/models"
+    url = "http://localhost:8000/api/mcp/api/mcp/models"
     
     try:
         # Make request without authentication (public endpoint)

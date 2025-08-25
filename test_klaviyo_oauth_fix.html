@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klaviyo OAuth Test - Fixed Version</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">🔧 Klaviyo OAuth Test - Fixed Version</h1>
+            <p class="text-gray-600">Testing OAuth with Basic Auth fix for token exchange</p>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-600">Auth Status</span>
+                    <span id="authBadge" class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Unknown</span>
+                </div>
+                <p id="authUser" class="mt-2 text-sm text-gray-500">Not logged in</p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-green-600">Klaviyo</span>
+                    <span id="klaviyoBadge" class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Not Connected</span>
+                </div>
+                <p id="klaviyoDetails" class="mt-2 text-sm text-gray-500">-</p>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-blue-600">Test Status</span>
+                    <span id="testBadge" class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Ready</span>
+                </div>
+                <p id="testDetails" class="mt-2 text-sm text-gray-500">Click to start</p>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Quick Actions</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="runFullTest()" 
+                        class="px-4 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition font-medium">
+                    🚀 Run Full OAuth Test
+                </button>
+                <button onclick="quickConnect()" 
+                        class="px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition font-medium">
+                    ⚡ Quick Connect
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2 mt-4">
+                <button onclick="testAuth()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm">1. Login</button>
+                <button onclick="testKlaviyoAuth()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm">2. Get Auth URL</button>
+                <button onclick="testKlaviyoConnect()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm">3. Connect</button>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Test Results</h2>
+            <div id="results" class="space-y-2 max-h-64 overflow-y-auto">
+                <p class="text-gray-400 text-sm">No tests run yet...</p>
+            </div>
+        </div>
+
+        <!-- Debug Info -->
+        <div class="bg-gray-900 rounded-lg shadow-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-green-400 font-mono text-sm">Debug Console</h3>
+                <button onclick="clearDebug()" class="text-gray-500 hover:text-white text-xs">Clear</button>
+            </div>
+            <pre id="debug" class="text-green-400 text-xs font-mono h-32 overflow-y-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        // Logging
+        const log = (msg, level = 'info') => {
+            const debug = document.getElementById('debug');
+            const time = new Date().toLocaleTimeString();
+            const symbols = { error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️' };
+            debug.textContent += `${symbols[level]} [${time}] ${msg}\n`;
+            debug.scrollTop = debug.scrollHeight;
+        };
+
+        const addResult = (test, passed, details = '') => {
+            const results = document.getElementById('results');
+            if (results.firstChild?.textContent?.includes('No tests')) {
+                results.innerHTML = '';
+            }
+            
+            const div = document.createElement('div');
+            div.className = `p-2 rounded ${passed ? 'bg-green-50' : 'bg-red-50'}`;
+            div.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span class="${passed ? 'text-green-700' : 'text-red-700'} text-sm font-medium">
+                        ${passed ? '✅' : '❌'} ${test}
+                    </span>
+                    <span class="text-xs text-gray-500">${new Date().toLocaleTimeString()}</span>
+                </div>
+                ${details ? `<p class="text-xs mt-1 ${passed ? 'text-green-600' : 'text-red-600'}">${details}</p>` : ''}
+            `;
+            results.insertBefore(div, results.firstChild);
+        };
+
+        const updateBadge = (id, text, color) => {
+            const badge = document.getElementById(id);
+            badge.textContent = text;
+            badge.className = `px-2 py-1 text-xs rounded-full ${color}`;
+        };
+
+        const clearDebug = () => {
+            document.getElementById('debug').textContent = '';
+            log('Console cleared');
+        };
+
+        // Auth functions
+        async function testAuth() {
+            log('Starting authentication test...');
+            updateBadge('testBadge', 'Testing...', 'bg-yellow-100 text-yellow-700');
+            
+            try {
+                // Try existing token
+                let token = localStorage.getItem('access_token');
+                
+                if (!token) {
+                    log('No token found, attempting guest login...');
+                    const response = await fetch(`${API_BASE}/api/auth/google/guest`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        token = data.access_token;
+                        localStorage.setItem('access_token', token);
+                        log('Guest login successful', 'success');
+                    } else {
+                        throw new Error('Guest login failed');
+                    }
+                }
+                
+                // Verify token
+                const meResponse = await fetch(`${API_BASE}/api/auth/google/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (meResponse.ok) {
+                    const user = await meResponse.json();
+                    updateBadge('authBadge', 'Authenticated', 'bg-green-100 text-green-700');
+                    document.getElementById('authUser').textContent = user.email;
+                    addResult('Authentication', true, `Logged in as ${user.email}`);
+                    log(`Authenticated as ${user.email}`, 'success');
+                    return true;
+                } else {
+                    throw new Error('Token validation failed');
+                }
+            } catch (error) {
+                updateBadge('authBadge', 'Failed', 'bg-red-100 text-red-700');
+                addResult('Authentication', false, error.message);
+                log(`Auth failed: ${error.message}`, 'error');
+                return false;
+            } finally {
+                updateBadge('testBadge', 'Ready', 'bg-gray-100 text-gray-600');
+            }
+        }
+
+        async function testKlaviyoAuth() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                addResult('Get Auth URL', false, 'Not authenticated');
+                return null;
+            }
+            
+            log('Fetching Klaviyo auth URL...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/integrations/klaviyo/auth`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('Auth URL received', 'success');
+                    
+                    // Parse URL to check PKCE
+                    const url = new URL(data.authorization_url);
+                    const hasChallenge = url.searchParams.has('code_challenge');
+                    const hasMethod = url.searchParams.get('code_challenge_method') === 'S256';
+                    
+                    addResult('Get Auth URL', true, 
+                        `PKCE: ${hasChallenge && hasMethod ? '✅' : '❌'} | State: ${url.searchParams.has('state') ? '✅' : '❌'}`);
+                    
+                    return data.authorization_url;
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to get auth URL');
+                }
+            } catch (error) {
+                addResult('Get Auth URL', false, error.message);
+                log(`Auth URL error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function testKlaviyoConnect() {
+            const authUrl = await testKlaviyoAuth();
+            if (!authUrl) return;
+            
+            log('Opening OAuth popup...');
+            updateBadge('klaviyoBadge', 'Connecting...', 'bg-yellow-100 text-yellow-700');
+            
+            const popup = window.open(authUrl, 'KlaviyoOAuth', 'width=600,height=700');
+            
+            if (!popup) {
+                addResult('OAuth Popup', false, 'Popup blocked');
+                return;
+            }
+            
+            addResult('OAuth Popup', true, 'Opened successfully');
+            
+            return new Promise((resolve) => {
+                const handleMessage = (event) => {
+                    if (event.data.service === 'klaviyo') {
+                        if (event.data.success) {
+                            updateBadge('klaviyoBadge', 'Connected', 'bg-green-100 text-green-700');
+                            addResult('OAuth Complete', true, 'Successfully connected');
+                            log('Klaviyo connected!', 'success');
+                            checkKlaviyoStatus();
+                            resolve(true);
+                        } else {
+                            updateBadge('klaviyoBadge', 'Failed', 'bg-red-100 text-red-700');
+                            addResult('OAuth Complete', false, event.data.message || event.data.error);
+                            log(`OAuth failed: ${event.data.message}`, 'error');
+                            resolve(false);
+                        }
+                        window.removeEventListener('message', handleMessage);
+                    }
+                };
+                
+                window.addEventListener('message', handleMessage);
+                
+                // Timeout after 5 minutes
+                setTimeout(() => {
+                    window.removeEventListener('message', handleMessage);
+                    if (!popup.closed) popup.close();
+                    resolve(false);
+                }, 300000);
+            });
+        }
+
+        async function checkKlaviyoStatus() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/integrations/klaviyo/status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (data.connected) {
+                    updateBadge('klaviyoBadge', 'Connected', 'bg-green-100 text-green-700');
+                    document.getElementById('klaviyoDetails').textContent = 'Active';
+                    log('Klaviyo status: Connected', 'success');
+                } else {
+                    updateBadge('klaviyoBadge', 'Not Connected', 'bg-gray-100 text-gray-600');
+                    document.getElementById('klaviyoDetails').textContent = '-';
+                }
+            } catch (error) {
+                log(`Status check error: ${error.message}`, 'error');
+            }
+        }
+
+        async function runFullTest() {
+            log('Starting full OAuth test...', 'info');
+            updateBadge('testBadge', 'Running...', 'bg-blue-100 text-blue-700');
+            document.getElementById('testDetails').textContent = 'Testing in progress...';
+            
+            // Step 1: Authenticate
+            const authOk = await testAuth();
+            if (!authOk) {
+                updateBadge('testBadge', 'Failed', 'bg-red-100 text-red-700');
+                document.getElementById('testDetails').textContent = 'Auth failed';
+                return;
+            }
+            
+            // Step 2: Connect Klaviyo
+            const connected = await testKlaviyoConnect();
+            
+            if (connected) {
+                updateBadge('testBadge', 'Success', 'bg-green-100 text-green-700');
+                document.getElementById('testDetails').textContent = 'All tests passed!';
+                log('Full test completed successfully!', 'success');
+            } else {
+                updateBadge('testBadge', 'Failed', 'bg-red-100 text-red-700');
+                document.getElementById('testDetails').textContent = 'OAuth failed';
+            }
+        }
+
+        async function quickConnect() {
+            const authOk = await testAuth();
+            if (authOk) {
+                await testKlaviyoConnect();
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', async () => {
+            log('Test page loaded');
+            await testAuth();
+            await checkKlaviyoStatus();
+        });
+    </script>
+</body>
+</html>

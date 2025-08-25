@@ -1,0 +1,111 @@
+{
+  "name": "EmailPilot UI System",
+  "version": "1.0.0",
+  "documentation": {
+    "main_guide": "docs/UI_DEVELOPMENT_GUIDE.md",
+    "quick_reference": "docs/UI_QUICK_REFERENCE.md",
+    "troubleshooting": "FRONTEND_FEATURE_CHECKLIST.md"
+  },
+  "component_system": {
+    "source_directory": "frontend/public/components/",
+    "build_output": "frontend/public/dist/",
+    "build_command": "npm run build",
+    "build_script": "scripts/build_frontend.sh"
+  },
+  "required_steps_for_new_ui": [
+    {
+      "step": 1,
+      "action": "Create component file",
+      "location": "frontend/public/components/YourFeature.js",
+      "required_export": "window.YourFeature = YourFeature;",
+      "example": "const YourFeature = () => React.createElement('div', null, 'Content');"
+    },
+    {
+      "step": 2,
+      "action": "Add to build system",
+      "location": "scripts/build_frontend.sh",
+      "line_range": "46-71",
+      "array_name": "JSX_COMPONENTS",
+      "example": "JSX_COMPONENTS=(\"YourFeature\" ...)"
+    },
+    {
+      "step": 3,
+      "action": "Include script in HTML",
+      "location": "frontend/public/index.html",
+      "line_range": "470-490",
+      "example": "<script src=\"/static/dist/YourFeature.js\"></script>"
+    },
+    {
+      "step": 4,
+      "action": "Build the frontend",
+      "command": "npm run build",
+      "verify": "ls -la frontend/public/dist/YourFeature.js"
+    }
+  ],
+  "quick_actions": {
+    "framework_file": "frontend/public/components/QuickActionsFramework.js",
+    "config_array": "QUICK_ACTIONS_CONFIG",
+    "add_action_example": {
+      "id": "your-feature",
+      "icon": "🎯",
+      "title": "Your Feature",
+      "subtitle": "Description",
+      "onClick": "() => setActiveTab('your-feature')",
+      "enabled": true,
+      "requiresComponent": true,
+      "componentName": "YourFeature",
+      "componentPath": "/static/dist/YourFeature.js"
+    }
+  },
+  "routing": {
+    "main_app": "frontend/public/app.js",
+    "tab_handling": "activeTab === 'your-feature'",
+    "component_rendering": "window.YourFeature ? <window.YourFeature /> : <LoadingFallback />"
+  },
+  "existing_components": [
+    "DeveloperTools",
+    "AdminClientManagement",
+    "AdminAgentsPanel",
+    "Calendar",
+    "GoalsDashboard",
+    "MCPManagement",
+    "AIModelsAdmin",
+    "OrderAlertsPanel",
+    "UserManagerEnhanced",
+    "QuickActionsFramework"
+  ],
+  "api_endpoints": {
+    "total_count": 383,
+    "exposed_in_ui": 59,
+    "hidden_features": 204,
+    "access_via": "DeveloperTools component in Quick Actions"
+  },
+  "troubleshooting": {
+    "component_not_appearing": [
+      "Check script include in index.html",
+      "Verify window export in component",
+      "Run npm run build",
+      "Clear browser cache"
+    ],
+    "build_issues": [
+      "Check JSX_COMPONENTS array in build script",
+      "Verify component file exists",
+      "Check for syntax errors in component"
+    ],
+    "runtime_errors": [
+      "Check browser console",
+      "Verify React and ReactDOM loaded",
+      "Check Network tab for 404s"
+    ]
+  },
+  "testing": {
+    "manual_test_page": "http://localhost:8000/test-quick-actions.html",
+    "developer_tools": "http://localhost:8000/admin → Quick Actions → Developer Tools",
+    "diagnostic_script": "python diagnose_frontend_gaps.py"
+  },
+  "cache_busting": {
+    "method": "query_parameter",
+    "example": "app.js?v=1755699662",
+    "update_command": "sed -i '' \"s|app.js\\\"|app.js?v=$(date +%s)\\\"|g\" frontend/public/index.html"
+  }
+}

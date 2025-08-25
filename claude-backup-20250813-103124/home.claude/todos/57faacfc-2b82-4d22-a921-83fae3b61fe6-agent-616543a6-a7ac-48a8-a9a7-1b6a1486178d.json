@@ -1,0 +1,52 @@
+[
+  {
+    "content": "Create the folder structure at /src/features/calendar/",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Implement CalendarPage.jsx (main page component)",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Create CalendarBoard.jsx (calendar grid UI)",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Build CalendarChat.jsx (AI chat component)",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Create modals/EventModal.jsx",
+    "status": "completed",
+    "id": "5"
+  },
+  {
+    "content": "Implement services/firebaseCalendar.ts",
+    "status": "completed",
+    "id": "6"
+  },
+  {
+    "content": "Create services/goals.ts",
+    "status": "completed",
+    "id": "7"
+  },
+  {
+    "content": "Implement services/ai.ts",
+    "status": "completed",
+    "id": "8"
+  },
+  {
+    "content": "Create hooks/useCalendarState.ts",
+    "status": "completed",
+    "id": "9"
+  },
+  {
+    "content": "Create types.ts with TypeScript interfaces",
+    "status": "completed",
+    "id": "10"
+  }
+]

@@ -1,0 +1,65 @@
+diff --git a/scripts/build_frontend.sh b/scripts/build_frontend.sh
+index abc123..def456 100755
+--- a/scripts/build_frontend.sh
++++ b/scripts/build_frontend.sh
+@@ -44,6 +44,8 @@ echo "🔧 Compiling JSX components..."
+ 
+ # Define components that need JSX compilation
+ JSX_COMPONENTS=(
++    "DeveloperTools"  # Added new component to build list
++    "app.js"          # Added main app to ensure it rebuilds
+     "AdminAgentsPanel.js"
+     "Calendar.js"
+     "EventModal.js" 
+@@ -71,7 +73,7 @@ JSX_COMPONENTS=(
+ 
+ # Build main app.js first (if it exists in components)
+ echo "  📄 Compiling app.js..."
+-if [[ -f "frontend/public/components/app.js" ]]; then
++if [[ -f "frontend/public/app.js" ]]; then  # Fixed path - app.js is at root, not in components/
+     npx esbuild frontend/public/app.js \
+         --bundle \
+         --format=iife \
+
+diff --git a/frontend/public/index.html b/frontend/public/index.html
+index 789abc..123def 100644
+--- a/frontend/public/index.html
++++ b/frontend/public/index.html
+@@ -483,7 +483,7 @@
+     <!-- Navigation Utilities -->
+     <script src="/static/utils/navigation.js"></script>
+     <!-- Main App (pre-compiled from JSX) -->
+-    <script src="/static/dist/app.js"></script>
++    <script src="/static/dist/app.js?v=1755699662"></script>  <!-- Added cache busting -->
+     <!-- Global brand theme (cards, colors) -->
+     <script src="/static/dist/brand-theme.js"></script>
+     <!-- Simple Theme Status (debugging only) -->
+
+diff --git a/frontend/public/clear-cache.js b/frontend/public/clear-cache.js
+new file mode 100644
+index 0000000..456789
+--- /dev/null
++++ b/frontend/public/clear-cache.js
+@@ -0,0 +1,22 @@
++// Clear service workers and caches - NEW FILE
++if ('serviceWorker' in navigator) {
++    navigator.serviceWorker.getRegistrations().then(function(registrations) {
++        for(let registration of registrations) {
++            registration.unregister();
++            console.log('Service worker unregistered');
++        }
++    });
++}
++
++// Clear caches
++if ('caches' in window) {
++    caches.keys().then(function(names) {
++        for (let name of names) {
++            caches.delete(name);
++            console.log('Cache cleared:', name);
++        }
++    });
++}
++
++// Force reload
++setTimeout(() => { window.location.reload(true); }, 100);

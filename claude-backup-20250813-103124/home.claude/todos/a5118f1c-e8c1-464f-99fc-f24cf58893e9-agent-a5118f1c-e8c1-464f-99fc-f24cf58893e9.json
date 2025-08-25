@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Investigate Calendar component loading issues",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Check missing Calendar components (CalendarView, Calendar, EventModal)",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Fix API endpoint errors (500 errors on /api/admin routes)",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Test Calendar functionality after fixes",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Verify all components load correctly",
+    "status": "completed",
+    "id": "5"
+  }
+]

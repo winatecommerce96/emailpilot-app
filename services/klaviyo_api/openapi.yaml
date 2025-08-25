@@ -1,0 +1,264 @@
+openapi: 3.0.3
+info:
+  title: Klaviyo API (Test)
+  version: '1.0.0'
+  description: Email-attributed metrics via Klaviyo Campaign+Flow reports
+servers:
+  - url: http://localhost:9090
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  project:
+                    type: string
+  /clients/{client_id}/revenue/last7:
+    get:
+      summary: Get last 7-day email-attributed revenue for a client
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: timeframe_key
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [last_7_days, last_30_days, last_90_days, yesterday, last_24_hours]
+        - name: tz
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ISO8601 start (use with end)
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ISO8601 end (use with start)
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+          description: URL-encoded JSON timeframe object {"key":"..."} or {"start":"...","end":"..."}
+        - name: recompute
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: metric_name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Metric name (default 'Placed Order'). metric_id is resolved from Firestore for the client.
+      responses:
+        '200':
+          description: Revenue result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_id:
+                    type: string
+                  metric_id:
+                    type: string
+                  campaign_total:
+                    type: number
+                    format: float
+                  flow_total:
+                    type: number
+                    format: float
+                  total:
+                    type: number
+                    format: float
+                  timeframe:
+                    type: string
+  /clients/by-slug/{slug}/revenue/last7:
+    get:
+      summary: Get last 7-day email-attributed revenue for a client by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: timeframe_key
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [last_7_days, last_30_days, last_90_days, yesterday, last_24_hours]
+        - name: tz
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: timeframe
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: recompute
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Revenue result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_id:
+                    type: string
+                  metric_id:
+                    type: string
+                  campaign_total:
+                    type: number
+                    format: float
+                  flow_total:
+                    type: number
+                    format: float
+                  total:
+                    type: number
+                    format: float
+                  timeframe:
+                    type: string
+  /admin/prompts:
+    get:
+      summary: List MCP prompts
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Upsert an MCP prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+  /admin/prompts/{name}:
+    get:
+      summary: Get an MCP prompt
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete an MCP prompt
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /admin/prompts/{name}/test:
+    post:
+      summary: Render and test an MCP prompt against the revenue tool
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+  /clients/{client_id}/weekly/metrics:
+    get:
+      summary: Weekly metrics bundle for prompts (campaign/flow split + orders)
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Weekly metrics bundle
+  /clients/by-slug/{slug}/weekly/metrics:
+    get:
+      summary: Weekly metrics bundle by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Weekly metrics bundle
+  /clients/{client_id}/weekly/full:
+    get:
+      summary: Full weekly metrics including engagement rates
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full weekly metrics
+  /clients/by-slug/{slug}/weekly/full:
+    get:
+      summary: Full weekly metrics by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full weekly metrics

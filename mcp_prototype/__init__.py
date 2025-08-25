@@ -1,0 +1,2 @@
+"""MCP Prototype package initializer."""
+

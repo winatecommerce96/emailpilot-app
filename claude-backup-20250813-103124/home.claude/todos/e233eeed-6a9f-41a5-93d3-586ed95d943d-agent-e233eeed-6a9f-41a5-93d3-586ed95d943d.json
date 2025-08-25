@@ -1,0 +1,17 @@
+[
+  {
+    "content": "Use tech-lead-orchestrator to review localhost:8000 usage across codebase",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Fix any inconsistent localhost references",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Update CLAUDE.md with localhost:8000 standard",
+    "status": "completed",
+    "id": "3"
+  }
+]

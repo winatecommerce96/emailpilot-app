@@ -38,7 +38,7 @@ echo "⏳ Waiting for server to start..."
 sleep 3
 
 # Check if server is running
-if curl -s http://127.0.0.1:8000/api/calendar/health > /dev/null; then
+if curl -s http://localhost:8000/api/calendar/health > /dev/null; then
     echo -e "${GREEN}✅ Server started successfully!${NC}"
     
     # Run tests
@@ -51,9 +51,9 @@ if curl -s http://127.0.0.1:8000/api/calendar/health > /dev/null; then
     echo -e "${GREEN}✨ Calendar Development Environment Ready!${NC}"
     echo "=================================================="
     echo ""
-    echo "📅 Calendar UI: http://127.0.0.1:8000/calendar"
-    echo "📚 API Docs: http://127.0.0.1:8000/docs#/Calendar"
-    echo "🔍 Health Check: http://127.0.0.1:8000/api/calendar/health"
+    echo "📅 Calendar UI: http://localhost:8000/calendar"
+    echo "📚 API Docs: http://localhost:8000/docs#/Calendar"
+    echo "🔍 Health Check: http://localhost:8000/api/calendar/health"
     echo ""
     echo "Server PID: $SERVER_PID"
     echo "To stop: kill $SERVER_PID or press Ctrl+C"
@@ -62,9 +62,9 @@ if curl -s http://127.0.0.1:8000/api/calendar/health > /dev/null; then
     # Open browser (works on macOS)
     if [[ "$OSTYPE" == "darwin"* ]]; then
         echo "🌐 Opening calendar in browser..."
-        open http://127.0.0.1:8000/calendar
+        open http://localhost:8000/calendar
     else
-        echo "🌐 Open in browser: http://127.0.0.1:8000/calendar"
+        echo "🌐 Open in browser: http://localhost:8000/calendar"
     fi
     
     # Keep script running and show logs

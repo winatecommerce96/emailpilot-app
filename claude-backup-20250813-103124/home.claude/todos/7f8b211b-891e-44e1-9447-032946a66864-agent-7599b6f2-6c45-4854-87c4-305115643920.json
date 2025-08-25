@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Check MCPManagement.js content at line 260 for syntax error",
+    "status": "completed",
+    "id": "1"
+  },
+  {
+    "content": "Verify component exports/imports for CalendarView/Calendar/EventModal",
+    "status": "completed",
+    "id": "2"
+  },
+  {
+    "content": "Check build system and static asset serving configuration",
+    "status": "completed",
+    "id": "3"
+  },
+  {
+    "content": "Examine app.js component registration logic",
+    "status": "completed",
+    "id": "4"
+  },
+  {
+    "content": "Test fix and verify MCP Management tab loads properly",
+    "status": "completed",
+    "id": "5"
+  }
+]

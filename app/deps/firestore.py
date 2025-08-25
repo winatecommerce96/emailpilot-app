@@ -1,34 +1,42 @@
 import os
+import json
 import logging
 from google.cloud import firestore
+from google.oauth2 import service_account
+from app.services.secrets import SecretManagerService
 
 logger = logging.getLogger(__name__)
 
-def get_db():
+_DB_CLIENT: firestore.Client | None = None
+
+
+def get_db() -> firestore.Client:
+    global _DB_CLIENT
+    if _DB_CLIENT is not None:
+        return _DB_CLIENT
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCLOUD_PROJECT")
     
     if not project_id:
         logger.error("No Google Cloud project ID found in environment")
         raise ValueError("GOOGLE_CLOUD_PROJECT environment variable must be set")
     
-    logger.info(f"Initializing Firestore client for project: {project_id}")
-    
-    # Check if we're using the emulator
-    emulator_host = os.getenv("FIRESTORE_EMULATOR_HOST")
-    if emulator_host:
-        logger.info(f"Using Firestore emulator at: {emulator_host}")
-    else:
-        logger.info("Using production Firestore")
-        # Log credentials path if available
-        creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if creds_path:
-            logger.info(f"Using credentials from: {creds_path}")
-    
-    # Create client - it will automatically use emulator if FIRESTORE_EMULATOR_HOST is set
+    # Try to get credentials from Secret Manager
     try:
-        client = firestore.Client(project=project_id)
-        logger.info("Firestore client initialized successfully")
-        return client
+        secret_manager = SecretManagerService(project_id=project_id)
+        credentials_json = secret_manager.get_secret("firestore-service-account")
+        if credentials_json:
+            logger.info("Using Firestore credentials from Secret Manager")
+            credentials_dict = json.loads(credentials_json)
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_dict,
+                scopes=["https://www.googleapis.com/auth/datastore"]
+            )
+            _DB_CLIENT = firestore.Client(project=project_id, credentials=credentials)
+            return _DB_CLIENT
     except Exception as e:
-        logger.error(f"Failed to initialize Firestore client: {e}")
-        raise
+        logger.warning(f"Could not load credentials from Secret Manager: {e}")
+
+    # Fallback to default credentials
+    logger.info("Using Application Default Credentials for Firestore")
+    _DB_CLIENT = firestore.Client(project=project_id)
+    return _DB_CLIENT

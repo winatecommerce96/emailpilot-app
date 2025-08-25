@@ -66,3 +66,6 @@ coverage.xml
 # Deployment
 deployment_summary_*.md
 deploy_*.log
+.env
+.claude/settings.local.json
+.mini-proxy
