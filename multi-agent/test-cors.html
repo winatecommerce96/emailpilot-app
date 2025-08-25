@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>CORS Test</h1>
+    <div id="result">Testing...</div>
+    
+    <script>
+        // Test CORS
+        fetch('http://127.0.0.1:8100/')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerHTML = 
+                    '<span style="color: green;">✅ CORS working! Response:</span><pre>' + 
+                    JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = 
+                    '<span style="color: red;">❌ CORS error: ' + error + '</span>';
+            });
+    </script>
+</body>
+</html>

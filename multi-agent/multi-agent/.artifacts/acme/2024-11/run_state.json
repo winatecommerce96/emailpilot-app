@@ -1,0 +1,243 @@
+{
+  "run_id": "46d60db3-0c3c-43aa-8e61-673aeaf5aea2",
+  "tenant_id": "pilot-tenant",
+  "brand_id": "acme",
+  "selected_month": "2024-11",
+  "prior_year_same_month": "2023-11",
+  "current_phase": "monitoring",
+  "current_node": "setup_analytics",
+  "artifacts": {
+    "performance_slice": "f1c06ae7-4fc0-4cec-b055-c872fdda3add",
+    "campaign_calendar": "054844de-b7ed-4ef6-8920-065bfcdb1c18",
+    "campaign_brief": "camp_2216047b",
+    "copy_packet": "2d73d113-5b8e-4f0b-8c2e-0766408e8717",
+    "design_spec": "b19c980f-0bb0-41f5-87df-1445d191eb73",
+    "qa_report": "de72df1b-86ee-4257-9c67-c27f083548fa"
+  },
+  "approvals": [
+    {
+      "artifact_type": "campaign_brief",
+      "status": "approved",
+      "timestamp": "2025-08-19 15:27:23.269762",
+      "auto_approved": true
+    },
+    {
+      "artifact_type": "final_campaign",
+      "status": "approved",
+      "timestamp": "2025-08-19 15:27:23.274078",
+      "auto_approved": true
+    }
+  ],
+  "revision_count": 0,
+  "status": "completed",
+  "error": null,
+  "started_at": "2025-08-19 15:27:23.022249",
+  "completed_at": "2025-08-19 15:27:23.275381",
+  "metadata": {
+    "source": "cli_demo",
+    "analytics_plan": {
+      "kpis": {
+        "primary": {
+          "revenue": {
+            "target": 95000.0,
+            "measurement": "klaviyo_conversion_tracking",
+            "attribution_window": "7_days"
+          },
+          "conversion_rate": {
+            "target": 5.5,
+            "measurement": "orders / delivered",
+            "minimum_acceptable": 3.0
+          }
+        },
+        "secondary": {
+          "open_rate": {
+            "target": 42.5,
+            "benchmark": 35.0,
+            "segment_breakdown": true
+          },
+          "click_rate": {
+            "target": 8.2,
+            "benchmark": 6.5,
+            "link_level_tracking": true
+          },
+          "engagement_score": {
+            "formula": "(opens + clicks*2 + conversions*10) / sends",
+            "target": 0.5
+          }
+        },
+        "health": {
+          "unsubscribe_rate": {
+            "threshold": 0.1,
+            "alert_level": 0.2
+          },
+          "complaint_rate": {
+            "threshold": 0.01,
+            "alert_level": 0.005
+          },
+          "bounce_rate": {
+            "threshold": 2.0,
+            "alert_level": 3.0
+          }
+        }
+      },
+      "tracking": {
+        "utm_parameters": {
+          "source": "email",
+          "medium": "vip_campaign",
+          "campaign": "black_friday_preview",
+          "content": "{{variant_id}}",
+          "term": "{{segment}}"
+        },
+        "klaviyo_tracking": {
+          "campaign_id": "camp_2216047b",
+          "flow_id": null,
+          "template_id": "{{template_id}}",
+          "variation_id": "{{variant_id}}"
+        },
+        "custom_parameters": {
+          "vip_tier": "{{customer.vip_tier}}",
+          "member_since": "{{customer.member_since}}",
+          "lifecycle_stage": "{{customer.lifecycle_stage}}"
+        }
+      },
+      "ab_test_plan": {
+        "test_type": "subject_line_and_copy",
+        "variants": 3,
+        "sample_size": 5000,
+        "success_metric": "conversion_rate",
+        "statistical_confidence": 0.95,
+        "minimum_detectable_effect": 0.1,
+        "test_duration": "24_hours",
+        "winner_criteria": "highest_revenue_per_recipient"
+      },
+      "dashboard": {
+        "real_time_metrics": [
+          "sends",
+          "opens",
+          "clicks",
+          "conversions",
+          "revenue"
+        ],
+        "visualizations": [
+          {
+            "type": "time_series",
+            "metric": "cumulative_revenue",
+            "interval": "hourly"
+          },
+          {
+            "type": "funnel",
+            "stages": [
+              "sent",
+              "opened",
+              "clicked",
+              "converted"
+            ]
+          },
+          {
+            "type": "heatmap",
+            "data": "link_clicks"
+          },
+          {
+            "type": "comparison",
+            "metrics": [
+              "variant_performance"
+            ]
+          }
+        ],
+        "alerts": [
+          {
+            "condition": "unsubscribe_rate > 0.2",
+            "action": "pause_campaign",
+            "notify": [
+              "campaign_manager",
+              "deliverability_team"
+            ]
+          },
+          {
+            "condition": "conversion_rate < 2.0 after 6 hours",
+            "action": "review_required",
+            "notify": [
+              "campaign_manager"
+            ]
+          }
+        ]
+      },
+      "post_send_analysis": {
+        "immediate": {
+          "timing": "2_hours",
+          "metrics": [
+            "open_rate",
+            "click_rate",
+            "early_conversions"
+          ],
+          "actions": [
+            "variant_performance_check",
+            "deliverability_monitoring"
+          ]
+        },
+        "day_one": {
+          "timing": "24_hours",
+          "metrics": [
+            "conversion_rate",
+            "revenue",
+            "variant_winner"
+          ],
+          "actions": [
+            "winner_rollout",
+            "segment_analysis"
+          ]
+        },
+        "week_one": {
+          "timing": "7_days",
+          "metrics": [
+            "total_revenue",
+            "customer_lifetime_value_impact",
+            "cross_sell"
+          ],
+          "actions": [
+            "performance_report",
+            "learnings_documentation"
+          ]
+        },
+        "month_end": {
+          "timing": "30_days",
+          "metrics": [
+            "long_tail_conversions",
+            "retention_impact",
+            "brand_health"
+          ],
+          "actions": [
+            "executive_summary",
+            "strategy_recommendations"
+          ]
+        }
+      },
+      "success_criteria": {
+        "minimum": {
+          "revenue": 76000.0,
+          "conversion_rate": 3.0,
+          "no_deliverability_issues": true
+        },
+        "target": {
+          "revenue": 95000.0,
+          "conversion_rate": 5.5,
+          "positive_engagement_lift": true
+        },
+        "exceptional": {
+          "revenue": 114000.0,
+          "conversion_rate": 6.6,
+          "viral_sharing": true
+        }
+      },
+      "instrumentation_complete": true,
+      "estimated_reporting_lag": "15_minutes",
+      "data_retention_days": 90,
+      "provenance": {
+        "node": "truth_teller",
+        "version": "1.0.0",
+        "created_at": "2025-08-19T15:27:23.275377"
+      }
+    },
+    "completed_at": "2025-08-19 15:27:23.275381"
+  }
+}

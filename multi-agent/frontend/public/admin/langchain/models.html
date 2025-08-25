@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain Model Configuration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="navbar-container"></div>
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Model Configuration</h1>
+            <p class="text-gray-600">Configure model policies, allowlists, and limits</p>
+        </div>
+
+        <!-- Scope Selector -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <div class="flex items-center space-x-4 mb-4">
+                <label class="font-medium">Configuration Scope:</label>
+                <select id="scope-selector" class="px-3 py-2 border rounded" onchange="loadConfiguration()">
+                    <option value="global">Global (Default)</option>
+                    <option value="brand">Brand-Specific</option>
+                    <option value="user">User-Specific</option>
+                </select>
+                <input type="text" id="scope-identifier" class="px-3 py-2 border rounded" 
+                       placeholder="Brand or User ID" style="display:none;" onchange="loadConfiguration()">
+            </div>
+        </div>
+
+        <!-- Model Selection -->
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+            <!-- Default Model -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Default Model</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Provider</label>
+                        <select id="default-provider" class="w-full px-3 py-2 border rounded" onchange="updateModelOptions()">
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="google">Google</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Model</label>
+                        <select id="default-model" class="w-full px-3 py-2 border rounded">
+                            <!-- Options will be populated based on provider -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Temperature</label>
+                        <input type="number" id="temperature" class="w-full px-3 py-2 border rounded" 
+                               min="0" max="2" step="0.1" value="0.7">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Max Tokens</label>
+                        <input type="number" id="max-tokens" class="w-full px-3 py-2 border rounded" 
+                               min="100" max="8000" value="2000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Allowlist/Limits -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Restrictions</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Allowed Models</label>
+                        <div id="allowlist-container" class="space-y-2">
+                            <!-- Checkboxes will be populated here -->
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Daily Token Limit</label>
+                        <input type="number" id="daily-limit" class="w-full px-3 py-2 border rounded" 
+                               min="0" placeholder="Unlimited if empty">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Rate Limit (RPM)</label>
+                        <input type="number" id="rate-limit" class="w-full px-3 py-2 border rounded" 
+                               min="0" placeholder="60">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Key Validation -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">API Key Validation</h2>
+            <div class="grid md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Provider</label>
+                    <select id="validate-provider" class="w-full px-3 py-2 border rounded">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">API Key</label>
+                    <input type="password" id="validate-key" class="w-full px-3 py-2 border rounded" 
+                           placeholder="sk-...">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="validateKey()" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Validate Key
+                    </button>
+                </div>
+            </div>
+            <div id="validation-result" class="mt-4 hidden">
+                <!-- Validation result will appear here -->
+            </div>
+        </div>
+
+        <!-- Effective Policy Preview -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Effective Policy Preview</h2>
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Test User ID</label>
+                    <input type="text" id="test-user" class="w-full px-3 py-2 border rounded" placeholder="john.doe">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Test Brand</label>
+                    <input type="text" id="test-brand" class="w-full px-3 py-2 border rounded" placeholder="acme">
+                </div>
+            </div>
+            <button onclick="previewPolicy()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 mb-4">
+                Preview Effective Policy
+            </button>
+            <div id="policy-preview" class="hidden">
+                <pre class="bg-gray-100 p-4 rounded overflow-auto"></pre>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="mt-6 flex justify-end">
+            <button onclick="saveConfiguration()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Save Configuration
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const modelOptions = {
+            openai: ['gpt-4-turbo-preview', 'gpt-4', 'gpt-3.5-turbo', 'gpt-3.5-turbo-16k'],
+            anthropic: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+            google: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']
+        };
+
+        // Load navbar
+        fetch('navbar.html')
+            .then(r => r.text())
+            .then(html => document.getElementById('navbar-container').innerHTML = html);
+
+        // Handle scope selector change
+        document.getElementById('scope-selector').addEventListener('change', (e) => {
+            const identifier = document.getElementById('scope-identifier');
+            if (e.target.value === 'global') {
+                identifier.style.display = 'none';
+            } else {
+                identifier.style.display = 'inline-block';
+                identifier.placeholder = e.target.value === 'brand' ? 'Enter Brand ID' : 'Enter User ID';
+            }
+        });
+
+        function updateModelOptions() {
+            const provider = document.getElementById('default-provider').value;
+            const modelSelect = document.getElementById('default-model');
+            
+            modelSelect.innerHTML = modelOptions[provider].map(model => 
+                '<option value="' + model + '">' + model + '</option>'
+            ).join('');
+            
+            updateAllowlist();
+        }
+
+        function updateAllowlist() {
+            const container = document.getElementById('allowlist-container');
+            let html = '';
+            
+            for (const [provider, models] of Object.entries(modelOptions)) {
+                html += '<div class="mb-2"><strong>' + provider + '</strong></div>';
+                models.forEach(model => {
+                    const id = provider + '-' + model;
+                    html += '<label class="flex items-center ml-4 mb-1">';
+                    html += '<input type="checkbox" id="allow-' + id + '" value="' + provider + ':' + model + '" class="mr-2" checked>';
+                    html += model;
+                    html += '</label>';
+                });
+            }
+            
+            container.innerHTML = html;
+        }
+
+        async function loadConfiguration() {
+            const scope = document.getElementById('scope-selector').value;
+            const identifier = document.getElementById('scope-identifier').value;
+            
+            // TODO: Load actual configuration from API
+            console.log('Loading configuration for', scope, identifier);
+        }
+
+        async function validateKey() {
+            const provider = document.getElementById('validate-provider').value;
+            const apiKey = document.getElementById('validate-key').value;
+            const resultDiv = document.getElementById('validation-result');
+            
+            if (!apiKey) {
+                alert('Please enter an API key');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/langchain/models/validate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        provider: provider,
+                        model: modelOptions[provider][0],
+                        api_key: apiKey
+                    })
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.classList.remove('hidden');
+                if (data.valid) {
+                    resultDiv.innerHTML = '<div class="p-4 bg-green-100 text-green-800 rounded">✓ API key is valid</div>';
+                } else {
+                    resultDiv.innerHTML = '<div class="p-4 bg-red-100 text-red-800 rounded">✗ ' + (data.message || 'Invalid API key') + '</div>';
+                }
+            } catch (error) {
+                resultDiv.classList.remove('hidden');
+                resultDiv.innerHTML = '<div class="p-4 bg-red-100 text-red-800 rounded">✗ Validation failed: ' + error.message + '</div>';
+            }
+        }
+
+        async function previewPolicy() {
+            const userId = document.getElementById('test-user').value;
+            const brand = document.getElementById('test-brand').value;
+            
+            const params = new URLSearchParams();
+            if (userId) params.append('user_id', userId);
+            if (brand) params.append('brand', brand);
+            
+            try {
+                const response = await fetch('/api/admin/langchain/models/resolve?' + params.toString());
+                const data = await response.json();
+                
+                const preview = document.getElementById('policy-preview');
+                preview.classList.remove('hidden');
+                preview.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                alert('Failed to preview policy: ' + error.message);
+            }
+        }
+
+        function saveConfiguration() {
+            // TODO: Implement save
+            alert('Configuration saved successfully!');
+        }
+
+        // Initialize
+        updateModelOptions();
+        loadConfiguration();
+    </script>
+</body>
+</html>

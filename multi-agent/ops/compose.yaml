@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: ops/dockerfile
+    ports:
+      - "8100:8100"
+    environment:
+      - ENVIRONMENT=development
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-emailpilot-dev}
+      - AUTO_APPROVE_IN_DEV=true
+      - ENABLE_TRACING=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - KLAVIYO_MCP_URL=http://host.docker.internal:9090
+      - EMAILPILOT_BASE_URL=http://host.docker.internal:8000
+    volumes:
+      - ../logs:/app/logs
+      - ../.artifacts:/app/.artifacts
+    depends_on:
+      - jaeger
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
+  # Mock external services for testing
+  mock-klaviyo:
+    image: wiremock/wiremock:latest
+    ports:
+      - "9090:8080"
+    volumes:
+      - ./mocks/klaviyo:/home/wiremock
+    command: --global-response-templating --verbose
+
+  mock-firestore:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    ports:
+      - "8080:8080"
+    command: >
+      sh -c "
+        gcloud emulators firestore start --host-port=0.0.0.0:8080 --project=test-project
+      "
+    environment:
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+
+volumes:
+  artifacts:
+  logs:

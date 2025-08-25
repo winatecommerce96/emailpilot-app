@@ -1,0 +1,50 @@
+<!-- LangChain Admin Navigation Bar -->
+<nav class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg">
+    <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between h-16">
+            <div class="flex items-center space-x-8">
+                <div class="flex items-center">
+                    <svg class="w-8 h-8 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <span class="font-bold text-xl">LangChain Admin</span>
+                </div>
+                
+                <div class="flex space-x-4">
+                    <a href="agents.html" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:bg-opacity-20 transition">
+                        Agents
+                    </a>
+                    <a href="usage.html" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:bg-opacity-20 transition">
+                        Usage
+                    </a>
+                    <a href="models.html" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:bg-opacity-20 transition">
+                        Models
+                    </a>
+                    <a href="mcp.html" class="nav-link px-3 py-2 rounded-md text-sm font-medium hover:bg-white hover:bg-opacity-20 transition">
+                        MCP
+                    </a>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <span class="text-sm opacity-75">Environment: <span id="env-badge" class="font-semibold">Development</span></span>
+                <button onclick="location.href='/'" class="px-4 py-2 bg-white bg-opacity-20 rounded hover:bg-opacity-30 transition">
+                    Back to App
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<script>
+// Highlight active page
+document.addEventListener('DOMContentLoaded', () => {
+    const currentPage = window.location.pathname.split('/').pop();
+    document.querySelectorAll('.nav-link').forEach(link => {
+        if (link.getAttribute('href') === currentPage) {
+            link.classList.add('bg-white', 'bg-opacity-20');
+        }
+    });
+});
+</script>

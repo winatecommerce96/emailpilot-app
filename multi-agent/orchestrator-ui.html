@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Orchestrator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-8">
+        <h1 class="text-3xl font-bold mb-8">🤖 Multi-Agent Campaign Orchestrator</h1>
+        
+        <!-- Status -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">System Status</h2>
+            <div id="status" class="text-gray-600">Checking...</div>
+        </div>
+
+        <!-- Start New Run -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Start New Campaign Workflow</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Brand ID</label>
+                    <input type="text" id="brand" value="acme" class="w-full px-3 py-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Month (YYYY-MM)</label>
+                    <input type="text" id="month" value="2024-11" class="w-full px-3 py-2 border rounded">
+                </div>
+            </div>
+            <button onclick="startRun()" class="mt-4 bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600">
+                Start Workflow
+            </button>
+        </div>
+
+        <!-- Results -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Results</h2>
+            <pre id="results" class="bg-gray-50 p-4 rounded overflow-auto max-h-96"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8100';
+
+        // Check status on load
+        async function checkStatus() {
+            try {
+                const res = await fetch(API_BASE + '/');
+                const data = await res.json();
+                document.getElementById('status').innerHTML = `
+                    <div class="text-green-600">✓ Connected to ${data.service} v${data.version}</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        Endpoints available:
+                        <ul class="list-disc list-inside ml-4">
+                            ${Object.entries(data.endpoints).map(([k,v]) => 
+                                `<li>${k}: ${v}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('status').innerHTML = `
+                    <div class="text-red-600">✗ Cannot connect to API server</div>
+                    <div class="text-sm text-gray-500">Make sure the server is running on port 8100</div>
+                `;
+            }
+        }
+
+        // Start a new run
+        async function startRun() {
+            const brand = document.getElementById('brand').value;
+            const month = document.getElementById('month').value;
+            
+            document.getElementById('results').textContent = 'Starting workflow...';
+            
+            try {
+                const res = await fetch(API_BASE + '/runs/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        brand_id: brand,
+                        selected_month: month,
+                        tenant_id: 'pilot-tenant'
+                    })
+                });
+                
+                const data = await res.json();
+                document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.run_id) {
+                    document.getElementById('results').innerHTML += `
+                        <div class="mt-4 p-4 bg-green-50 border border-green-200 rounded">
+                            <strong>Success!</strong> Run ID: ${data.run_id}<br>
+                            Status: ${data.status}<br>
+                            Check artifacts in: multi-agent/.artifacts/${brand}/${month}/
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                document.getElementById('results').textContent = 'Error: ' + err.message;
+            }
+        }
+
+        // Check on load
+        checkStatus();
+        setInterval(checkStatus, 30000); // Refresh every 30s
+    </script>
+</body>
+</html>

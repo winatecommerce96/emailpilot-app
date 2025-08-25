@@ -1,0 +1,7 @@
+langgraph>=0.2.58
+langgraph-cli[inmem]>=0.1.55
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0
+langchain-text-splitters>=0.3.0
+langsmith>=0.4.15

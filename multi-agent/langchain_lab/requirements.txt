@@ -1,0 +1,28 @@
+# LangChain Lab Requirements
+# These are optional dependencies for the sandboxed LangChain evaluation module
+# Install with: pip install -r multi-agent/langchain_lab/requirements.txt
+
+# Core LangChain
+langchain>=0.2.0,<0.3.0
+langchain-core>=0.2.0,<0.3.0
+langchain-community>=0.2.0,<0.3.0
+langchain-text-splitters>=0.2.0,<0.3.0
+
+# LLM Providers (install as needed)
+langchain-openai>=0.1.0,<0.4.0
+langchain-anthropic>=0.1.0,<0.4.0
+langchain-google-genai>=1.0.0,<3.0.0
+
+# Vector Stores (choose one)
+faiss-cpu==1.8.0.post1  # Recommended for local development
+# chromadb>=0.4.0  # Alternative option
+
+# Embeddings
+sentence-transformers>=2.2.0  # Fallback for local embeddings
+
+# Other Dependencies
+tiktoken>=0.7.0  # Token counting for OpenAI
+tenacity>=8.3.0  # Retry logic
+httpx>=0.24.0  # HTTP client for tools
+
+# Note: google-cloud-firestore should already be installed from main requirements.txt

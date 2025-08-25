@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain Usage Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="navbar-container"></div>
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Usage Analytics</h1>
+            <p class="text-gray-600">Monitor token usage, costs, and performance metrics</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Period</label>
+                    <select id="period-filter" class="w-full px-3 py-2 border rounded" onchange="loadUsageData()">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Provider</label>
+                    <select id="provider-filter" class="w-full px-3 py-2 border rounded" onchange="loadUsageData()">
+                        <option value="">All Providers</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="google">Google</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Brand</label>
+                    <input type="text" id="brand-filter" class="w-full px-3 py-2 border rounded" 
+                           placeholder="Optional" onchange="loadUsageData()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">User</label>
+                    <input type="text" id="user-filter" class="w-full px-3 py-2 border rounded" 
+                           placeholder="Optional" onchange="loadUsageData()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-600 mb-2">Total Requests</h3>
+                <p class="text-3xl font-bold text-blue-600" id="total-requests">0</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-600 mb-2">Total Tokens</h3>
+                <p class="text-3xl font-bold text-green-600" id="total-tokens">0</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-600 mb-2">Total Cost</h3>
+                <p class="text-3xl font-bold text-purple-600" id="total-cost">$0.00</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-600 mb-2">Avg Response Time</h3>
+                <p class="text-3xl font-bold text-orange-600" id="avg-response">0ms</p>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Usage Trend</h2>
+            <canvas id="usage-chart" width="400" height="100"></canvas>
+        </div>
+
+        <!-- Events Table -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Recent Events</h2>
+                <button onclick="exportData()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                    Export CSV
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium">Time</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium">User</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium">Provider</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium">Model</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium">Tokens</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium">Cost</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium">Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="events-tbody">
+                        <!-- Events will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+
+        // Load navbar
+        fetch('navbar.html')
+            .then(r => r.text())
+            .then(html => document.getElementById('navbar-container').innerHTML = html);
+
+        async function loadUsageData() {
+            const days = document.getElementById('period-filter').value;
+            const provider = document.getElementById('provider-filter').value;
+            const brand = document.getElementById('brand-filter').value;
+            const user = document.getElementById('user-filter').value;
+
+            const params = new URLSearchParams({ days });
+            if (provider) params.append('provider', provider);
+            if (brand) params.append('brand', brand);
+            if (user) params.append('user_id', user);
+
+            try {
+                const response = await fetch('/api/admin/langchain/usage/summary?' + params.toString());
+                const data = await response.json();
+                
+                // Update summary cards
+                document.getElementById('total-requests').textContent = data.total_requests || 0;
+                document.getElementById('total-tokens').textContent = (data.total_tokens || 0).toLocaleString();
+                document.getElementById('total-cost').textContent = '$' + (data.total_cost || 0).toFixed(2);
+                document.getElementById('avg-response').textContent = (data.avg_response_ms || 0) + 'ms';
+                
+                // Update chart
+                updateChart(data);
+                
+                // Load events
+                loadEvents();
+                
+            } catch (error) {
+                console.error('Failed to load usage data:', error);
+            }
+        }
+
+        function updateChart(data) {
+            const ctx = document.getElementById('usage-chart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            // Generate sample data for demo
+            const labels = [];
+            const values = [];
+            const days = parseInt(document.getElementById('period-filter').value);
+            
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                values.push(Math.floor(Math.random() * 100) + 20);
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Requests',
+                        data: values,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadEvents() {
+            // TODO: Load actual events
+            const tbody = document.getElementById('events-tbody');
+            
+            // Sample data
+            const events = [
+                { time: '2024-01-15 10:30:15', user: 'john.doe', provider: 'openai', model: 'gpt-4', tokens: 1250, cost: 0.04, duration: 1234 },
+                { time: '2024-01-15 10:28:42', user: 'jane.smith', provider: 'anthropic', model: 'claude-3', tokens: 850, cost: 0.02, duration: 987 },
+                { time: '2024-01-15 10:25:33', user: 'bob.wilson', provider: 'google', model: 'gemini-pro', tokens: 500, cost: 0.01, duration: 543 }
+            ];
+            
+            tbody.innerHTML = events.map(e => '<tr class="border-b hover:bg-gray-50">' +
+                '<td class="px-4 py-2 text-sm">' + e.time + '</td>' +
+                '<td class="px-4 py-2 text-sm">' + e.user + '</td>' +
+                '<td class="px-4 py-2 text-sm">' + e.provider + '</td>' +
+                '<td class="px-4 py-2 text-sm">' + e.model + '</td>' +
+                '<td class="px-4 py-2 text-sm">' + e.tokens + '</td>' +
+                '<td class="px-4 py-2 text-sm">$' + e.cost.toFixed(3) + '</td>' +
+                '<td class="px-4 py-2 text-sm">' + e.duration + 'ms</td>' +
+                '</tr>').join('');
+        }
+
+        function exportData() {
+            // TODO: Implement CSV export
+            alert('Export functionality coming soon!');
+        }
+
+        // Load on page load
+        loadUsageData();
+    </script>
+</body>
+</html>
