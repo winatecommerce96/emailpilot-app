@@ -6803,6 +6803,10 @@
                             <span class="text-2xl">🔄</span>
                             <span class="font-semibold">Refresh Calendar</span>
                         </button>
+                        <button onclick="openHolidayManager(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-yellow-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">📅</span>
+                            <span class="font-semibold">Holiday & Event Management</span>
+                        </button>
                         <button onclick="showToast('${calendarManager.campaigns.length} campaigns, $' + Math.round(calendarManager.campaigns.reduce((s,c) => s + (c.metrics?.revenue || c.expected_metrics?.revenue || 0), 0)).toLocaleString() + ' expected revenue'); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-green-500/50 transition-all flex items-center gap-3">
                             <span class="text-2xl">📊</span>
                             <span class="font-semibold">View Stats</span>
@@ -7000,11 +7004,6 @@
         });
     </script>
     
-    <!-- Holiday Management FAB -->
-    <div class="holiday-fab" onclick="openHolidayManager()" title="Manage Holidays & Events">
-        ⭐
-    </div>
-    
     <!-- Holiday Management Modal -->
     <div class="holiday-modal" id="holidayModal">
         <div class="holiday-modal-content">
@@ -7018,14 +7017,14 @@
                 <div class="glass-card p-4">
                     <h3 class="text-lg font-semibold mb-3">Add Custom Holiday/Event</h3>
                     <div class="grid grid-cols-2 gap-3">
-                        <input type="date" id="holidayDate" class="glass-input" placeholder="Date">
-                        <input type="text" id="holidayName" class="glass-input" placeholder="Holiday Name">
-                        <select id="holidayType" class="glass-input">
+                        <input type="date" id="holidayDate" class="form-input" placeholder="Date">
+                        <input type="text" id="holidayName" class="form-input" placeholder="Holiday Name">
+                        <select id="holidayType" class="form-select">
                             <option value="holiday">Holiday</option>
                             <option value="klaviyo">Klaviyo Event</option>
                             <option value="custom">Custom Event</option>
                         </select>
-                        <select id="holidayCategory" class="glass-input">
+                        <select id="holidayCategory" class="form-select">
                             <option value="major">Major</option>
                             <option value="federal">Federal</option>
                             <option value="cultural">Cultural</option>
@@ -7033,7 +7032,7 @@
                             <option value="planning">Planning</option>
                             <option value="campaign">Campaign</option>
                         </select>
-                        <input type="text" id="holidayEmoji" class="glass-input" placeholder="Emoji (optional)" maxlength="2">
+                        <input type="text" id="holidayEmoji" class="form-input" placeholder="Emoji (optional)" maxlength="2">
                         <button onclick="addCustomHoliday()" class="glow-button primary">Add Holiday</button>
                     </div>
                 </div>
@@ -7077,7 +7076,7 @@
                 text.textContent = 'Hide Holidays';
             } else {
                 toggle.classList.remove('active');
-                icon.textContent = '👁️‍🗨️';
+                icon.textContent = '👁';
                 text.textContent = 'Show Holidays';
             }
             
