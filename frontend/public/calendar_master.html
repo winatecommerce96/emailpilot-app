@@ -964,35 +964,41 @@
             box-shadow: 0 10px 30px rgba(255, 215, 0, 0.2);
         }
         
-        /* Holiday Toggle Button */
+        /* Holiday Toggle Button - Minimal */
         .holiday-toggle {
             position: fixed;
             top: 100px;
             right: 20px;
-            background: rgba(255, 255, 255, 0.05);
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 8px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
             cursor: pointer;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
             transition: all 0.3s ease;
             z-index: 100;
+            opacity: 0.6;
         }
         
         .holiday-toggle:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.9);
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.06);
+            transform: scale(1.1);
         }
         
         .holiday-toggle.active {
-            background: rgba(255, 215, 0, 0.1);
-            border-color: rgba(255, 215, 0, 0.3);
-            color: #FFD700;
+            opacity: 1;
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.2);
+        }
+        
+        .holiday-toggle.active:hover {
+            background: rgba(34, 197, 94, 0.15);
         }
         
         /* Holiday Management Modal */
@@ -1878,10 +1884,9 @@
                     </div>
                 </div>
                 
-                <!-- Holiday Toggle in Calendar Controls -->
-                <div class="holiday-toggle" id="holidayToggle" onclick="toggleHolidays()">
-                    <span id="holidayToggleIcon">👁️</span>
-                    <span id="holidayToggleText">Hide Holidays</span>
+                <!-- Holiday Toggle Button -->
+                <div class="holiday-toggle active" id="holidayToggle" onclick="toggleHolidays()" title="Hide Holidays">
+                    🎄
                 </div>
                 
                 <!-- Calendar Grid -->
@@ -7067,17 +7072,13 @@
             
             manager.showHolidays = !manager.showHolidays;
             const toggle = document.getElementById('holidayToggle');
-            const icon = document.getElementById('holidayToggleIcon');
-            const text = document.getElementById('holidayToggleText');
             
             if (manager.showHolidays) {
                 toggle.classList.add('active');
-                icon.textContent = '👁️';
-                text.textContent = 'Hide Holidays';
+                toggle.title = 'Hide Holidays';
             } else {
                 toggle.classList.remove('active');
-                icon.textContent = '👁';
-                text.textContent = 'Show Holidays';
+                toggle.title = 'Show Holidays';
             }
             
             manager.renderCalendar();
