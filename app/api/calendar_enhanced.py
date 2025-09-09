@@ -2,17 +2,65 @@
 Enhanced Calendar API with Klaviyo MCP Integration and AI Assessment
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 import json
 import logging
 import httpx
+import re
+import hashlib
+from time import time
 from google.cloud import firestore
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Rate limiting storage (in production, use Redis)
+rate_limit_storage = {}
+
+def rate_limit_check(request: Request, max_requests: int = 10, window_seconds: int = 300) -> bool:
+    """Simple rate limiting based on IP address"""
+    client_ip = request.client.host if request.client else "unknown"
+    current_time = time()
+    
+    if client_ip not in rate_limit_storage:
+        rate_limit_storage[client_ip] = []
+    
+    # Clean old requests
+    rate_limit_storage[client_ip] = [
+        req_time for req_time in rate_limit_storage[client_ip] 
+        if current_time - req_time < window_seconds
+    ]
+    
+    if len(rate_limit_storage[client_ip]) >= max_requests:
+        return False
+    
+    rate_limit_storage[client_ip].append(current_time)
+    return True
+
+def validate_approval_id(approval_id: str) -> bool:
+    """Validate approval ID format for security"""
+    if not approval_id or len(approval_id) > 200:
+        return False
+    
+    # Allow alphanumeric, hyphens, underscores
+    return re.match(r'^[a-zA-Z0-9_-]+$', approval_id) is not None
+
+def sanitize_text_input(text: str, max_length: int = 5000) -> str:
+    """Sanitize text input to prevent XSS and limit length"""
+    if not text:
+        return ""
+    
+    # Remove potentially dangerous characters
+    text = re.sub(r'[<>"\']', '', text)
+    
+    # Limit length
+    if len(text) > max_length:
+        text = text[:max_length] + "..."
+    
+    return text.strip()
 
 # Import the Firestore client
 from app.deps import get_db, get_secret_manager_service
@@ -442,7 +490,373 @@ async def health_check():
             "klaviyo-mcp-integration",
             "ai-assessment",
             "performance-grading",
-            "calendar-optimization"
+            "calendar-optimization",
+            "approval-pages"
         ],
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+# Approval Page Endpoints
+@router.post("/approval/create")
+async def create_approval_page(
+    data: dict,
+    db: firestore.Client = Depends(get_db)
+):
+    """Create a public approval page for client calendar review (idempotent)"""
+    try:
+        approval_id = data.get("approval_id")
+        
+        if not approval_id:
+            raise HTTPException(status_code=400, detail="Approval ID is required")
+        
+        # Store in calendar_approvals collection
+        doc_ref = db.collection("calendar_approvals").document(approval_id)
+        
+        # Check if approval already exists
+        existing_doc = doc_ref.get()
+        
+        if existing_doc.exists:
+            existing_data = existing_doc.to_dict()
+            
+            # If already approved, don't allow updates
+            if existing_data.get("status") == "approved":
+                return {
+                    "success": True,
+                    "approval_id": approval_id,
+                    "public_url": f"https://emailpilot.ai/calendar-approval/{approval_id}",
+                    "message": "Approval page already exists and is approved",
+                    "status": "approved"
+                }
+            
+            # Update existing document with new campaign data, but preserve approval status
+            update_data = {k: v for k, v in data.items() if k not in ['created_at']}
+            update_data["updated_at"] = firestore.SERVER_TIMESTAMP
+            
+            # Preserve important fields from existing document
+            preserve_fields = ['created_at', 'status', 'approved_at', 'has_change_requests', 'last_change_request']
+            for field in preserve_fields:
+                if field in existing_data:
+                    update_data[field] = existing_data[field]
+            
+            doc_ref.update(update_data)
+            
+            return {
+                "success": True,
+                "approval_id": approval_id,
+                "public_url": f"https://emailpilot.ai/calendar-approval/{approval_id}",
+                "message": "Approval page updated successfully",
+                "status": existing_data.get("status", "pending")
+            }
+        
+        else:
+            # Create new approval document
+            data["created_at"] = firestore.SERVER_TIMESTAMP
+            data["updated_at"] = firestore.SERVER_TIMESTAMP
+            data["status"] = "pending"  # Ensure default status
+            
+            doc_ref.set(data)
+            
+            return {
+                "success": True,
+                "approval_id": approval_id,
+                "public_url": f"https://emailpilot.ai/calendar-approval/{approval_id}",
+                "message": "Approval page created successfully",
+                "status": "pending"
+            }
+        
+    except Exception as e:
+        logger.error(f"Error creating approval page: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/approval/{approval_id}")
+async def get_approval_page(
+    approval_id: str,
+    request: Request,
+    db: firestore.Client = Depends(get_db)
+):
+    """Get approval page data for public viewing"""
+    try:
+        # Rate limiting
+        if not rate_limit_check(request, max_requests=30, window_seconds=300):  # 30 requests per 5 minutes
+            raise HTTPException(status_code=429, detail="Too many requests")
+        
+        # Validate approval ID
+        if not validate_approval_id(approval_id):
+            logger.warning(f"Invalid approval ID attempted: {approval_id}")
+            raise HTTPException(status_code=400, detail="Invalid approval ID format")
+        
+        doc = db.collection("calendar_approvals").document(approval_id).get()
+        
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Approval page not found")
+        
+        data = doc.to_dict()
+        return {
+            "success": True,
+            "data": data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching approval page: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/approval/{approval_id}/accept")
+async def accept_approval(
+    approval_id: str,
+    request: Request,
+    db: firestore.Client = Depends(get_db)
+):
+    """Mark calendar as accepted by client"""
+    try:
+        # Rate limiting (stricter for write operations)
+        if not rate_limit_check(request, max_requests=10, window_seconds=300):
+            raise HTTPException(status_code=429, detail="Too many requests")
+        
+        # Validate approval ID
+        if not validate_approval_id(approval_id):
+            logger.warning(f"Invalid approval ID attempted: {approval_id}")
+            raise HTTPException(status_code=400, detail="Invalid approval ID format")
+        
+        doc_ref = db.collection("calendar_approvals").document(approval_id)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Approval page not found")
+        
+        existing_data = doc.to_dict()
+        
+        # Prevent duplicate approvals
+        if existing_data.get("status") == "approved":
+            return {
+                "success": True,
+                "message": "Calendar already approved",
+                "approval_id": approval_id
+            }
+        
+        # Update status to approved
+        doc_ref.update({
+            "status": "approved",
+            "approved_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+        
+        return {
+            "success": True,
+            "message": "Calendar approved successfully",
+            "approval_id": approval_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error accepting approval: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/approval/{approval_id}/request-changes")
+async def request_changes(
+    approval_id: str,
+    data: dict,
+    request: Request,
+    db: firestore.Client = Depends(get_db)
+):
+    """Submit change requests from client"""
+    try:
+        # Rate limiting for write operations
+        if not rate_limit_check(request, max_requests=5, window_seconds=300):
+            raise HTTPException(status_code=429, detail="Too many requests")
+        
+        # Validate approval ID
+        if not validate_approval_id(approval_id):
+            logger.warning(f"Invalid approval ID attempted: {approval_id}")
+            raise HTTPException(status_code=400, detail="Invalid approval ID format")
+        
+        # Validate and sanitize input
+        change_request_text = sanitize_text_input(data.get("change_request", ""))
+        client_name = sanitize_text_input(data.get("client_name", ""), max_length=100)
+        
+        if len(change_request_text.strip()) < 10:
+            raise HTTPException(status_code=400, detail="Change request must be at least 10 characters")
+        
+        # Store change request in its own collection
+        change_ref = db.collection("calendar_change_requests").document()
+        
+        change_data = {
+            "approval_id": approval_id,
+            "client_name": client_name,
+            "change_request": change_request_text,
+            "tasks": data.get("tasks", [])[:50],  # Limit number of tasks
+            "requested_at": data.get("requested_at"),
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "status": "pending",
+            "client_ip": request.client.host if request.client else "unknown"
+        }
+        
+        change_ref.set(change_data)
+        
+        # Also update the approval document
+        approval_ref = db.collection("calendar_approvals").document(approval_id)
+        approval_ref.update({
+            "has_change_requests": True,
+            "last_change_request": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+        
+        return {
+            "success": True,
+            "change_request_id": change_ref.id,
+            "message": "Change request submitted successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error submitting change request: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/approval/{approval_id}/unapprove")
+async def unapprove_calendar(
+    approval_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """Remove approval status from calendar (admin only)"""
+    try:
+        # Get the approval document
+        doc_ref = db.collection("calendar_approvals").document(approval_id)
+        doc = doc_ref.get()
+        
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Approval not found")
+        
+        # Update the document to remove approved status
+        doc_ref.update({
+            "status": "pending",
+            "approved_at": firestore.DELETE_FIELD,
+            "unapproved_at": datetime.utcnow(),
+            "unapproved_by": "admin"
+        })
+        
+        return {
+            "success": True,
+            "message": "Approval status removed successfully",
+            "approval_id": approval_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing approval status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/change-requests/{client_id}")
+async def get_change_requests(
+    client_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """Get all change requests for a client"""
+    try:
+        # Query change requests for this client
+        requests = []
+        docs = db.collection("calendar_change_requests")\
+            .where("approval_id", ">=", client_id)\
+            .where("approval_id", "<=", client_id + "\uf8ff")\
+            .stream()
+        
+        for doc in docs:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            requests.append(data)
+        
+        return {
+            "success": True,
+            "change_requests": requests
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching change requests: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/change-requests")
+async def get_all_change_requests(
+    status: str = "pending",
+    limit: int = 50,
+    db: firestore.Client = Depends(get_db)
+):
+    """Get all change requests for admin view"""
+    try:
+        query = db.collection("calendar_change_requests")
+        
+        if status != "all":
+            query = query.where("status", "==", status)
+            
+        query = query.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit)
+        
+        docs = query.stream()
+        
+        requests = []
+        for doc in docs:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            # Convert timestamps for frontend
+            if "created_at" in data and hasattr(data["created_at"], "seconds"):
+                data["created_at"] = data["created_at"].seconds * 1000
+            if "requested_at" in data:
+                try:
+                    # Handle ISO string format
+                    from datetime import datetime
+                    data["requested_at"] = int(datetime.fromisoformat(data["requested_at"].replace('Z', '+00:00')).timestamp() * 1000)
+                except:
+                    pass
+            requests.append(data)
+        
+        return {
+            "success": True,
+            "change_requests": requests,
+            "total": len(requests)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching all change requests: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/admin/change-requests/{request_id}/status")
+async def update_change_request_status(
+    request_id: str,
+    data: dict,
+    db: firestore.Client = Depends(get_db)
+):
+    """Update change request status (admin only)"""
+    try:
+        new_status = data.get("status")
+        if new_status not in ["pending", "in_progress", "completed", "rejected"]:
+            raise HTTPException(status_code=400, detail="Invalid status")
+        
+        change_ref = db.collection("calendar_change_requests").document(request_id)
+        change_doc = change_ref.get()
+        
+        if not change_doc.exists:
+            raise HTTPException(status_code=404, detail="Change request not found")
+        
+        update_data = {
+            "status": new_status,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }
+        
+        if new_status == "completed":
+            update_data["completed_at"] = firestore.SERVER_TIMESTAMP
+        elif new_status == "in_progress":
+            update_data["started_at"] = firestore.SERVER_TIMESTAMP
+            
+        change_ref.update(update_data)
+        
+        return {
+            "success": True,
+            "message": f"Change request status updated to {new_status}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating change request status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
