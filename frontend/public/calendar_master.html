@@ -7065,7 +7065,25 @@
     </div>
     
     <script>
-        // Holiday Management Functions
+        // Holiday Management Functions (in global scope)
+        window.deleteHoliday = async function(holidayId) {
+            if (!confirm('Delete this holiday?')) return;
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/custom/${holidayId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await window.calendarManager.loadHolidaysAndEvents();
+                    window.calendarManager.renderCalendar();
+                    loadCurrentHolidays();
+                }
+            } catch (error) {
+                console.error('Error deleting holiday:', error);
+            }
+        }
+        
         function toggleHolidays() {
             const manager = window.calendarManager;
             if (!manager) return;
@@ -7084,16 +7102,16 @@
             manager.renderCalendar();
         }
         
-        function openHolidayManager() {
+        window.openHolidayManager = function() {
             document.getElementById('holidayModal').classList.add('active');
             loadCurrentHolidays();
         }
         
-        function closeHolidayManager() {
+        window.closeHolidayManager = function() {
             document.getElementById('holidayModal').classList.remove('active');
         }
         
-        async function loadCurrentHolidays() {
+        window.loadCurrentHolidays = async function() {
             const manager = window.calendarManager;
             if (!manager) return;
             
@@ -7121,7 +7139,7 @@
             }
         }
         
-        async function addCustomHoliday() {
+        window.addCustomHoliday = async function() {
             const date = document.getElementById('holidayDate').value;
             const name = document.getElementById('holidayName').value;
             const type = document.getElementById('holidayType').value;
@@ -7157,25 +7175,7 @@
             }
         }
         
-        async function deleteHoliday(holidayId) {
-            if (!confirm('Delete this holiday?')) return;
-            
-            try {
-                const response = await fetch(`/api/calendar/holidays/custom/${holidayId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    await window.calendarManager.loadHolidaysAndEvents();
-                    window.calendarManager.renderCalendar();
-                    loadCurrentHolidays();
-                }
-            } catch (error) {
-                console.error('Error deleting holiday:', error);
-            }
-        }
-        
-        async function exportHolidays() {
+        window.exportHolidays = async function() {
             const manager = window.calendarManager;
             if (!manager) return;
             
@@ -7197,7 +7197,7 @@
             }
         }
         
-        async function importHolidays(event) {
+        window.importHolidays = async function(event) {
             const file = event.target.files[0];
             if (!file) return;
             
@@ -7232,7 +7232,7 @@
             }
         }
         
-        async function resetHolidays() {
+        window.resetHolidays = async function() {
             if (!confirm('This will re-initialize all holidays for the current year. Continue?')) return;
             
             const manager = window.calendarManager;
