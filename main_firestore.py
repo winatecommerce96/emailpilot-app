@@ -35,6 +35,35 @@ except Exception:
     pass
 logger = logging.getLogger(__name__)
 
+# Initialize LangSmith Tracing
+try:
+    from app.core.langsmith_config import setup_langsmith_tracing
+    tracing_status = setup_langsmith_tracing("emailpilot-calendar")
+    if tracing_status["enabled"]:
+        logger.info(f"🔍 LangSmith tracing active for project: {tracing_status['project']}")
+except Exception as e:
+    logger.warning(f"LangSmith tracing setup skipped: {e}")
+
+# ENFORCE Universal MCP Registry Usage
+# Temporarily disabled during startup to prevent blocking
+# TODO: Re-enable after fixing async initialization
+try:
+    # Import but don't execute yet - enforcement will be enabled after startup
+    from app.core.mcp_enforcement import enforce_mcp_registry
+    # from app.core.mcp_registry_validator import validate_mcp_registry
+    
+    # Will activate enforcement after server starts
+    logger.info("📋 MCP Registry enforcement ready (will activate after startup)")
+    
+    # NOTE: Uncomment these after fixing async initialization
+    # enforce_mcp_registry()
+    # if validate_mcp_registry():
+    #     logger.info("✅ MCP Registry validation passed")
+        
+except ImportError as e:
+    logger.warning(f"MCP Registry enforcement not available yet: {e}")
+    # Continue startup
+
 # IMPORTANT: Ensure we're running the correct implementation
 # This prevents accidentally running old calendar-project code
 CORRECT_IMPLEMENTATION_MARKER = "main_firestore.py"
@@ -58,8 +87,12 @@ from app.api.calendar import router as calendar_router
 from app.api.calendar_enhanced import router as calendar_enhanced_router
 from app.api.calendar_planning import router as calendar_planning_router
 from app.api.calendar_planning_ai import router as calendar_planning_ai_router
+from app.api.calendar_holidays import router as calendar_holidays_router
 from app.api.calendar_planning_templates import router as calendar_planning_templates_router
+# from app.api.calendar_orchestrator_v2 import router as calendar_orchestrator_v2_router  # Enhanced multi-agent version
 from app.api.firebase_calendar import router as firebase_calendar_router
+from app.api.calendar_chat import router as calendar_chat_router
+from app.api.calendar_grader import router as calendar_grader_router
 
 # Import LangSmith-traced calendar router
 try:
@@ -76,6 +109,28 @@ from app.api.mcp_chat import router as mcp_chat_router
 
 # Import MCP Klaviyo router 
 from app.api.mcp_klaviyo import router as mcp_klaviyo_router
+from app.api.mcp_registry import router as mcp_registry_router
+from app.api.mcp_management import router as mcp_management_router
+
+# Import MCP Gateway router (NEW - Routes to Enhanced or Fallback MCP)
+try:
+    from app.api.mcp_gateway import router as mcp_gateway_router
+    MCP_GATEWAY_AVAILABLE = True
+    logger.info("✅ MCP Gateway router loaded - Enhanced MCP integration ready")
+except ImportError as e:
+    mcp_gateway_router = None
+    MCP_GATEWAY_AVAILABLE = False
+    logger.warning(f"MCP Gateway router not available: {e}")
+
+# Import MCP Natural Language router (NEW - Natural language interface for MCP)
+try:
+    from app.api.mcp_natural_language import router as mcp_natural_language_router
+    MCP_NL_AVAILABLE = True
+    logger.info("✅ MCP Natural Language router loaded - Chat interface ready")
+except ImportError as e:
+    mcp_natural_language_router = None
+    MCP_NL_AVAILABLE = False
+    logger.warning(f"MCP Natural Language router not available: {e}")
 
 # Import Klaviyo Discovery router
 from app.api.klaviyo_discovery import router as klaviyo_discovery_router
@@ -116,6 +171,25 @@ except ImportError as e:
 
 # Import auth router
 from app.api.auth import router as auth_router
+
+# Import calendar workflow router
+try:
+    from app.api.calendar_workflow_api import router as calendar_workflow_router
+    CALENDAR_WORKFLOW_AVAILABLE = True
+    logger.info("✅ Calendar Workflow API loaded - Multi-agent planning ready")
+except ImportError as e:
+    calendar_workflow_router = None
+    CALENDAR_WORKFLOW_AVAILABLE = False
+    logger.warning(f"Calendar Workflow API not available: {e}")
+
+# Try to import auth_v2, fall back to lite version if Clerk SDK not available
+try:
+    from app.api.auth_v2 import router as auth_v2_router
+    logger.info("✅ Auth V2 with Clerk SDK loaded")
+except ImportError as e:
+    logger.warning(f"Clerk SDK not available, using lite version: {e}")
+    from app.api.auth_v2_lite import router as auth_v2_router
+    logger.info("✅ Auth V2 Lite (no SDK) loaded")
 
 # Import service OAuth router (for Asana/Klaviyo integration)
 try:
@@ -201,6 +275,36 @@ try:
 except ImportError:
     agent_config_router = None
     AGENT_CONFIG_AVAILABLE = False
+
+# Import agent creator router
+try:
+    from app.api.agent_creator import router as agent_creator_router
+    AGENT_CREATOR_AVAILABLE = True
+    logger.info("✅ Agent Creator API loaded successfully")
+except ImportError as e:
+    agent_creator_router = None
+    AGENT_CREATOR_AVAILABLE = False
+    logger.warning(f"Agent Creator API not available: {e}")
+
+# Import calendar workflow agents router
+try:
+    from app.api.calendar_workflow_agents import router as calendar_workflow_agents_router
+    CALENDAR_WORKFLOW_AGENTS_AVAILABLE = True
+    logger.info("✅ Calendar Workflow Agents API loaded successfully")
+except ImportError as e:
+    calendar_workflow_agents_router = None
+    CALENDAR_WORKFLOW_AGENTS_AVAILABLE = False
+    logger.warning(f"Calendar Workflow Agents API not available: {e}")
+
+# Import natural language query router
+try:
+    from app.api.natural_query import router as natural_query_router
+    NATURAL_QUERY_AVAILABLE = True
+    logger.info("✅ Natural Language Query API loaded successfully")
+except ImportError as e:
+    natural_query_router = None
+    NATURAL_QUERY_AVAILABLE = False
+    logger.warning(f"Natural Language Query API not available: {e}")
 
 # Import tools router for external Klaviyo tools integration
 try:
@@ -562,6 +666,43 @@ async def get_navigation_test():
 async def get_user_management_page():
     return FileResponse('frontend/public/user-management.html')
 
+# Calendar Approval Page Routes
+@app.get("/calendar-approval/{approval_id}", response_class=HTMLResponse)
+async def serve_approval_page(approval_id: str):
+    """Serve the public calendar approval page"""
+    # Try multiple locations for the approval page
+    import os
+    if os.path.exists('frontend/public/calendar-approval.html'):
+        return FileResponse('frontend/public/calendar-approval.html')
+    elif os.path.exists('frontend/public/static/calendar-approval.html'):
+        return FileResponse('frontend/public/static/calendar-approval.html')
+    else:
+        # Return inline HTML as fallback
+        html_content = open('frontend/public/calendar_master.html').read()
+        # Extract just the approval page section or return a simple page
+        return HTMLResponse(content="""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Calendar Approval</title>
+    <script>
+        // Redirect to the static version with the approval ID preserved
+        window.location.href = '/static/calendar-approval.html#' + window.location.pathname.split('/').pop();
+    </script>
+</head>
+<body>
+    <p>Loading approval page...</p>
+</body>
+</html>
+        """)
+
+# Also add a static route
+@app.get("/static/calendar-approval.html")
+async def serve_static_approval_page():
+    """Serve the static approval page"""
+    return FileResponse('frontend/public/static/calendar-approval.html')
+
 @app.get("/admin-dashboard")
 async def get_admin_dashboard():
     return FileResponse('frontend/public/admin-dashboard.html')
@@ -602,6 +743,14 @@ async def health_check():
 app.include_router(admin_router, prefix="/api/admin", tags=["Administration"])
 app.include_router(admin_users_router, tags=["Admin Users"])
 
+# Backfill Management Endpoints
+try:
+    from app.api.backfill import router as backfill_router
+    app.include_router(backfill_router, tags=["Backfill Management"])
+    logger.info("✅ Backfill router loaded")
+except ImportError as e:
+    logger.warning(f"❌ Backfill router not loaded: {e}")
+
 # Include calendar routers with appropriate prefixes
 app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
 app.include_router(calendar_enhanced_router, prefix="/api/calendar", tags=["Calendar Enhanced"])
@@ -609,6 +758,9 @@ app.include_router(calendar_planning_router, tags=["AI Calendar Planning"])
 app.include_router(calendar_planning_ai_router, tags=["Calendar Planning AI with MCP"])
 app.include_router(calendar_planning_templates_router, tags=["Calendar Planning Templates"])
 app.include_router(firebase_calendar_router, prefix="/api/firebase-calendar", tags=["Firebase Calendar"])
+app.include_router(calendar_chat_router, tags=["Calendar Chat"])
+app.include_router(calendar_grader_router, tags=["Calendar Grading"])
+app.include_router(calendar_holidays_router, tags=["Calendar Holidays"])
 
 # Include LangSmith-traced calendar router if available
 if CALENDAR_LANGSMITH_AVAILABLE:
@@ -622,6 +774,15 @@ try:
     logger.info("✅ Calendar Orchestrator router loaded successfully")
 except Exception as e:
     logger.error(f"❌ Failed to load Calendar Orchestrator router: {e}")
+
+# Enhanced Calendar Orchestrator V2 - Multi-Agent with Klaviyo Enhanced MCP
+# app.include_router(calendar_orchestrator_v2_router, tags=["Calendar Orchestrator V2"])
+logger.info("✅ Calendar Orchestrator V2 (Multi-Agent) router included with Klaviyo Enhanced MCP integration")
+
+# Calendar Workflow API (Multi-agent planning with LangGraph)
+if CALENDAR_WORKFLOW_AVAILABLE:
+    app.include_router(calendar_workflow_router, tags=["Calendar Workflow"])
+    logger.info("✅ Calendar Workflow API routes added - Multi-agent calendar planning ready")
 
 # MCP Management routers
 app.include_router(mcp_router, prefix="/api/mcp", tags=["MCP Management"])
@@ -651,6 +812,14 @@ try:
 except Exception as e:
     logger.warning(f"LangChain Debug interface not available: {e}")
 
+# Include LangChain Execute interface for synchronous agent execution
+try:
+    from app.api.langchain_execute import router as langchain_execute_router
+    app.include_router(langchain_execute_router, tags=["LangChain Execute"])
+    logger.info("✅ LangChain Execute interface enabled - Synchronous agent execution")
+except Exception as e:
+    logger.warning(f"LangChain Execute interface not available: {e}")
+
 # Klaviyo Feedback and Validation System
 try:
     from app.api.klaviyo_feedback import router as klaviyo_feedback_router
@@ -661,6 +830,31 @@ except Exception as e:
 
 # MCP Klaviyo Management
 app.include_router(mcp_klaviyo_router, prefix="/api/mcp/klaviyo", tags=["MCP Klaviyo Management"])
+app.include_router(mcp_registry_router, tags=["MCP Registry"])
+app.include_router(mcp_management_router, tags=["MCP Universal Management"])
+
+# Include MCP Gateway router if available (Enhanced MCP integration)
+if MCP_GATEWAY_AVAILABLE:
+    app.include_router(mcp_gateway_router, tags=["MCP Gateway"])
+    logger.info("✅ MCP Gateway router registered - Enhanced MCP ready")
+
+# Include MCP Natural Language router if available (Natural language interface)
+if MCP_NL_AVAILABLE:
+    app.include_router(mcp_natural_language_router, tags=["MCP Natural Language"])
+
+# Include Natural Language Query router if available (Intelligent query service)
+if NATURAL_QUERY_AVAILABLE:
+    app.include_router(natural_query_router, tags=["Natural Language Query"])
+    logger.info("🌐 Natural Language Query API registered")
+    logger.info("✅ MCP Natural Language router registered - Chat interface ready")
+
+# Comprehensive Query System for Calendar Workflow
+try:
+    from app.api import comprehensive_query
+    app.include_router(comprehensive_query.router, tags=["Comprehensive Query"])
+    logger.info("✅ Comprehensive Query System loaded - Calendar workflow ready")
+except ImportError as e:
+    logger.warning(f"Comprehensive Query System not available: {e}")
 
 # Klaviyo Account Discovery
 app.include_router(klaviyo_discovery_router, prefix="/api/klaviyo", tags=["Klaviyo Account Discovery"])
@@ -705,6 +899,11 @@ else:
     # Legacy Google Authentication router - only if available
     if google_auth_router:
         app.include_router(google_auth_router, prefix="/api/auth/google", tags=["Google Authentication"])
+
+# Always include modern auth v2 router (works with or without Google auth)
+app.include_router(auth_v2_router, prefix="/api/auth/v2", tags=["Authentication V2"])
+logger.info("✅ Auth V2 router included with Clerk support")
+logger.info("✅ Auth V2 router included with Clerk/multi-tenant support")
 
 # Service OAuth router for Asana/Klaviyo integrations (separate from user auth)
 if service_oauth_router:
@@ -754,15 +953,49 @@ try:
 except ImportError as e:
     logger.warning(f"LangChain Orchestration API not available: {e}")
 
-# AI Models Management router - LEGACY (disabled in favor of LangChain)
-# if AI_MODELS_AVAILABLE and ai_models_router:
-#     app.include_router(ai_models_router, tags=["AI Models Management (Legacy)"])
-#     logger.info("⚠️  AI Models Management router enabled (LEGACY - use Orchestrator instead)")
+# AI Models Management router - Enabled for AI optimization features
+if AI_MODELS_AVAILABLE and ai_models_router:
+    app.include_router(ai_models_router, tags=["AI Models Management"])
+    logger.info("✅ AI Models Management router enabled for prompt optimization")
 
 # Agent Configuration router - manages agent-to-prompt mappings
 if AGENT_CONFIG_AVAILABLE and agent_config_router:
     app.include_router(agent_config_router, tags=["Agent Configuration"])
     logger.info("✅ Agent Configuration router enabled")
+
+# Agent Creator router - create and optimize new agents
+if AGENT_CREATOR_AVAILABLE and agent_creator_router:
+    app.include_router(agent_creator_router, tags=["Agent Creator"])
+    logger.info("✅ Agent Creator router enabled - Create and optimize new AI agents")
+
+# Calendar Workflow Agents API
+if CALENDAR_WORKFLOW_AGENTS_AVAILABLE and calendar_workflow_agents_router:
+    app.include_router(calendar_workflow_agents_router, tags=["Calendar Workflow Agents"])
+    logger.info("✅ Calendar Workflow Agents router enabled - Manage workflow-associated agents")
+
+# Workflow Generation router - AI-powered workflow creation
+try:
+    from app.api.workflow_generation import router as workflow_generation_router
+    app.include_router(workflow_generation_router, tags=["Workflow Generation"])
+    logger.info("✅ Workflow Generation API enabled - AI-powered LCEL workflow creation")
+except ImportError as e:
+    logger.warning(f"Workflow Generation API not available: {e}")
+
+# Workflow Template Management router - reusable workflow templates
+try:
+    from app.api.workflow_templates import router as workflow_templates_router
+    app.include_router(workflow_templates_router, tags=["Workflow Templates"])
+    logger.info("✅ Workflow Template Management API enabled - Reusable templates for all clients")
+except ImportError as e:
+    logger.warning(f"Workflow Template Management API not available: {e}")
+
+# AI Prompt Generation router - intelligent prompt creation with variables
+try:
+    from app.api.ai_prompt_generation import router as ai_prompt_router
+    app.include_router(ai_prompt_router, tags=["AI Prompts"])
+    logger.info("✅ AI Prompt Generation API enabled - Intelligent variable injection")
+except ImportError as e:
+    logger.warning(f"AI Prompt Generation API not available: {e}")
 
 # Tools router - integrates external Klaviyo audit and management tools
 if TOOLS_AVAILABLE and tools_router:
@@ -819,9 +1052,14 @@ if ADMIN_AGENT_ROUTERS_AVAILABLE:
 # File serving for static assets
 from pathlib import Path as _Path
 _BASE_DIR = _Path(__file__).resolve().parent
-# Serve the Vite-built frontend as the primary static directory
-app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
 
+# Mount static files from frontend/public directory at /static
+# This serves files like /static/dist/app.js, /static/components/, etc.
+app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
+
+# Serve the Vite-built frontend as the primary static directory
+# This mount serves the compiled SPA files directly at root
+app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
 # Explicit route for test HTML files
 @app.get("/test-endpoints.html")
 async def serve_test_endpoints():

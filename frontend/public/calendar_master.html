@@ -490,6 +490,138 @@
             color: #000000;
         }
         
+        /* Holiday and Event Indicators */
+        .holiday-indicator {
+            background: rgba(255, 215, 0, 0.15);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            border-radius: 6px;
+            padding: 2px 6px;
+            margin-bottom: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #FFD700;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            position: relative;
+        }
+        
+        .holiday-indicator.major {
+            background: linear-gradient(135deg, rgba(255, 0, 0, 0.2), rgba(0, 255, 0, 0.2));
+            border-color: rgba(255, 215, 0, 0.5);
+            font-weight: 700;
+        }
+        
+        .holiday-indicator.federal {
+            background: rgba(51, 105, 220, 0.15);
+            border-color: rgba(51, 105, 220, 0.4);
+            color: #6B9BFF;
+        }
+        
+        .holiday-indicator.retail {
+            background: linear-gradient(135deg, rgba(255, 140, 0, 0.2), rgba(255, 0, 128, 0.2));
+            border-color: rgba(255, 140, 0, 0.5);
+            color: #FF8C00;
+            font-weight: 700;
+        }
+        
+        .klaviyo-event {
+            background: linear-gradient(135deg, rgba(138, 108, 247, 0.15), rgba(197, 255, 117, 0.15));
+            border: 1px solid rgba(138, 108, 247, 0.4);
+            border-radius: 6px;
+            padding: 2px 6px;
+            margin-bottom: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #C5FF75;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            position: relative;
+        }
+        
+        .klaviyo-event.planning {
+            background: rgba(138, 108, 247, 0.2);
+            border-color: rgba(138, 108, 247, 0.5);
+            color: #A78BFA;
+        }
+        
+        .klaviyo-event.campaign {
+            background: rgba(197, 255, 117, 0.2);
+            border-color: rgba(197, 255, 117, 0.5);
+            color: #C5FF75;
+        }
+        
+        .klaviyo-event.review {
+            background: rgba(255, 140, 0, 0.2);
+            border-color: rgba(255, 140, 0, 0.5);
+            color: #FFA500;
+        }
+        
+        /* Holiday/Event section divider */
+        .calendar-day-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            min-height: 20px;
+        }
+        
+        /* Season indicator bar */
+        .season-indicator {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .season-indicator.critical {
+            background: linear-gradient(90deg, #FF0000, #FF00FF, #FF0000);
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+        
+        .season-indicator.high {
+            background: linear-gradient(90deg, #FF8C00, #FFD700);
+        }
+        
+        .season-indicator.medium {
+            background: linear-gradient(90deg, #4ECDC4, #44A08D);
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        
+        /* Week view holiday display */
+        .week-view .holiday-indicator {
+            font-size: 9px;
+            padding: 1px 4px;
+        }
+        
+        .week-view .klaviyo-event {
+            font-size: 9px;
+            padding: 1px 4px;
+        }
+        
+        /* List view holiday display */
+        .list-view-item .holiday-section {
+            background: rgba(255, 215, 0, 0.05);
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+        
+        .list-view-item .klaviyo-section {
+            background: rgba(138, 108, 247, 0.05);
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(138, 108, 247, 0.2);
+        }
+        
         /* Stats Cards */
         .stat-card {
             padding: 20px;
@@ -1974,6 +2106,10 @@
                 this.chatHistory = [];
                 this.selectedDay = null;
                 this.pendingAction = null;
+                this.holidays = {};  // Store holidays by date
+                this.klaviyoEvents = {};  // Store Klaviyo events by date
+                this.activeSeasons = [];  // Current e-commerce seasons
+                this.showHolidays = true;  // Admin-only flag
                 this.affinitySegments = [];
                 this.lastSyncCheck = 0;
                 this.draggedCampaignId = null;
@@ -2436,9 +2572,43 @@
                             this.openCreateCampaignModal(day);
                         }
                     };
+                    // Get holidays and events for this day
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayHolidays = this.holidays[dateStr] || [];
+                    const dayKlaviyoEvents = this.klaviyoEvents[dateStr] || [];
+                    
+                    // Check for active seasons
+                    let seasonClass = '';
+                    if (this.activeSeasons && this.activeSeasons.length > 0) {
+                        const highestIntensity = this.activeSeasons.reduce((max, season) => {
+                            if (season.intensity === 'critical') return 'critical';
+                            if (season.intensity === 'high' && max !== 'critical') return 'high';
+                            if (season.intensity === 'medium' && max === '') return 'medium';
+                            return max;
+                        }, '');
+                        if (highestIntensity) {
+                            seasonClass = `<div class="season-indicator ${highestIntensity}"></div>`;
+                        }
+                    }
+                    
                     dayDiv.innerHTML = `
+                        ${seasonClass}
                         <div class="day-number">${day}</div>
                         <div class="add-btn" onclick="event.stopPropagation(); calendarManager.openCreateCampaignModal(${day})">+</div>
+                        ${this.showHolidays ? `
+                            <div class="calendar-day-header">
+                                ${dayHolidays.map(h => `
+                                    <div class="holiday-indicator ${h.category}" title="${h.name}">
+                                        ${h.emoji || '📅'} ${h.name.length > 15 ? h.name.substring(0, 15) + '...' : h.name}
+                                    </div>
+                                `).join('')}
+                                ${dayKlaviyoEvents.map(e => `
+                                    <div class="klaviyo-event ${e.category}" title="${e.name}">
+                                        ${e.emoji || '📋'} ${e.name.length > 15 ? e.name.substring(0, 15) + '...' : e.name}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<div class="calendar-day-header"></div>'}
                         <div class="space-y-1">
                             ${dayCampaigns}
                         </div>
@@ -2888,10 +3058,11 @@
                     const monthStart = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-01`;
                     const monthEnd = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-31`;
                     
-                    // Parallel fetch for events and goals
-                    const [eventsResponse, goalsPromise] = await Promise.all([
+                    // Parallel fetch for events, goals, and holidays
+                    const [eventsResponse, goalsPromise, holidaysPromise] = await Promise.all([
                         fetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`),
-                        this.loadMonthGoal() // Load goals in parallel
+                        this.loadMonthGoal(), // Load goals in parallel
+                        this.loadHolidaysAndEvents() // Load holidays in parallel
                     ]);
                     
                     if (eventsResponse.ok) {
@@ -2941,6 +3112,51 @@
                     if (loadingIndicator.parentNode) {
                         loadingIndicator.remove();
                     }
+                }
+            }
+            
+            // Load holidays and Klaviyo events for the current month
+            async loadHolidaysAndEvents() {
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth() + 1;
+                
+                try {
+                    const response = await fetch(`/api/calendar/holidays/?year=${year}&month=${month}&include_klaviyo=true&include_seasons=true`);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Clear existing holidays for this month
+                        this.holidays = {};
+                        this.klaviyoEvents = {};
+                        
+                        // Process holidays and events
+                        data.holidays.forEach(item => {
+                            const dateKey = item.date;
+                            
+                            if (item.type === 'holiday' || item.type === 'custom') {
+                                if (!this.holidays[dateKey]) {
+                                    this.holidays[dateKey] = [];
+                                }
+                                this.holidays[dateKey].push(item);
+                            } else if (item.type === 'klaviyo') {
+                                if (!this.klaviyoEvents[dateKey]) {
+                                    this.klaviyoEvents[dateKey] = [];
+                                }
+                                this.klaviyoEvents[dateKey].push(item);
+                            }
+                        });
+                        
+                        // Store active seasons if any
+                        if (data.holidays.length > 0 && data.holidays[0].active_seasons) {
+                            this.activeSeasons = data.holidays[0].active_seasons;
+                        }
+                        
+                        console.log(`Loaded ${Object.keys(this.holidays).length} holiday dates and ${Object.keys(this.klaviyoEvents).length} Klaviyo event dates`);
+                    }
+                } catch (error) {
+                    console.error('Failed to load holidays:', error);
+                    // Continue without holidays - non-critical feature
                 }
             }
             
