@@ -6633,6 +6633,20 @@
                                                             <div class="campaign-pill ${c.gradient || c.type} inline-block">
                                                                 ${c.type}
                                                             </div>
+                                                            ${(() => {
+                                                                const dateStr = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(c.date.getDate()).padStart(2, '0')}`;
+                                                                const holidays = calendarManager.holidays[dateStr] || [];
+                                                                const klaviyoEvents = calendarManager.klaviyoEvents[dateStr] || [];
+                                                                const allEvents = [...holidays, ...klaviyoEvents];
+                                                                if (calendarManager.showHolidays && allEvents.length > 0) {
+                                                                    return allEvents.map(h => `
+                                                                        <span class="holiday-indicator ${h.category || h.type}" style="font-size: 10px; padding: 2px 4px;" title="${h.name}">
+                                                                            ${h.emoji || '📅'} ${h.name.length > 12 ? h.name.substring(0, 12) + '..' : h.name}
+                                                                        </span>
+                                                                    `).join('');
+                                                                }
+                                                                return '';
+                                                            })()}
                                                         </div>
                                                         <div class="text-sm text-white/50 mb-2">
                                                             ${c.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
@@ -6695,9 +6709,16 @@
                         c.date.getDate() === day.getDate()
                     );
                     
+                    // Get holidays for this day
+                    const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+                    const dayHolidays = calendarManager.holidays[dateStr] || [];
+                    const dayKlaviyoEvents = calendarManager.klaviyoEvents[dateStr] || [];
+                    
                     weekDays.push({
                         date: new Date(day),
                         campaigns: dayCampaigns,
+                        holidays: dayHolidays,
+                        klaviyoEvents: dayKlaviyoEvents,
                         isToday: day.toDateString() === today.toDateString()
                     });
                 }
@@ -6732,6 +6753,20 @@
                                             <div class="text-xs font-semibold mb-1 ${day.isToday ? 'text-lime-400' : 'text-white/60'}">
                                                 ${dayNames[idx]} ${day.date.getDate()}
                                             </div>
+                                            ${calendarManager.showHolidays && (day.holidays.length > 0 || day.klaviyoEvents.length > 0) ? `
+                                                <div class="mb-1">
+                                                    ${day.holidays.map(h => `
+                                                        <div class="holiday-indicator ${h.category}" style="font-size: 8px; padding: 1px 3px; margin: 1px;" title="${h.name}">
+                                                            ${h.emoji || '📅'} ${h.name.length > 8 ? h.name.substring(0, 8) + '..' : h.name}
+                                                        </div>
+                                                    `).join('')}
+                                                    ${day.klaviyoEvents.map(k => `
+                                                        <div class="holiday-indicator klaviyo" style="font-size: 8px; padding: 1px 3px; margin: 1px;" title="${k.name}">
+                                                            ${k.emoji || '📊'} ${k.name.length > 8 ? k.name.substring(0, 8) + '..' : k.name}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
                                             <div class="space-y-1">
                                                 ${displayCampaigns.map(c => `
                                                     <div class="text-xs cursor-pointer hover:scale-105 transition-transform" 
