@@ -50,20 +50,25 @@ async def get_holidays(
     """Get holidays and events for a specific year/month"""
     try:
         holidays = []
+        year_str = str(year)
         
-        # Get holidays from data file
-        if month:
-            holidays = get_holidays_for_month(year, month)
-        else:
-            # Get all holidays for the year
-            year_str = str(year)
-            if year_str in ECOMMERCE_HOLIDAYS:
-                holidays.extend(ECOMMERCE_HOLIDAYS[year_str])
-            if include_klaviyo and year_str in KLAVIYO_EVENTS:
-                holidays.extend(KLAVIYO_EVENTS[year_str])
+        # Check if holidays are initialized in Firestore
+        meta_doc = db.collection("calendar_holidays_meta").document(year_str).get()
         
-        # Get custom holidays from Firestore
-        custom_holidays = []
+        # Only use hardcoded data if NOT initialized in Firestore
+        if not meta_doc.exists:
+            # Get holidays from data file
+            if month:
+                holidays = get_holidays_for_month(year, month)
+            else:
+                # Get all holidays for the year
+                if year_str in ECOMMERCE_HOLIDAYS:
+                    holidays.extend(ECOMMERCE_HOLIDAYS[year_str])
+                if include_klaviyo and year_str in KLAVIYO_EVENTS:
+                    holidays.extend(KLAVIYO_EVENTS[year_str])
+        
+        # Get holidays from Firestore (both initialized and custom)
+        firestore_holidays = []
         if month:
             start_date = f"{year}-{month:02d}-01"
             end_date = f"{year}-{month:02d}-31"
@@ -79,11 +84,13 @@ async def get_holidays(
         for doc in docs:
             holiday_data = doc.to_dict()
             holiday_data["id"] = doc.id
-            holiday_data["type"] = "custom"
-            custom_holidays.append(holiday_data)
+            # Preserve original type if it exists
+            if "type" not in holiday_data:
+                holiday_data["type"] = "custom"
+            firestore_holidays.append(holiday_data)
         
-        # Combine all holidays
-        all_holidays = holidays + custom_holidays
+        # Combine holidays (no duplicates)
+        all_holidays = holidays + firestore_holidays
         
         # Add season information if requested
         if include_seasons:

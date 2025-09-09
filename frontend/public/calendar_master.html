@@ -937,6 +937,140 @@
             opacity: 1;
         }
         
+        /* Holiday Management FAB */
+        .holiday-fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .holiday-fab:hover {
+            transform: scale(1.1) rotate(15deg);
+            background: rgba(255, 215, 0, 0.1);
+            border-color: rgba(255, 215, 0, 0.3);
+            box-shadow: 0 10px 30px rgba(255, 215, 0, 0.2);
+        }
+        
+        /* Holiday Toggle Button */
+        .holiday-toggle {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        
+        .holiday-toggle:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .holiday-toggle.active {
+            background: rgba(255, 215, 0, 0.1);
+            border-color: rgba(255, 215, 0, 0.3);
+            color: #FFD700;
+        }
+        
+        /* Holiday Management Modal */
+        .holiday-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        
+        .holiday-modal.active {
+            display: flex;
+        }
+        
+        .holiday-modal-content {
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: auto;
+            padding: 30px;
+        }
+        
+        /* Improved Holiday Indicators */
+        .holiday-indicator {
+            padding: 2px 6px !important;
+            font-size: 9px !important;
+            border-radius: 4px !important;
+            margin: 1px !important;
+            opacity: 0.9 !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.3px !important;
+            text-transform: uppercase !important;
+            backdrop-filter: blur(5px) !important;
+        }
+        
+        .holiday-indicator.holiday {
+            background: linear-gradient(135deg, rgba(255, 69, 0, 0.2), rgba(255, 140, 0, 0.2)) !important;
+            border: 1px solid rgba(255, 140, 0, 0.4) !important;
+            color: #FFA500 !important;
+        }
+        
+        .holiday-indicator.klaviyo {
+            background: linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(168, 85, 247, 0.2)) !important;
+            border: 1px dashed rgba(168, 85, 247, 0.5) !important;
+            color: #A855F7 !important;
+        }
+        
+        .holiday-indicator.major {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(248, 113, 113, 0.2)) !important;
+            border: 1px solid rgba(248, 113, 113, 0.4) !important;
+            color: #F87171 !important;
+        }
+        
+        .holiday-indicator.federal {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(96, 165, 250, 0.2)) !important;
+            border: 1px solid rgba(96, 165, 250, 0.4) !important;
+            color: #60A5FA !important;
+        }
+        
+        .holiday-indicator.cultural {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(74, 222, 128, 0.2)) !important;
+            border: 1px solid rgba(74, 222, 128, 0.4) !important;
+            color: #4ADE80 !important;
+        }
+        
+        .holiday-indicator.retail {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(252, 211, 77, 0.2)) !important;
+            border: 1px solid rgba(252, 211, 77, 0.4) !important;
+            color: #FCD34D !important;
+        }
+        
         /* Pulse animation for poor grades */
         @keyframes pulse-warning {
             0%, 100% { 
@@ -1742,6 +1876,12 @@
                         <button onclick="saveToCloud()" class="glow-button primary">💾 Save</button>
                         <button onclick="undoLastChange()" class="glow-button" id="undoBtn" disabled>↶ Undo</button>
                     </div>
+                </div>
+                
+                <!-- Holiday Toggle in Calendar Controls -->
+                <div class="holiday-toggle" id="holidayToggle" onclick="toggleHolidays()">
+                    <span id="holidayToggleIcon">👁️</span>
+                    <span id="holidayToggleText">Hide Holidays</span>
                 </div>
                 
                 <!-- Calendar Grid -->
@@ -6858,6 +6998,263 @@
             setTimeout(initializeChatInput, 500);
             setTimeout(initializeChatInput, 1000);
         });
+    </script>
+    
+    <!-- Holiday Management FAB -->
+    <div class="holiday-fab" onclick="openHolidayManager()" title="Manage Holidays & Events">
+        ⭐
+    </div>
+    
+    <!-- Holiday Management Modal -->
+    <div class="holiday-modal" id="holidayModal">
+        <div class="holiday-modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">Holiday & Event Management</h2>
+                <button onclick="closeHolidayManager()" class="text-2xl hover:text-red-500">×</button>
+            </div>
+            
+            <div class="grid gap-4">
+                <!-- Add Custom Holiday -->
+                <div class="glass-card p-4">
+                    <h3 class="text-lg font-semibold mb-3">Add Custom Holiday/Event</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="date" id="holidayDate" class="glass-input" placeholder="Date">
+                        <input type="text" id="holidayName" class="glass-input" placeholder="Holiday Name">
+                        <select id="holidayType" class="glass-input">
+                            <option value="holiday">Holiday</option>
+                            <option value="klaviyo">Klaviyo Event</option>
+                            <option value="custom">Custom Event</option>
+                        </select>
+                        <select id="holidayCategory" class="glass-input">
+                            <option value="major">Major</option>
+                            <option value="federal">Federal</option>
+                            <option value="cultural">Cultural</option>
+                            <option value="retail">Retail</option>
+                            <option value="planning">Planning</option>
+                            <option value="campaign">Campaign</option>
+                        </select>
+                        <input type="text" id="holidayEmoji" class="glass-input" placeholder="Emoji (optional)" maxlength="2">
+                        <button onclick="addCustomHoliday()" class="glow-button primary">Add Holiday</button>
+                    </div>
+                </div>
+                
+                <!-- Import/Export -->
+                <div class="glass-card p-4">
+                    <h3 class="text-lg font-semibold mb-3">Import/Export Holidays</h3>
+                    <div class="flex gap-3">
+                        <button onclick="exportHolidays()" class="glow-button">📥 Export Current</button>
+                        <input type="file" id="holidayImport" accept=".json" style="display: none" onchange="importHolidays(event)">
+                        <button onclick="document.getElementById('holidayImport').click()" class="glow-button">📤 Import JSON</button>
+                        <button onclick="resetHolidays()" class="glow-button" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);">🔄 Reset to Default</button>
+                    </div>
+                </div>
+                
+                <!-- Current Holidays List -->
+                <div class="glass-card p-4">
+                    <h3 class="text-lg font-semibold mb-3">Current Month Holidays</h3>
+                    <div id="holidayList" class="max-h-64 overflow-y-auto">
+                        <!-- Will be populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Holiday Management Functions
+        function toggleHolidays() {
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            manager.showHolidays = !manager.showHolidays;
+            const toggle = document.getElementById('holidayToggle');
+            const icon = document.getElementById('holidayToggleIcon');
+            const text = document.getElementById('holidayToggleText');
+            
+            if (manager.showHolidays) {
+                toggle.classList.add('active');
+                icon.textContent = '👁️';
+                text.textContent = 'Hide Holidays';
+            } else {
+                toggle.classList.remove('active');
+                icon.textContent = '👁️‍🗨️';
+                text.textContent = 'Show Holidays';
+            }
+            
+            manager.renderCalendar();
+        }
+        
+        function openHolidayManager() {
+            document.getElementById('holidayModal').classList.add('active');
+            loadCurrentHolidays();
+        }
+        
+        function closeHolidayManager() {
+            document.getElementById('holidayModal').classList.remove('active');
+        }
+        
+        async function loadCurrentHolidays() {
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            const year = manager.selectedDate.getFullYear();
+            const month = manager.selectedDate.getMonth() + 1;
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/?year=${year}&month=${month}`);
+                const data = await response.json();
+                
+                const listDiv = document.getElementById('holidayList');
+                listDiv.innerHTML = data.holidays.map(h => `
+                    <div class="flex items-center justify-between p-2 hover:bg-white/5 rounded">
+                        <div class="flex items-center gap-2">
+                            <span>${h.emoji || '📅'}</span>
+                            <span class="text-sm">${h.name}</span>
+                            <span class="text-xs opacity-60">${h.date}</span>
+                            <span class="holiday-indicator ${h.category}">${h.type}</span>
+                        </div>
+                        ${h.id ? `<button onclick="deleteHoliday('${h.id}')" class="text-red-500 hover:text-red-300">×</button>` : ''}
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading holidays:', error);
+            }
+        }
+        
+        async function addCustomHoliday() {
+            const date = document.getElementById('holidayDate').value;
+            const name = document.getElementById('holidayName').value;
+            const type = document.getElementById('holidayType').value;
+            const category = document.getElementById('holidayCategory').value;
+            const emoji = document.getElementById('holidayEmoji').value || '📅';
+            
+            if (!date || !name) {
+                alert('Please enter a date and name');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/calendar/holidays/custom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, name, type, category, emoji, admin_only: true })
+                });
+                
+                if (response.ok) {
+                    // Clear form
+                    document.getElementById('holidayDate').value = '';
+                    document.getElementById('holidayName').value = '';
+                    document.getElementById('holidayEmoji').value = '';
+                    
+                    // Reload holidays
+                    await window.calendarManager.loadHolidaysAndEvents();
+                    window.calendarManager.renderCalendar();
+                    loadCurrentHolidays();
+                }
+            } catch (error) {
+                console.error('Error adding holiday:', error);
+                alert('Failed to add holiday');
+            }
+        }
+        
+        async function deleteHoliday(holidayId) {
+            if (!confirm('Delete this holiday?')) return;
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/custom/${holidayId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await window.calendarManager.loadHolidaysAndEvents();
+                    window.calendarManager.renderCalendar();
+                    loadCurrentHolidays();
+                }
+            } catch (error) {
+                console.error('Error deleting holiday:', error);
+            }
+        }
+        
+        async function exportHolidays() {
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            const year = manager.selectedDate.getFullYear();
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/?year=${year}`);
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data.holidays, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `holidays_${year}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting holidays:', error);
+            }
+        }
+        
+        async function importHolidays(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const holidays = JSON.parse(text);
+                
+                for (const holiday of holidays) {
+                    if (!holiday.date || !holiday.name) continue;
+                    
+                    await fetch('/api/calendar/holidays/custom', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            date: holiday.date,
+                            name: holiday.name,
+                            type: holiday.type || 'custom',
+                            category: holiday.category || 'custom',
+                            emoji: holiday.emoji || '📅',
+                            admin_only: true
+                        })
+                    });
+                }
+                
+                await window.calendarManager.loadHolidaysAndEvents();
+                window.calendarManager.renderCalendar();
+                loadCurrentHolidays();
+                alert('Holidays imported successfully!');
+            } catch (error) {
+                console.error('Error importing holidays:', error);
+                alert('Failed to import holidays. Please check the file format.');
+            }
+        }
+        
+        async function resetHolidays() {
+            if (!confirm('This will re-initialize all holidays for the current year. Continue?')) return;
+            
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            const year = manager.selectedDate.getFullYear();
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/initialize/${year}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                alert(data.message);
+                
+                await window.calendarManager.loadHolidaysAndEvents();
+                window.calendarManager.renderCalendar();
+                loadCurrentHolidays();
+            } catch (error) {
+                console.error('Error resetting holidays:', error);
+            }
+        }
     </script>
     
 </body>
