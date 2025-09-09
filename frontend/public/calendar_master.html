@@ -1769,16 +1769,17 @@
             
             <nav class="flex items-center gap-4 fade-in fade-in-delay-1">
                 <button onclick="showClientModal()" class="glow-button">
+                    <span style="margin-right: 8px;">👤</span>
                     <span id="selectedClientName">Select Client</span>
                 </button>
                 <button onclick="generateWithAI()" class="glow-button primary">
-                    <span style="margin-right: 8px;">✨</span> Create Monthly Calendar
+                    <span style="margin-right: 8px;">✨</span> Create Calendar
                 </button>
                 <button onclick="createSingleCampaign()" class="glow-button">
-                    <span style="margin-right: 8px;">➕</span> Create Campaign
+                    <span style="margin-right: 8px;">➕</span> Campaign
                 </button>
                 <button onclick="openFileImportModal()" class="glow-button">
-                    <span style="margin-right: 8px;">📄</span> Import File
+                    <span style="margin-right: 8px;">📄</span> Import
                 </button>
             </nav>
         </div>
@@ -1880,7 +1881,7 @@
                         <button onclick="setView('week')" class="glow-button view-btn" data-view="week">Week</button>
                         <button onclick="setView('list')" class="glow-button view-btn" data-view="list">List</button>
                         <button onclick="saveToCloud()" class="glow-button primary">💾 Save</button>
-                        <button onclick="undoLastChange()" class="glow-button" id="undoBtn" disabled>↶ Undo</button>
+                        <button onclick="undoLastChange()" class="glow-button" id="undoBtn" disabled title="Undo">↶</button>
                     </div>
                 </div>
                 
@@ -2087,7 +2088,7 @@
     <!-- Create Campaign Modal -->
     <div id="createCampaignModal" class="modal-backdrop">
         <div class="modal-content">
-            <h3 class="text-2xl font-black gradient-text mb-6">Create Campaign</h3>
+            <h3 class="text-2xl font-black gradient-text mb-6">New Campaign</h3>
             <form id="campaignForm" onsubmit="createCampaign(event)">
                 <div class="form-group">
                     <label class="form-label">Campaign Name</label>
@@ -2135,7 +2136,7 @@
                 
                 <div class="flex gap-3 mt-8">
                     <button type="button" onclick="closeCreateCampaignModal()" class="glow-button flex-1">Cancel</button>
-                    <button type="submit" class="glow-button primary flex-1">Create Campaign</button>
+                    <button type="submit" class="glow-button primary flex-1">Create</button>
                 </div>
             </form>
         </div>
