@@ -20,7 +20,7 @@ This document provides instructions for creating a properly formatted JSON file 
 }
 ```
 
-### Complete Example
+### Complete Example - Basic Format
 ```json
 {
   "events": [
@@ -55,9 +55,55 @@ This document provides instructions for creating a properly formatted JSON file 
     {
       "date": "2025-09-20",
       "title": "Flash Friday Sale",
-      "type": "sms-promotional",
+      "type": "sms",
       "description": "SMS exclusive 4-hour flash sale",
       "segment": "sms_subscribers"
+    }
+  ]
+}
+```
+
+### Complete Example - Advanced Format with All Fields
+```json
+{
+  "events": [
+    {
+      "week_number": 36,
+      "date": "2025-09-01",
+      "send_time": "10:00",
+      "type": "email",
+      "segments": "all_subscribers, active_30_days",
+      "subject_line_a": "🎉 Labor Day Sale - Up to 50% Off!",
+      "subject_line_b": "Your Exclusive Labor Day Savings Inside",
+      "preview_text": "Shop our biggest sale of the season - 3 days only!",
+      "hero_h1": "LABOR DAY MEGA SALE",
+      "sub_head": "Save Big on Everything You Love",
+      "hero_image": "labor-day-hero.jpg - Patriotic theme with fireworks and products",
+      "cta_copy": "Shop Sale Now",
+      "offer": "Up to 50% off + Free shipping on orders $75+",
+      "ab_test_idea": "Test emoji in subject line vs plain text",
+      "secondary_message": "Text LABOR to 12345 for exclusive SMS deals"
+    },
+    {
+      "week_number": 37,
+      "date": "2025-09-08",
+      "send_time": "14:30",
+      "type": "sms",
+      "segments": "sms_subscribers",
+      "title": "Flash Sale Alert",
+      "description": "4-hour flash sale reminder",
+      "sms_variant": "FLASH SALE: 30% off everything! Use code FLASH30. Shop now: [link] Reply STOP to opt out"
+    },
+    {
+      "week_number": 38,
+      "date": "2025-09-15",
+      "send_time": "09:00",
+      "type": "push",
+      "segments": "app_users",
+      "title": "New Collection Alert",
+      "description": "Push notification for fall collection launch",
+      "cta_copy": "View Collection",
+      "hero_image": "fall-collection-thumb.jpg - Autumn colors, cozy theme"
     }
   ]
 }
@@ -72,33 +118,41 @@ This document provides instructions for creating a properly formatted JSON file 
 - **Example**: `"2025-09-15"`
 - **Description**: The date when the campaign should be scheduled
 - **Validation**: Must be a valid date in ISO 8601 format
+- **Alternative Names**: `send_date`
 
 #### `title` (string, required)
 - **Maximum Length**: 100 characters
 - **Example**: `"Back to School Sale"`
 - **Description**: The name/title of the campaign
 - **Best Practice**: Keep it concise and descriptive
-- **Note**: Can also use `name` as an alternative field name
+- **Alternative Names**: `name`, `subject_line_a`
+- **Note**: Emojis are automatically added based on type (✉️ Email, 💬 SMS, 📱 Push)
 
 #### `type` (string, required)
 - **Allowed Values**:
   - **Email Campaign Types**:
+    - `"email"` - Standard email campaign (default)
     - `"promotional"` - Sales, discounts, special offers
     - `"content"` - Educational, blog posts, guides
     - `"engagement"` - Surveys, feedback, community
     - `"seasonal"` - Holiday or season-specific campaigns
     - `"special"` - VIP, exclusive, or unique campaigns
-  - **SMS Campaign Types** (prefix with "sms-"):
+  - **SMS Campaign Types**:
+    - `"sms"` - Standard SMS message
     - `"sms-promotional"` - SMS sales and offers
     - `"sms-content"` - SMS content updates
     - `"sms-engagement"` - SMS surveys and engagement
     - `"sms-seasonal"` - SMS seasonal campaigns
     - `"sms-special"` - SMS exclusive offers
+  - **Push Notification Types**:
+    - `"push"` - Mobile push notification
+    - `"push-promotional"` - Push notification for sales
+    - `"push-reminder"` - Push notification reminders
 
-### Optional Fields
+### Optional Fields - Basic
 
 #### `description` (string, optional)
-- **Maximum Length**: 500 characters
+- **Maximum Length**: 2000 characters
 - **Example**: `"Exclusive 30% discount for VIP members only"`
 - **Description**: Additional details about the campaign
 - **Default**: Empty string if not provided
@@ -106,6 +160,7 @@ This document provides instructions for creating a properly formatted JSON file 
 #### `segment` (string, optional)
 - **Example**: `"vip_customers"`, `"new_subscribers"`, `"engaged_30_days"`
 - **Description**: Target audience segment for the campaign
+- **Alternative Names**: `segments`
 - **Default**: `"all_subscribers"` if not provided
 - **Common Segments**:
   - `"all_subscribers"` - Entire email list
@@ -114,6 +169,58 @@ This document provides instructions for creating a properly formatted JSON file 
   - `"new_subscribers"` - Recent sign-ups
   - `"sms_subscribers"` - SMS opt-in list
   - `"inactive_subscribers"` - Re-engagement targets
+
+### Optional Fields - Advanced Campaign Details
+
+#### `week_number` (integer, optional)
+- **Example**: `35`
+- **Description**: Week number in the year for campaign tracking
+
+#### `send_time` (string, optional)
+- **Format**: `HH:MM` (24-hour format)
+- **Example**: `"14:30"`
+- **Description**: Scheduled send time in local timezone
+
+#### `subject_line_a` (string, optional)
+- **Example**: `"Don't Miss Out: 50% Off Everything!"`
+- **Description**: Primary subject line for A/B testing
+
+#### `subject_line_b` (string, optional)
+- **Example**: `"Flash Sale: Half Price on All Items"`
+- **Description**: Alternative subject line for A/B testing
+
+#### `preview_text` (string, optional)
+- **Example**: `"Shop now and save big - sale ends midnight!"`
+- **Description**: Email preview text shown in inbox
+
+#### `hero_h1` (string, optional)
+- **Example**: `"BIGGEST SALE OF THE YEAR"`
+- **Description**: Main headline in email content
+
+#### `sub_head` (string, optional)
+- **Example**: `"Save up to 50% on selected items"`
+- **Description**: Sub-headline or secondary heading
+
+#### `hero_image` (string, optional)
+- **Example**: `"summer-sale-hero.jpg - Bright, vibrant beach scene with products"`
+- **Description**: Hero image filename and tone/shot notes
+
+#### `cta_copy` (string, optional)
+- **Example**: `"Shop Now & Save"`
+- **Description**: Call-to-action button text
+
+#### `offer` (string, optional)
+- **Example**: `"50% off sitewide + free shipping over $50"`
+- **Description**: Special offer details
+
+#### `ab_test_idea` (string, optional)
+- **Example**: `"Test emoji in subject line vs. no emoji"`
+- **Description**: A/B testing strategy for copy, creative, or timing
+
+#### `secondary_message` (string, optional)
+- **Example**: `"Text SAVE to 12345 for exclusive SMS deals"`
+- **Description**: Secondary message suggestion or SMS variant
+- **Alternative Names**: `sms_variant`
 
 ## Multiple Months Format
 
@@ -279,6 +386,10 @@ For issues or questions about the JSON format:
 - Test with a small sample first
 
 ## Version History
+- v2.0 (2025-09-10): Added comprehensive campaign fields and automatic emoji indicators
+  - Support for 13 advanced campaign fields (week number, send time, A/B testing, etc.)
+  - Automatic emoji indicators for Email (✉️), SMS (💬), and Push (📱) notifications
+  - Enhanced description field to include all campaign metadata
 - v1.1 (2025-09-10): Fixed JSON structure to use `events` property and `title` field
 - v1.0 (2025-09-10): Initial format specification
 - Supports both object (`{"events": [...]}` or `{"calendar": [...]}`) and array formats

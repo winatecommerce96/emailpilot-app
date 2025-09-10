@@ -6910,7 +6910,7 @@
         
         function normalizeEventData(event) {
             // Normalize date format
-            let date = event.date || event.event_date || event.dtstart;
+            let date = event.date || event.event_date || event.send_date || event.dtstart;
             if (date) {
                 // Handle various date formats
                 const dateObj = new Date(date);
@@ -6919,15 +6919,75 @@
                 }
             }
             
+            // Determine type and add emoji
+            let type = event.event_type || event.type || event.category || 'email';
+            let emoji = '';
+            if (type.toLowerCase().includes('sms')) {
+                emoji = '💬 ';
+            } else if (type.toLowerCase().includes('push')) {
+                emoji = '📱 ';
+            } else {
+                emoji = '✉️ ';
+            }
+            
+            // Build enhanced title with emoji
+            let title = event.title || event.name || event.summary || event.subject_line_a || 'Imported Event';
+            if (emoji) {
+                title = emoji + title;
+            }
+            
+            // Build comprehensive description
+            let description = event.description || event.content || '';
+            
+            // Add all the extra fields if they exist
+            const extraFields = [];
+            if (event.week_number) extraFields.push(`Week #${event.week_number}`);
+            if (event.send_time) extraFields.push(`Send Time: ${event.send_time}`);
+            if (event.segments || event.segment) extraFields.push(`Segment: ${event.segments || event.segment}`);
+            if (event.subject_line_a) extraFields.push(`Subject A: ${event.subject_line_a}`);
+            if (event.subject_line_b) extraFields.push(`Subject B: ${event.subject_line_b}`);
+            if (event.preview_text) extraFields.push(`Preview: ${event.preview_text}`);
+            if (event.hero_h1) extraFields.push(`H1: ${event.hero_h1}`);
+            if (event.sub_head) extraFields.push(`Subhead: ${event.sub_head}`);
+            if (event.hero_image) extraFields.push(`Hero Image: ${event.hero_image}`);
+            if (event.cta_copy) extraFields.push(`CTA: ${event.cta_copy}`);
+            if (event.offer) extraFields.push(`Offer: ${event.offer}`);
+            if (event.ab_test_idea) extraFields.push(`A/B Test: ${event.ab_test_idea}`);
+            if (event.secondary_message || event.sms_variant) {
+                extraFields.push(`Secondary/SMS: ${event.secondary_message || event.sms_variant}`);
+            }
+            
+            // Append extra fields to description
+            if (extraFields.length > 0) {
+                if (description) description += '\n\n';
+                description += extraFields.join('\n');
+            }
+            
             return {
                 id: event.id || 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-                name: event.title || event.name || event.summary || 'Imported Event',
-                type: event.event_type || event.type || event.category || 'email',
+                name: title,
+                type: type,
                 date: date ? new Date(date) : new Date(),
-                description: event.content || event.description || '',
-                color: event.color || getColorForType(event.event_type || event.type || 'email'),
-                segment: event.segment || '',
-                imported: true
+                description: description,
+                color: event.color || getColorForType(type),
+                segment: event.segments || event.segment || '',
+                imported: true,
+                // Store original fields for reference
+                originalData: {
+                    week_number: event.week_number,
+                    send_time: event.send_time,
+                    subject_line_a: event.subject_line_a,
+                    subject_line_b: event.subject_line_b,
+                    preview_text: event.preview_text,
+                    hero_h1: event.hero_h1,
+                    sub_head: event.sub_head,
+                    hero_image: event.hero_image,
+                    cta_copy: event.cta_copy,
+                    offer: event.offer,
+                    ab_test_idea: event.ab_test_idea,
+                    secondary_message: event.secondary_message,
+                    sms_variant: event.sms_variant
+                }
             };
         }
         

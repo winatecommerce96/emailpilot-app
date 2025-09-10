@@ -1,0 +1,55 @@
+{
+  "events": [
+    {
+      "week_number": 36,
+      "date": "2025-09-01",
+      "send_time": "10:00",
+      "type": "email",
+      "segments": "all_subscribers, active_30_days",
+      "subject_line_a": "🎉 Labor Day Sale - Up to 50% Off!",
+      "subject_line_b": "Your Exclusive Labor Day Savings Inside",
+      "preview_text": "Shop our biggest sale of the season - 3 days only!",
+      "hero_h1": "LABOR DAY MEGA SALE",
+      "sub_head": "Save Big on Everything You Love",
+      "hero_image": "labor-day-hero.jpg - Patriotic theme with fireworks and products",
+      "cta_copy": "Shop Sale Now",
+      "offer": "Up to 50% off + Free shipping on orders $75+",
+      "ab_test_idea": "Test emoji in subject line vs plain text",
+      "secondary_message": "Text LABOR to 12345 for exclusive SMS deals"
+    },
+    {
+      "week_number": 37,
+      "date": "2025-09-08",
+      "send_time": "14:30",
+      "type": "sms",
+      "segments": "sms_subscribers",
+      "title": "Flash Sale Alert",
+      "description": "4-hour flash sale reminder",
+      "sms_variant": "FLASH SALE: 30% off everything! Use code FLASH30. Shop now: [link] Reply STOP to opt out"
+    },
+    {
+      "week_number": 38,
+      "date": "2025-09-15",
+      "send_time": "09:00",
+      "type": "push",
+      "segments": "app_users",
+      "title": "New Collection Alert",
+      "description": "Push notification for fall collection launch",
+      "cta_copy": "View Collection",
+      "hero_image": "fall-collection-thumb.jpg - Autumn colors, cozy theme"
+    },
+    {
+      "date": "2025-09-20",
+      "type": "email",
+      "title": "Weekend Special",
+      "segment": "vip_customers",
+      "description": "Exclusive VIP weekend offer"
+    },
+    {
+      "date": "2025-09-25",
+      "type": "sms",
+      "title": "Reminder: Sale Ends Soon",
+      "segment": "sms_subscribers"
+    }
+  ]
+}
