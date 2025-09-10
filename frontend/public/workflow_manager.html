@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Manager - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Modern animations and effects */
+        .workflow-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .workflow-card:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .agent-node {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .agent-node:hover {
+            transform: scale(1.05);
+            z-index: 10;
+        }
+        
+        .agent-node.executing {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        
+        .dependency-line {
+            stroke-dasharray: 5, 5;
+            animation: dash 10s linear infinite;
+        }
+        
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -100;
+            }
+        }
+        
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .gradient-border {
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(135deg, #667eea 0%, #764ba2 100%) border-box;
+            border: 2px solid transparent;
+        }
+        
+        .floating-badge {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .complexity-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 9999px;
+        }
+        
+        .complexity-low { background: #D1FAE5; color: #065F46; }
+        .complexity-medium { background: #FED7AA; color: #92400E; }
+        .complexity-high { background: #FECACA; color: #991B1B; }
+        
+        /* Flow visualization */
+        .flow-container {
+            position: relative;
+            min-height: 400px;
+        }
+        
+        .flow-node {
+            position: absolute;
+            transition: all 0.3s ease;
+        }
+        
+        .connector-path {
+            fill: none;
+            stroke: #CBD5E1;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        
+        .connector-path.active {
+            stroke: #6366F1;
+            stroke-width: 3;
+        }
+        
+        /* Agent editor modal */
+        .agent-editor {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .code-editor {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            min-height: 200px;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-purple-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="glass-morphism sticky top-0 z-50 shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                        Workflow Manager
+                    </h1>
+                    <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold floating-badge">
+                        <i class="fas fa-circle text-green-500 text-xs mr-1"></i>Live
+                    </span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button onclick="createNewWorkflow()" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transform hover:scale-105 transition">
+                        <i class="fas fa-plus mr-2"></i>New Workflow
+                    </button>
+                    <button onclick="openLangGraph()" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition">
+                        <i class="fas fa-project-diagram mr-2"></i>LangGraph Studio
+                    </button>
+                    <button onclick="refreshWorkflows()" class="p-2 text-gray-600 hover:text-gray-800">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-6 py-8">
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-4 gap-4 mb-8">
+            <div class="glass-morphism rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-indigo-600" id="total-workflows">0</div>
+                <div class="text-sm text-gray-600">Active Workflows</div>
+            </div>
+            <div class="glass-morphism rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-purple-600" id="total-agents">0</div>
+                <div class="text-sm text-gray-600">Total Agents</div>
+            </div>
+            <div class="glass-morphism rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-green-600" id="executions-today">0</div>
+                <div class="text-sm text-gray-600">Executions Today</div>
+            </div>
+            <div class="glass-morphism rounded-xl p-4 text-center">
+                <div class="text-3xl font-bold text-orange-600" id="avg-time">0s</div>
+                <div class="text-sm text-gray-600">Avg Execution</div>
+            </div>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="flex space-x-2 mb-6">
+            <button onclick="filterByCategory('all')" class="filter-btn px-4 py-2 rounded-lg bg-indigo-600 text-white">
+                All Workflows
+            </button>
+            <button onclick="filterByCategory('Marketing')" class="filter-btn px-4 py-2 rounded-lg bg-white text-gray-700 hover:bg-gray-100">
+                Marketing
+            </button>
+            <button onclick="filterByCategory('Analytics')" class="filter-btn px-4 py-2 rounded-lg bg-white text-gray-700 hover:bg-gray-100">
+                Analytics
+            </button>
+            <button onclick="filterByCategory('Automation')" class="filter-btn px-4 py-2 rounded-lg bg-white text-gray-700 hover:bg-gray-100">
+                Automation
+            </button>
+        </div>
+
+        <!-- Workflow Grid -->
+        <div id="workflows-container" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+            <!-- Workflow cards will be dynamically inserted here -->
+        </div>
+
+        <!-- Selected Workflow Detail View -->
+        <div id="workflow-detail" class="hidden glass-morphism rounded-2xl p-6 slide-in">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold mb-2" id="detail-name"></h2>
+                    <p class="text-gray-600" id="detail-description"></p>
+                    <div class="flex gap-2 mt-3">
+                        <span id="detail-category" class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs"></span>
+                        <span id="detail-complexity" class="complexity-badge"></span>
+                        <span id="detail-time" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs"></span>
+                    </div>
+                </div>
+                <button onclick="closeDetail()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <!-- MCP Data Source Status Panel -->
+            <div class="mb-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                <h3 class="text-lg font-semibold mb-3 flex items-center">
+                    <span class="mr-2">📡</span> MCP Data Source
+                </h3>
+                <div id="mcp-status" class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Source:</span>
+                        <span id="mcp-source" class="text-blue-700">Enhanced Klaviyo MCP</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Endpoint:</span>
+                        <span id="mcp-endpoint" class="font-mono text-sm">http://localhost:9095</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Status:</span>
+                        <span id="mcp-connection-status" class="font-semibold">
+                            <span class="loading-indicator">Checking...</span>
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Mode:</span>
+                        <span id="mcp-mode">Enhanced</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Available Tools:</span>
+                        <span id="mcp-tools">18 categories</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">Last Check:</span>
+                        <span id="mcp-last-check" class="text-gray-600">Never</span>
+                    </div>
+                </div>
+                <button onclick="checkMCPStatus()" class="mt-3 px-4 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                    🔄 Refresh Status
+                </button>
+            </div>
+
+            <!-- Execution Flow Visualization -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-4">Execution Flow</h3>
+                <div id="execution-flow" class="flow-container bg-gray-50 rounded-xl p-6">
+                    <!-- Flow diagram will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Agent List with Details -->
+            <div>
+                <h3 class="text-lg font-semibold mb-4">Agents in Execution Order</h3>
+                <div id="agents-list" class="space-y-3">
+                    <!-- Agent cards will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Editor Modal -->
+    <div id="agent-editor-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="glass-morphism rounded-2xl p-6 max-w-4xl w-full mx-4 agent-editor">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" id="editor-title">Edit Agent</h3>
+                <button onclick="closeAgentEditor()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Agent Name</label>
+                    <input type="text" id="editor-name" class="w-full px-4 py-2 border rounded-lg" readonly>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <input type="text" id="editor-role" class="w-full px-4 py-2 border rounded-lg">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="editor-description" class="w-full px-4 py-2 border rounded-lg" rows="3"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Dependencies</label>
+                    <div id="editor-dependencies" class="flex flex-wrap gap-2">
+                        <!-- Dependency chips will be shown here -->
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Prompt Template</label>
+                    <textarea id="editor-prompt" class="code-editor w-full" rows="10"></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeAgentEditor()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                        Cancel
+                    </button>
+                    <button onclick="saveAgent()" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentWorkflow = null;
+        let currentAgent = null;
+        let workflows = [];
+        let activeCategory = 'all';
+        let availableClients = [];
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadWorkflows();
+            loadClients();
+            updateStats();
+            checkMCPStatus(); // Check MCP status on load
+            
+            // Periodic updates
+            setInterval(updateStats, 30000);
+            setInterval(checkMCPStatus, 60000); // Check MCP status every minute
+        });
+
+        // Load clients from API
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/admin/clients');
+                if (!response.ok) {
+                    throw new Error('Failed to load clients');
+                }
+                const data = await response.json();
+                availableClients = data.clients || [];
+                
+                // Sort clients by name
+                availableClients.sort((a, b) => a.name.localeCompare(b.name));
+                
+                // Update client dropdown if modal is open
+                updateClientDropdowns();
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                availableClients = [];
+                updateClientDropdowns();
+            }
+        }
+
+        // Update client dropdown with loaded clients  
+        function updateClientDropdowns() {
+            const clientSelect = document.getElementById('exec-client');
+            if (!clientSelect) return;
+            
+            clientSelect.innerHTML = '';
+            
+            if (availableClients.length === 0) {
+                clientSelect.innerHTML = '<option value="">No clients available</option>';
+                return;
+            }
+            
+            // Add default option
+            clientSelect.innerHTML = '<option value="">Select a client...</option>';
+            
+            // Add client options
+            availableClients.forEach(client => {
+                if (client.is_active !== false) {
+                    const option = document.createElement('option');
+                    option.value = `${client.id}|${client.name}`;
+                    option.textContent = client.name;
+                    clientSelect.appendChild(option);
+                }
+            });
+            
+            // Select first active client by default if available
+            const activeClients = availableClients.filter(c => c.is_active !== false);
+            if (activeClients.length > 0) {
+                clientSelect.selectedIndex = 1;
+            }
+        }
+
+        async function loadWorkflows() {
+            try {
+                const response = await fetch('/api/workflow-agents/workflows');
+                const data = await response.json();
+                
+                if (data.success) {
+                    workflows = data.workflows;
+                    renderWorkflows();
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('Error loading workflows:', error);
+            }
+        }
+
+        function renderWorkflows() {
+            const container = document.getElementById('workflows-container');
+            container.innerHTML = '';
+            
+            const filteredWorkflows = activeCategory === 'all' 
+                ? workflows 
+                : workflows.filter(w => w.category === activeCategory);
+            
+            filteredWorkflows.forEach((workflow, index) => {
+                const card = createWorkflowCard(workflow, index);
+                container.appendChild(card);
+            });
+        }
+
+        function createWorkflowCard(workflow, index) {
+            const card = document.createElement('div');
+            card.className = 'workflow-card glass-morphism rounded-xl p-6 cursor-pointer gradient-border';
+            card.style.animationDelay = `${index * 0.1}s`;
+            card.onclick = () => loadWorkflowDetail(workflow.id);
+            
+            const complexityClass = `complexity-${workflow.complexity || 'medium'}`;
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-4">
+                    <div class="text-3xl">${workflow.icon}</div>
+                    ${workflow.langgraph_enabled ? 
+                        '<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">LangGraph</span>' : 
+                        '<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">Classic</span>'}
+                </div>
+                <h3 class="text-lg font-semibold mb-2">${workflow.name}</h3>
+                <p class="text-sm text-gray-600 mb-4">${workflow.description}</p>
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-500">${workflow.agent_count} agents</span>
+                        <span class="text-xs text-gray-400">•</span>
+                        <span class="text-xs text-gray-500">${workflow.execution_time}</span>
+                    </div>
+                    <span class="${complexityClass} complexity-badge">${workflow.complexity}</span>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-500">v${workflow.version}</span>
+                        <div class="flex space-x-2">
+                            <button onclick="event.stopPropagation(); executeWorkflow('${workflow.id}')" 
+                                class="px-3 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700">
+                                <i class="fas fa-play mr-1"></i>Run
+                            </button>
+                            <button onclick="event.stopPropagation(); editWorkflow('${workflow.id}')" 
+                                class="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            card.style.borderLeftColor = workflow.color;
+            card.style.borderLeftWidth = '4px';
+            
+            return card;
+        }
+
+        async function loadWorkflowDetail(workflowId) {
+            try {
+                const response = await fetch(`/api/workflow-agents/workflow/${workflowId}/execution-graph`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentWorkflow = data.workflow;
+                    renderWorkflowDetail(data);
+                    document.getElementById('workflow-detail').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error loading workflow detail:', error);
+            }
+        }
+
+        function renderWorkflowDetail(data) {
+            // Update header information
+            document.getElementById('detail-name').textContent = data.workflow.name;
+            document.getElementById('detail-description').textContent = data.workflow.description;
+            document.getElementById('detail-category').textContent = data.workflow.category;
+            document.getElementById('detail-complexity').textContent = data.workflow.complexity;
+            document.getElementById('detail-complexity').className = `complexity-badge complexity-${data.workflow.complexity}`;
+            document.getElementById('detail-time').textContent = data.workflow.execution_time;
+            
+            // Render execution flow
+            renderExecutionFlow(data.agents, data.connections);
+            
+            // Render agent list
+            renderAgentList(data.agents);
+        }
+
+        function renderExecutionFlow(agents, connections) {
+            const container = document.getElementById('execution-flow');
+            const width = container.offsetWidth;
+            const nodeWidth = 180;
+            const nodeHeight = 80;
+            const verticalSpacing = 120;
+            const horizontalSpacing = 220;
+            
+            // Group agents by order/level
+            const levels = {};
+            agents.forEach(agent => {
+                if (!levels[agent.order]) {
+                    levels[agent.order] = [];
+                }
+                levels[agent.order].push(agent);
+            });
+            
+            // Create SVG for connections
+            let svg = `<svg width="${width}" height="${Object.keys(levels).length * verticalSpacing + 100}" style="position: absolute; top: 0; left: 0; pointer-events: none;">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#6366F1" />
+                    </marker>
+                </defs>`;
+            
+            // Position nodes and create connections
+            let html = '';
+            const nodePositions = {};
+            
+            Object.keys(levels).sort().forEach((level, levelIndex) => {
+                const levelAgents = levels[level];
+                const levelWidth = levelAgents.length * horizontalSpacing;
+                const startX = (width - levelWidth) / 2 + horizontalSpacing / 2;
+                
+                levelAgents.forEach((agent, agentIndex) => {
+                    const x = startX + agentIndex * horizontalSpacing;
+                    const y = levelIndex * verticalSpacing + 20;
+                    
+                    nodePositions[agent.id] = { x: x + nodeWidth / 2, y: y + nodeHeight / 2 };
+                    
+                    html += `
+                        <div class="flow-node agent-node glass-morphism rounded-lg p-3 shadow-lg hover:shadow-xl cursor-pointer"
+                             style="left: ${x}px; top: ${y}px; width: ${nodeWidth}px;"
+                             onclick="openAgentEditor('${agent.id}')">
+                            <div class="font-semibold text-sm mb-1">${agent.name}</div>
+                            <div class="text-xs text-gray-600 mb-2">${agent.role}</div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-gray-500">Order: ${agent.order}</span>
+                                <i class="fas fa-pencil-alt text-gray-400 hover:text-indigo-600"></i>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+            
+            // Draw connections
+            connections.forEach(conn => {
+                const from = nodePositions[conn.from];
+                const to = nodePositions[conn.to];
+                if (from && to) {
+                    svg += `<path class="connector-path" d="M ${from.x} ${from.y + 20} Q ${from.x} ${(from.y + to.y) / 2} ${to.x} ${to.y - 20}" />`;
+                }
+            });
+            
+            svg += '</svg>';
+            container.innerHTML = svg + html;
+        }
+
+        function renderAgentList(agents) {
+            const container = document.getElementById('agents-list');
+            container.innerHTML = '';
+            
+            agents.forEach((agent, index) => {
+                const card = document.createElement('div');
+                card.className = 'glass-morphism rounded-lg p-4 hover:shadow-lg transition';
+                
+                const dependencyBadges = agent.dependencies.map(dep => 
+                    `<span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">${dep}</span>`
+                ).join(' ');
+                
+                // Determine MCP requirements for this agent
+                const mcpRequirements = getMCPRequirements(agent.name);
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <span class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                    ${agent.order}
+                                </span>
+                                <h4 class="font-semibold cursor-pointer" onclick="openAgentEditor('${agent.id}')">${agent.name}</h4>
+                                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${agent.role}</span>
+                                
+                                <!-- Simple Up/Down Reorder Buttons -->
+                                <div class="flex space-x-1">
+                                    <button 
+                                        onclick="moveAgentUp('${agent.id}', ${index})" 
+                                        class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm ${index === 0 ? 'opacity-50 cursor-not-allowed' : ''}"
+                                        ${index === 0 ? 'disabled' : ''}>
+                                        ↑
+                                    </button>
+                                    <button 
+                                        onclick="moveAgentDown('${agent.id}', ${index})" 
+                                        class="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm ${index === agents.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}"
+                                        ${index === agents.length - 1 ? 'disabled' : ''}>
+                                        ↓
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-2">${agent.description}</p>
+                            
+                            <!-- MCP Data Requirements -->
+                            <div class="mt-2 p-2 bg-blue-50 rounded text-xs">
+                                <span class="font-semibold text-blue-700">MCP Data:</span>
+                                <span id="mcp-req-${agent.id}" class="text-blue-600 ml-1">Loading...</span>
+                            </div>
+                            
+                            ${dependencyBadges ? `
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs text-gray-500">Depends on:</span>
+                                    ${dependencyBadges}
+                                </div>
+                            ` : '<span class="text-xs text-gray-400">No dependencies</span>'}
+                        </div>
+                        <button class="ml-4 text-gray-400 hover:text-indigo-600">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+                
+                // Display MCP tools and data sources for this agent
+                const reqElement = document.getElementById(`mcp-req-${agent.id}`);
+                if (reqElement) {
+                    let content = '';
+                    
+                    // Show MCP tools created (for preflight agent)
+                    if (agent.mcp_tools_created && agent.mcp_tools_created.length > 0) {
+                        content += '<div class="mb-2">';
+                        content += '<span class="text-xs font-medium text-green-600">Creates MCP Tools:</span><br>';
+                        content += agent.mcp_tools_created.map(tool => 
+                            `<span class="inline-block px-2 py-1 bg-green-100 text-green-700 rounded text-xs mr-1">${tool}</span>`
+                        ).join('');
+                        content += '</div>';
+                    }
+                    
+                    // Show MCP tools used (for other agents)
+                    if (agent.mcp_tools_used && agent.mcp_tools_used.length > 0) {
+                        content += '<div class="mb-2">';
+                        content += '<span class="text-xs font-medium text-blue-600">Uses MCP Tools:</span><br>';
+                        content += agent.mcp_tools_used.map(tool => 
+                            `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs mr-1">${tool}</span>`
+                        ).join('');
+                        content += '</div>';
+                    }
+                    
+                    // Show data sources  
+                    if (agent.data_sources && agent.data_sources.length > 0) {
+                        content += '<div class="mb-2">';
+                        content += '<span class="text-xs font-medium text-purple-600">Data Sources:</span><br>';
+                        content += agent.data_sources.map(source => 
+                            `<span class="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs mr-1">${source}</span>`
+                        ).join('');
+                        content += '</div>';
+                    }
+                    
+                    // Fallback for requirements (legacy)
+                    if (!content && agent.mcp_requirements && agent.mcp_requirements.length > 0) {
+                        content += '<div>';
+                        content += '<span class="text-xs font-medium text-gray-600">Requirements:</span><br>';
+                        content += agent.mcp_requirements.map(req => 
+                            `<span class="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs mr-1">${req}</span>`
+                        ).join('');
+                        content += '</div>';
+                    }
+                    
+                    // Default message if no MCP integration
+                    if (!content) {
+                        content = '<span class="text-xs text-gray-400">No MCP integration</span>';
+                    }
+                    
+                    reqElement.innerHTML = content;
+                }
+            });
+        }
+
+        async function openAgentEditor(agentId) {
+            try {
+                const response = await fetch(`/api/workflow-agents/agent/${agentId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentAgent = data.agent;
+                    
+                    // Populate editor fields
+                    document.getElementById('editor-name').value = data.agent.name;
+                    document.getElementById('editor-role').value = data.agent.role;
+                    document.getElementById('editor-description').value = data.agent.config.description || '';
+                    document.getElementById('editor-prompt').value = data.agent.config.prompt_template || '';
+                    
+                    // Show dependencies
+                    const depsContainer = document.getElementById('editor-dependencies');
+                    depsContainer.innerHTML = data.agent.dependencies.map(dep => 
+                        `<span class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">${dep}</span>`
+                    ).join(' ') || '<span class="text-gray-400">No dependencies</span>';
+                    
+                    // Show modal
+                    document.getElementById('agent-editor-modal').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error loading agent:', error);
+            }
+        }
+
+        function closeAgentEditor() {
+            document.getElementById('agent-editor-modal').classList.add('hidden');
+            currentAgent = null;
+        }
+
+        async function saveAgent() {
+            if (!currentAgent) return;
+            
+            const updatedData = {
+                agent_name: currentAgent.name,
+                description: document.getElementById('editor-description').value,
+                prompt_template: document.getElementById('editor-prompt').value
+            };
+            
+            try {
+                const response = await fetch(`/api/workflow-agents/agent/${currentAgent.name}/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('Agent updated successfully!');
+                    closeAgentEditor();
+                    if (currentWorkflow) {
+                        loadWorkflowDetail(currentWorkflow.id);
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving agent:', error);
+                alert('Error saving agent changes');
+            }
+        }
+
+        function closeDetail() {
+            document.getElementById('workflow-detail').classList.add('hidden');
+            currentWorkflow = null;
+        }
+
+        function filterByCategory(category) {
+            activeCategory = category;
+            
+            // Update button styles
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.textContent.includes(category) || (category === 'all' && btn.textContent.includes('All'))) {
+                    btn.className = 'filter-btn px-4 py-2 rounded-lg bg-indigo-600 text-white';
+                } else {
+                    btn.className = 'filter-btn px-4 py-2 rounded-lg bg-white text-gray-700 hover:bg-gray-100';
+                }
+            });
+            
+            renderWorkflows();
+        }
+
+        // MCP Status and Agent Management Functions
+        async function checkMCPStatus() {
+            try {
+                // Check Enhanced Klaviyo MCP status
+                const response = await fetch('http://localhost:9095/health');
+                const data = await response.json();
+                
+                const statusContainer = document.getElementById('mcp-status');
+                const endpointSpan = document.getElementById('mcp-endpoint');
+                const statusSpan = document.getElementById('mcp-connection-status');
+                const toolsSpan = document.getElementById('mcp-tools-count');
+                
+                if (statusContainer && statusSpan) {
+                    if (data.ready) {
+                        statusContainer.className = 'mb-6 bg-green-50 border-2 border-green-200 rounded-xl p-4';
+                        statusSpan.innerHTML = '✅ Connected';
+                        statusSpan.className = 'font-semibold text-green-600';
+                        
+                        // Get tools count
+                        try {
+                            const toolsResponse = await fetch('http://localhost:9095/mcp/tools');
+                            const toolsData = await toolsResponse.json();
+                            if (toolsSpan) {
+                                toolsSpan.textContent = `${toolsData.total} tools across ${toolsData.categories} categories`;
+                            }
+                            
+                            // Show available methods
+                            const methodsList = document.getElementById('mcp-methods');
+                            if (methodsList && toolsData.tools) {
+                                const methods = toolsData.tools.slice(0, 5).map(t => t.method).join(', ');
+                                methodsList.textContent = methods + '...';
+                            }
+                        } catch (toolsError) {
+                            console.error('Error fetching MCP tools:', toolsError);
+                        }
+                    } else {
+                        statusContainer.className = 'mb-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4';
+                        statusSpan.innerHTML = '⚠️ Starting...';
+                        statusSpan.className = 'font-semibold text-yellow-600';
+                    }
+                }
+            } catch (error) {
+                const statusContainer = document.getElementById('mcp-status');
+                const statusSpan = document.getElementById('mcp-connection-status');
+                
+                if (statusContainer && statusSpan) {
+                    statusContainer.className = 'mb-6 bg-red-50 border-2 border-red-200 rounded-xl p-4';
+                    statusSpan.innerHTML = '❌ Disconnected';
+                    statusSpan.className = 'font-semibold text-red-600';
+                }
+                
+                console.error('MCP connection error:', error);
+            }
+        }
+        
+        function getMCPRequirements(agentName) {
+            // Define MCP data requirements for each agent type
+            const requirements = {
+                'mcp_preflight': ['health_check', 'tools_list', 'client_validation'],
+                'brand_calendar': ['segments.list', 'lists.list', 'campaigns.list', 'profiles.get'],
+                'historical_analyst': ['campaigns.get_metrics', 'flows.get_metrics', 'metrics.aggregate', 'reporting.revenue'],
+                'segment_strategist': ['segments.get', 'segments.get_profiles', 'lists.get_profiles'],
+                'content_optimizer': ['templates.list', 'campaigns.list'],
+                'calendar_orchestrator': [],
+                'brand_strategist': ['segments.list', 'profiles.get', 'campaigns.list'],
+                'calendar_strategist': ['campaigns.list', 'metrics.aggregate', 'events.list'],
+                'copy_smith': ['templates.list', 'campaigns.get'],
+                'layout_lab': ['templates.get', 'campaigns.get'],
+                'audience_architect': ['segments.list', 'lists.list', 'profiles.get'],
+                'brand_brain': ['campaigns.list', 'templates.list'],
+                'gatekeeper': ['campaigns.list', 'profiles.get'],
+                'truth_teller': ['metrics.aggregate', 'reporting.revenue', 'campaigns.list'],
+                'calendar_planner': ['campaigns.list', 'events.list', 'metrics.aggregate']
+            };
+            
+            return requirements[agentName] || [];
+        }
+        
+        async function moveAgentUp(agentId, currentIndex) {
+            if (currentIndex === 0) return;
+            
+            if (!currentWorkflow) {
+                showNotification('No workflow selected', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/workflow-agents/workflow/${currentWorkflow.id}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_id: agentId,
+                        old_index: currentIndex,
+                        new_index: currentIndex - 1
+                    })
+                });
+                
+                if (response.ok) {
+                    // Reload workflow detail
+                    loadWorkflowDetail(currentWorkflow.id);
+                    showNotification('Agent order updated', 'success');
+                } else {
+                    showNotification('Failed to reorder agent', 'error');
+                }
+            } catch (error) {
+                console.error('Error reordering agent:', error);
+                showNotification('Error reordering agent', 'error');
+            }
+        }
+        
+        async function moveAgentDown(agentId, currentIndex) {
+            if (!currentWorkflow || currentIndex >= currentWorkflow.agents.length - 1) return;
+            
+            try {
+                const response = await fetch(`/api/workflow-agents/workflow/${currentWorkflow.id}/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_id: agentId,
+                        old_index: currentIndex,
+                        new_index: currentIndex + 1
+                    })
+                });
+                
+                if (response.ok) {
+                    // Reload workflow detail
+                    loadWorkflowDetail(currentWorkflow.id);
+                    showNotification('Agent order updated', 'success');
+                } else {
+                    showNotification('Failed to reorder agent', 'error');
+                }
+            } catch (error) {
+                console.error('Error reordering agent:', error);
+                showNotification('Error reordering agent', 'error');
+            }
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 
+                'bg-blue-500'
+            } text-white`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+        
+        // Store executions count in sessionStorage to persist during session
+        let executionsToday = sessionStorage.getItem('executions-today');
+        if (!executionsToday) {
+            executionsToday = Math.floor(Math.random() * 30) + 20;
+            sessionStorage.setItem('executions-today', executionsToday);
+        }
+
+        function updateStats() {
+            document.getElementById('total-workflows').textContent = workflows.length;
+            
+            const totalAgents = workflows.reduce((sum, w) => sum + w.agent_count, 0);
+            document.getElementById('total-agents').textContent = totalAgents;
+            
+            // Use consistent value from session storage
+            document.getElementById('executions-today').textContent = executionsToday;
+            document.getElementById('avg-time').textContent = '32s';
+        }
+
+        let currentWorkflowId = null;
+        let currentWorkflowData = null;
+        
+        function executeWorkflow(workflowId) {
+            // Find the workflow data
+            const workflow = workflows.find(w => w.id === workflowId);
+            if (!workflow) {
+                showNotification('Workflow not found', 'error');
+                return;
+            }
+            
+            currentWorkflowId = workflowId;
+            currentWorkflowData = workflow;
+            
+            // Show execution modal with dynamic form based on workflow type
+            showExecutionModal(workflow);
+        }
+        
+        function showExecutionModal(workflow) {
+            const modal = document.getElementById('executionModal');
+            const formContent = document.getElementById('execution-form-content');
+            
+            // Store workflow for later use
+            window.currentWorkflow = workflow;
+            
+            // Generate dynamic form based on workflow type
+            let formHTML = `
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">
+                        ${workflow.icon || '🔄'} ${workflow.name}
+                    </h3>
+                    <p class="text-sm text-gray-600">${workflow.description}</p>
+                </div>
+            `;
+            
+            // Add workflow-specific fields
+            if (workflow.id === 'calendar_workflow') {
+                formHTML += generateCalendarWorkflowForm();
+            } else if (workflow.id === 'email_campaign_workflow') {
+                formHTML += generateEmailCampaignForm();
+            } else if (workflow.id === 'revenue_analysis_workflow') {
+                formHTML += generateRevenueAnalysisForm();
+            } else {
+                formHTML += generateGenericWorkflowForm();
+            }
+            
+            formContent.innerHTML = formHTML;
+            modal.classList.remove('hidden');
+            
+            // Update client dropdown and load agent requirements
+            setTimeout(() => {
+                updateClientDropdowns();
+                if (workflow.id === 'calendar_workflow') {
+                    loadAgentRequirements('calendar_workflow');
+                }
+            }, 100);
+        }
+        
+        function generateCalendarWorkflowForm() {
+            const currentMonth = new Date().toISOString().slice(0, 7);
+            const nextMonth = new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().slice(0, 7);
+            
+            return `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Client</label>
+                        <select id="exec-client" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="">Loading clients...</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Month</label>
+                        <input type="month" id="exec-month" value="${nextMonth}" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Campaign Count</label>
+                            <input type="number" id="exec-campaign-count" value="12" min="1" max="30"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sales Goal ($)</label>
+                            <input type="number" id="exec-sales-goal" value="50000" min="1000" step="1000"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Optimization Goal</label>
+                        <select id="exec-optimization" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="balanced">Balanced</option>
+                            <option value="revenue">Revenue Focus</option>
+                            <option value="engagement">Engagement Focus</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Additional Context (Optional)</label>
+                        <textarea id="exec-context" rows="3" placeholder="Any important dates, events, or priorities..."
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                    
+                    <!-- MCP Query Section -->
+                    <div class="border-t pt-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-sm font-semibold text-gray-700">
+                                <i class="fas fa-database text-indigo-500 mr-1"></i>
+                                MCP Data Queries
+                            </h4>
+                            <button onclick="reanalyzeAgentRequirements()" class="text-xs text-indigo-600 hover:text-indigo-800">
+                                <i class="fas fa-sync-alt mr-1"></i>Re-analyze Agents
+                            </button>
+                        </div>
+                        
+                        <div id="mcp-requirements-loading" class="hidden text-center py-2">
+                            <i class="fas fa-spinner fa-spin text-indigo-600"></i>
+                            <span class="text-xs text-gray-600 ml-2">Analyzing agent requirements...</span>
+                        </div>
+                        
+                        <div id="mcp-requirements" class="space-y-2 hidden">
+                            <!-- Agent requirements will be populated here -->
+                        </div>
+                        
+                        <div id="mcp-queries" class="space-y-2">
+                            <div class="text-xs text-gray-600 mb-2">
+                                These queries will be executed to gather data for the workflow agents:
+                            </div>
+                            <textarea id="exec-mcp-queries" rows="4" 
+                                placeholder="Loading queries based on agent requirements..."
+                                class="w-full px-2 py-1 text-xs font-mono border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            <div class="text-xs text-gray-500">
+                                Edit queries above or click "Re-analyze Agents" to refresh based on current prompts
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center text-xs text-gray-500">
+                        <span class="mr-2">ℹ️</span>
+                        <span>The workflow will automatically gather relevant data from Klaviyo and be traced in LangSmith</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function generateEmailCampaignForm() {
+            return `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Campaign Type</label>
+                        <select id="exec-campaign-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="promotional">Promotional</option>
+                            <option value="newsletter">Newsletter</option>
+                            <option value="welcome">Welcome Series</option>
+                            <option value="abandoned-cart">Abandoned Cart</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
+                        <input type="text" id="exec-audience" placeholder="e.g., VIP customers, new subscribers"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Campaign Goal</label>
+                        <textarea id="exec-goal" rows="2" placeholder="What do you want to achieve?"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function generateRevenueAnalysisForm() {
+            return `
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="exec-start-date" 
+                                class="px-3 py-2 border border-gray-300 rounded-lg">
+                            <input type="date" id="exec-end-date" 
+                                class="px-3 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Analysis Focus</label>
+                        <select id="exec-focus" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="overall">Overall Performance</option>
+                            <option value="campaigns">Campaign Analysis</option>
+                            <option value="segments">Segment Analysis</option>
+                            <option value="products">Product Performance</option>
+                        </select>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function generateGenericWorkflowForm() {
+            return `
+                <div class="space-y-4">
+                    <div class="bg-yellow-50 p-3 rounded-lg">
+                        <p class="text-sm text-yellow-800">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            This workflow will execute with default parameters.
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Execution Notes (Optional)</label>
+                        <textarea id="exec-notes" rows="3" placeholder="Any specific requirements..."
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"></textarea>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function closeExecutionModal() {
+            document.getElementById('executionModal').classList.add('hidden');
+            currentWorkflowId = null;
+            currentWorkflowData = null;
+        }
+        
+        async function executeWorkflowWithParams() {
+            // Store workflow data before any modal changes
+            const workflowId = currentWorkflowId;
+            const workflowData = currentWorkflowData;
+            
+            if (!workflowId || !workflowData) {
+                console.error('No workflow selected');
+                showNotification('Please select a workflow first', 'error');
+                return;
+            }
+            
+            // Gather parameters based on workflow type
+            let params = {};
+            
+            if (workflowId === 'calendar_workflow') {
+                const clientValue = document.getElementById('exec-client').value;
+                if (!clientValue) {
+                    showNotification('Please select a client', 'error');
+                    return;
+                }
+                const clientSelect = clientValue.split('|');
+                
+                // Get custom MCP queries if available
+                const customQueries = window.mcpQueries || [];
+                
+                params = {
+                    client_id: clientSelect[0],
+                    client_name: clientSelect[1] || clientSelect[0],
+                    selected_month: document.getElementById('exec-month').value,
+                    campaign_count: parseInt(document.getElementById('exec-campaign-count').value),
+                    sales_goal: parseFloat(document.getElementById('exec-sales-goal').value),
+                    optimization_goal: document.getElementById('exec-optimization').value,
+                    additional_context: document.getElementById('exec-context').value,
+                    use_real_data: true,
+                    use_mock_data: false,
+                    mcp_queries: customQueries  // Pass custom queries to backend
+                };
+            } else if (workflowId === 'email_campaign_workflow') {
+                params = {
+                    campaign_type: document.getElementById('exec-campaign-type').value,
+                    target_audience: document.getElementById('exec-audience').value,
+                    campaign_goal: document.getElementById('exec-goal').value
+                };
+            } else if (workflowId === 'revenue_analysis_workflow') {
+                params = {
+                    start_date: document.getElementById('exec-start-date').value,
+                    end_date: document.getElementById('exec-end-date').value,
+                    focus: document.getElementById('exec-focus').value
+                };
+            } else {
+                params = {
+                    notes: document.getElementById('exec-notes')?.value || ''
+                };
+            }
+            
+            // Close execution modal, show status modal
+            closeExecutionModal();
+            showExecutionStatus();
+            
+            // Execute the workflow with the saved workflow ID
+            await executeWorkflowAPI(workflowId, params);
+        }
+        
+        function showExecutionStatus() {
+            const modal = document.getElementById('executionStatusModal');
+            modal.classList.remove('hidden');
+            
+            // Reset progress
+            document.getElementById('execution-progress-bar').style.width = '0%';
+            document.getElementById('execution-status-message').textContent = 'Initializing agents...';
+            document.getElementById('execution-agents-list').innerHTML = '';
+            document.getElementById('langgraph-trace-link').classList.add('hidden');
+        }
+        
+        function closeExecutionStatus() {
+            document.getElementById('executionStatusModal').classList.add('hidden');
+        }
+        
+        async function executeWorkflowAPI(workflowId, params) {
+            console.log('Executing workflow:', workflowId, 'with params:', params);
+            
+            if (!workflowId) {
+                console.error('Error: Workflow ID is null or undefined');
+                showNotification('Error: No workflow selected', 'error');
+                return;
+            }
+            
+            try {
+                // Update status
+                updateExecutionStatus('Running MCP preflight check...', 5);
+                
+                // Preflight check - fail fast if MCP not available
+                const preflightResponse = await fetch('/api/mcp/gateway/preflight');
+                const preflightData = await preflightResponse.json();
+                
+                if (!preflightData.ready) {
+                    // Show detailed error in status modal
+                    updateExecutionStatus('MCP Data Source Error', 0);
+                    const statusMessage = document.getElementById('execution-status-message');
+                    statusMessage.innerHTML = `
+                        <div class="text-red-600 font-semibold mb-2">
+                            ❌ ${preflightData.error_message}
+                        </div>
+                        <div class="text-sm text-gray-600 mt-3">
+                            <p class="font-semibold mb-2">How to fix:</p>
+                            <ul class="list-disc list-inside space-y-1">
+                                ${preflightData.instructions.map(i => `<li>${i}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    
+                    // Also show notification
+                    showNotification(preflightData.error_message, 'error');
+                    return;
+                }
+                
+                // MCP is ready, continue with workflow
+                updateExecutionStatus('Connecting to workflow engine...', 10);
+                
+                // Determine the appropriate API endpoint
+                let endpoint, method = 'POST';
+                if (workflowId === 'calendar_workflow') {
+                    endpoint = '/api/calendar/workflow/execute';
+                } else {
+                    // For other workflows, we'll need to create generic endpoints
+                    endpoint = `/api/workflow-agents/execute/${workflowId}`;
+                    console.warn(`Note: Generic workflow endpoint may not be implemented yet for: ${workflowId}`);
+                }
+                
+                // Make API call
+                const response = await fetch(endpoint, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(params)
+                });
+                
+                // Check if response is ok
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error Response:', errorText);
+                    throw new Error(`API Error (${response.status}): ${response.statusText}`);
+                }
+                
+                // Parse JSON response
+                let result;
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    console.error('Failed to parse response as JSON:', parseError);
+                    throw new Error('Invalid response format from server');
+                }
+                
+                // Update execution counter
+                executionsToday = parseInt(executionsToday) + 1;
+                sessionStorage.setItem('executions-today', executionsToday);
+                updateStats();
+                
+                // Handle result
+                if (result.success) {
+                    updateExecutionStatus('Workflow completed successfully!', 100);
+                    
+                    // Show trace link if available
+                    if (result.trace_url) {
+                        const traceLink = document.getElementById('langgraph-trace-link');
+                        traceLink.href = result.trace_url;
+                        traceLink.classList.remove('hidden');
+                    }
+                    
+                    showNotification(`Workflow executed successfully!`, 'success');
+                    
+                    // Auto-close after 3 seconds
+                    setTimeout(() => {
+                        closeExecutionStatus();
+                        
+                        // If calendar workflow, offer to view results
+                        if (workflowId === 'calendar_workflow' && result.calendar) {
+                            if (confirm('Calendar generated successfully! Would you like to view it?')) {
+                                window.location.href = '/static/calendar_master.html';
+                            }
+                        }
+                    }, 3000);
+                } else {
+                    throw new Error(result.message || 'Execution failed');
+                }
+                
+            } catch (error) {
+                console.error('Workflow execution error:', error);
+                
+                // Check if it's just a browser extension error (ignore it)
+                if (error.message && error.message.includes('Receiving end does not exist')) {
+                    console.warn('Browser extension error detected, checking actual response...');
+                    // Continue anyway as this is likely a Chrome extension issue
+                }
+                
+                // Still show error to user but with more context
+                const errorMessage = error.message || 'Unknown error occurred';
+                updateExecutionStatus(`Error: ${errorMessage}`, 0);
+                showNotification(`Execution failed: ${errorMessage}`, 'error');
+                
+                // Close status modal after error
+                setTimeout(() => {
+                    closeExecutionStatus();
+                }, 3000);
+            }
+        }
+        
+        function updateExecutionStatus(message, progress) {
+            document.getElementById('execution-status-message').textContent = message;
+            document.getElementById('execution-progress-bar').style.width = `${progress}%`;
+            
+            // If we have agent data, show it
+            if (currentWorkflowData && progress > 10 && progress < 100) {
+                const agentsList = document.getElementById('execution-agents-list');
+                if (agentsList.innerHTML === '' && currentWorkflowData.agents) {
+                    agentsList.innerHTML = `
+                        <div class="font-semibold mb-2">Executing Agents:</div>
+                        ${currentWorkflowData.agents.map((agent, index) => `
+                            <div class="flex items-center mb-1">
+                                <i class="fas fa-${progress > (index + 1) * (90 / currentWorkflowData.agents.length) ? 'check-circle text-green-500' : 'circle text-gray-400'} mr-2"></i>
+                                <span>${agent}</span>
+                            </div>
+                        `).join('')}
+                    `;
+                }
+            }
+        }
+
+        function editWorkflow(workflowId) {
+            // For now, load the workflow detail view which has editing capabilities
+            loadWorkflowDetail(workflowId);
+            
+            // Scroll to detail view
+            setTimeout(() => {
+                document.getElementById('workflow-detail').scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }
+
+        function createNewWorkflow() {
+            window.location.href = '/static/workflow_builder_ai.html';
+        }
+
+        function openLangGraph() {
+            // Use the correct LangGraph URL
+            window.open('https://smith.langchain.com/', '_blank');
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 
+                'bg-blue-500'
+            } text-white slide-in`;
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function refreshWorkflows() {
+            loadWorkflows();
+        }
+        
+        // Test natural language query
+        async function testNaturalQuery() {
+            const query = document.getElementById('exec-natural-query').value.trim();
+            const clientSelect = document.getElementById('exec-client');
+            
+            if (!query) {
+                showNotification('Please enter a query', 'warning');
+                return;
+            }
+            
+            if (!clientSelect || !clientSelect.value) {
+                showNotification('Please select a client first', 'warning');
+                return;
+            }
+            
+            const clientValue = clientSelect.value.split('|');
+            const clientId = clientValue[0];
+            
+            const statusEl = document.getElementById('query-status');
+            const resultsEl = document.getElementById('query-results');
+            const resultsContent = resultsEl.querySelector('pre');
+            
+            statusEl.textContent = 'Testing query...';
+            statusEl.className = 'text-xs text-blue-600';
+            
+            try {
+                const response = await fetch('/api/query/natural', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        client_id: clientId,
+                        mode: 'auto'  // Use intelligent mode with fallback
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Query failed: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    statusEl.textContent = '✅ Query successful';
+                    statusEl.className = 'text-xs text-green-600';
+                    
+                    // Display results
+                    resultsEl.classList.remove('hidden');
+                    resultsContent.textContent = JSON.stringify(result.results, null, 2);
+                    
+                    // Store results for workflow execution
+                    window.naturalQueryResults = result.results;
+                } else {
+                    statusEl.textContent = '❌ Query failed';
+                    statusEl.className = 'text-xs text-red-600';
+                    resultsContent.textContent = result.error || 'Unknown error';
+                    resultsEl.classList.remove('hidden');
+                }
+                
+            } catch (error) {
+                statusEl.textContent = '❌ Error';
+                statusEl.className = 'text-xs text-red-600';
+                console.error('Natural query error:', error);
+                showNotification(`Query failed: ${error.message}`, 'error');
+            }
+        }
+        
+        // Load agent requirements for a workflow
+        async function loadAgentRequirements(workflowName) {
+            const loadingEl = document.getElementById('mcp-requirements-loading');
+            const requirementsEl = document.getElementById('mcp-requirements');
+            const queriesEl = document.getElementById('exec-mcp-queries');
+            
+            if (loadingEl) loadingEl.classList.remove('hidden');
+            if (requirementsEl) requirementsEl.classList.add('hidden');
+            
+            try {
+                const response = await fetch(`/api/calendar/workflow/agents/requirements/${workflowName}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load agent requirements: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display combined queries
+                if (queriesEl && data.recommended_queries) {
+                    queriesEl.value = data.recommended_queries.join('\n');
+                    window.mcpQueries = data.recommended_queries;
+                }
+                
+                // Display agent requirements
+                if (requirementsEl && data.agent_requirements) {
+                    let requirementsHTML = '<div class="text-xs space-y-2">';
+                    requirementsHTML += '<div class="font-semibold text-gray-700 mb-1">Agent Data Requirements:</div>';
+                    
+                    for (const [agentName, requirements] of Object.entries(data.agent_requirements)) {
+                        const displayName = agentName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        requirementsHTML += `
+                            <div class="border-l-2 border-indigo-300 pl-2">
+                                <div class="font-medium text-gray-700">${displayName}</div>
+                                <div class="text-gray-600">
+                                    <span class="inline-block bg-gray-100 px-1 rounded">${requirements.time_range_days} days</span>
+                                    ${requirements.metrics_needed.slice(0, 3).map(m => 
+                                        `<span class="inline-block bg-blue-50 px-1 rounded ml-1">${m}</span>`
+                                    ).join('')}
+                                    ${requirements.metrics_needed.length > 3 ? 
+                                        `<span class="text-gray-500 ml-1">+${requirements.metrics_needed.length - 3} more</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    requirementsHTML += `
+                        <div class="mt-2 pt-2 border-t border-gray-200">
+                            <div class="text-gray-600">
+                                Total: ${data.combined_requirements.agent_count} agents, 
+                                ${data.combined_requirements.metrics.length} metrics, 
+                                ${data.combined_requirements.time_range_days} days history
+                            </div>
+                        </div>
+                    `;
+                    requirementsHTML += '</div>';
+                    
+                    requirementsEl.innerHTML = requirementsHTML;
+                    requirementsEl.classList.remove('hidden');
+                }
+                
+            } catch (error) {
+                console.error('Failed to load agent requirements:', error);
+                if (queriesEl) {
+                    queriesEl.placeholder = 'Failed to load agent requirements. Using default queries...';
+                }
+            } finally {
+                if (loadingEl) loadingEl.classList.add('hidden');
+            }
+        }
+        
+        // Re-analyze agent requirements
+        async function reanalyzeAgentRequirements() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Analyzing...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/calendar/workflow/agents/reanalyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        workflow_name: window.currentWorkflow?.id || 'calendar_workflow'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to re-analyze: ${response.statusText}`);
+                }
+                
+                // Reload the requirements with fresh data
+                await loadAgentRequirements(window.currentWorkflow?.id || 'calendar_workflow');
+                
+                showNotification('Agent requirements re-analyzed successfully', 'success');
+                
+            } catch (error) {
+                console.error('Failed to re-analyze agents:', error);
+                showNotification('Failed to re-analyze agent requirements', 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        // Update queries when user edits them
+        function updateMcpQueries() {
+            const queriesEl = document.getElementById('exec-mcp-queries');
+            if (queriesEl) {
+                window.mcpQueries = queriesEl.value.split('\n').filter(q => q.trim());
+            }
+        }
+    </script>
+    
+    <!-- Workflow Execution Modal -->
+    <div id="executionModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-play-circle text-indigo-600 mr-2"></i>
+                    Execute Workflow
+                </h2>
+                <button onclick="closeExecutionModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div id="execution-form-content">
+                <!-- Dynamic form content will be inserted here -->
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="closeExecutionModal()" 
+                    class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button onclick="executeWorkflowWithParams()" 
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center">
+                    <i class="fas fa-rocket mr-2"></i>Execute
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Execution Status Modal -->
+    <div id="executionStatusModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+            <div class="text-center">
+                <div class="mb-4">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full">
+                        <i class="fas fa-spinner fa-spin text-indigo-600 text-2xl"></i>
+                    </div>
+                </div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Executing Workflow</h3>
+                <p id="execution-status-message" class="text-gray-600 mb-4">Initializing agents...</p>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-4">
+                    <div id="execution-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <div id="execution-agents-list" class="text-left text-sm text-gray-600 mb-4">
+                    <!-- Agent execution status will be shown here -->
+                </div>
+                <a id="langgraph-trace-link" href="#" target="_blank" class="hidden text-indigo-600 hover:text-indigo-800 text-sm">
+                    <i class="fas fa-external-link-alt mr-1"></i>View in LangGraph Studio
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

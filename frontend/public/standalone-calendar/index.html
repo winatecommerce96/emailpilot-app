@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Calendar - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="container mx-auto px-4 py-4">
+                <h1 class="text-xl font-bold text-gray-900">📅 EmailPilot Standalone Calendar</h1>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <main class="flex-1 container mx-auto px-4 py-8">
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Campaign Calendar View</h2>
+                
+                <!-- Calendar iframe or redirect -->
+                <div class="border rounded-lg p-4 bg-gray-50">
+                    <p class="text-gray-600 mb-4">
+                        The standalone calendar provides a full-screen view of your campaign planning interface.
+                    </p>
+                    
+                    <div class="space-y-3">
+                        <a href="/static/calendar_creator.html" class="block w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center font-medium">
+                            Open Full Calendar View
+                        </a>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <a href="/static/calendar_tools.html" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-center">
+                                Calendar Tools
+                            </a>
+                            <a href="/static/index.html" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-center">
+                                Main Dashboard
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Features -->
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="border rounded-lg p-3">
+                        <h3 class="font-medium text-gray-800 mb-1">📊 Visual Planning</h3>
+                        <p class="text-sm text-gray-600">Drag-and-drop campaign scheduling</p>
+                    </div>
+                    <div class="border rounded-lg p-3">
+                        <h3 class="font-medium text-gray-800 mb-1">🔗 Klaviyo Integration</h3>
+                        <p class="text-sm text-gray-600">Sync with your Klaviyo campaigns</p>
+                    </div>
+                    <div class="border rounded-lg p-3">
+                        <h3 class="font-medium text-gray-800 mb-1">🤖 AI Assistance</h3>
+                        <p class="text-sm text-gray-600">Smart campaign timing suggestions</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

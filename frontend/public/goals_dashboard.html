@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals Dashboard - EmailPilot AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --brand-blue: #3369DC;
+            --brand-purple: #8A6CF7;
+            --brand-lime: #C5FF75;
+            --confidence-high: #C5FF75;
+            --confidence-medium: #8A6CF7;
+            --confidence-low: #FFC107;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(138, 108, 247, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .metric-tab {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .metric-tab.active {
+            background: linear-gradient(135deg, var(--brand-blue), var(--brand-purple));
+            border-color: transparent;
+        }
+        
+        .confidence-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        
+        .confidence-high {
+            background: rgba(197, 255, 117, 0.2);
+            color: var(--confidence-high);
+            border: 1px solid rgba(197, 255, 117, 0.3);
+        }
+        
+        .confidence-medium {
+            background: rgba(138, 108, 247, 0.2);
+            color: var(--confidence-medium);
+            border: 1px solid rgba(138, 108, 247, 0.3);
+        }
+        
+        .confidence-low {
+            background: rgba(255, 193, 7, 0.2);
+            color: var(--confidence-low);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+        
+        .override-badge {
+            background: linear-gradient(135deg, var(--brand-blue), var(--brand-purple));
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        .goal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .goal-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+        }
+        
+        .goal-card.human-override {
+            border-color: rgba(138, 108, 247, 0.5);
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--brand-blue), var(--brand-purple));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--brand-blue), var(--brand-purple));
+            color: white;
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(138, 108, 247, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(138, 108, 247, 0.5);
+        }
+        
+        .loading-spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--brand-purple);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                    Goals Dashboard
+                </h1>
+                <p class="text-gray-400 mt-2">Track and manage your performance goals</p>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="generateYearlyGoals()" class="btn-primary">
+                    <i class="fas fa-magic mr-2"></i>Generate Predictions
+                </button>
+                <button onclick="syncWithKlaviyo()" class="btn-secondary">
+                    <i class="fas fa-sync mr-2"></i>Sync with Klaviyo
+                </button>
+            </div>
+        </div>
+        
+        <!-- Client Selector -->
+        <div class="glass-card mb-6">
+            <div class="flex items-center gap-4">
+                <label class="text-gray-400">Client:</label>
+                <select id="clientSelector" class="bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none">
+                    <option value="">Select a client...</option>
+                </select>
+                <div id="apiKeyStatus" class="text-sm"></div>
+                
+                <label class="text-gray-400 ml-6">Year:</label>
+                <select id="yearSelector" class="bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none">
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                </select>
+                
+                <label class="text-gray-400 ml-6">Model:</label>
+                <select id="modelSelector" class="bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none">
+                    <option value="yoy_growth">Year-over-Year Growth</option>
+                    <option value="seasonal">Seasonal Adjustment</option>
+                    <option value="moving_average">Moving Average</option>
+                    <option value="trend_analysis">Trend Analysis</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Metric Tabs -->
+        <div class="flex gap-4 mb-6 overflow-x-auto">
+            <div class="metric-tab active" onclick="switchMetric('revenue')">
+                <i class="fas fa-dollar-sign mr-2"></i>Revenue
+            </div>
+            <div class="metric-tab" onclick="switchMetric('open_rate')">
+                <i class="fas fa-envelope-open mr-2"></i>Open Rate
+            </div>
+            <div class="metric-tab" onclick="switchMetric('click_rate')">
+                <i class="fas fa-mouse-pointer mr-2"></i>Click Rate
+            </div>
+            <div class="metric-tab" onclick="switchMetric('bounce_rate')">
+                <i class="fas fa-exclamation-triangle mr-2"></i>Bounce Rate
+            </div>
+            <div class="metric-tab" onclick="switchMetric('unsubscribe_rate')">
+                <i class="fas fa-user-minus mr-2"></i>Unsubscribe Rate
+            </div>
+        </div>
+        
+        <!-- Historical Chart -->
+        <div class="glass-card mb-6">
+            <h2 class="text-xl font-bold mb-4">Historical Trends</h2>
+            <canvas id="historicalChart" height="100"></canvas>
+        </div>
+        
+        <!-- Goals Grid -->
+        <div class="glass-card">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Monthly Goals</h2>
+                <button onclick="showNaturalLanguageQuery()" class="btn-secondary">
+                    <i class="fas fa-comment-dots mr-2"></i>Natural Language Query
+                </button>
+            </div>
+            <div id="goalsGrid" class="goal-grid">
+                <!-- Goals will be populated here -->
+            </div>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="loading-spinner"></div>
+        </div>
+        
+        <!-- Override Modal -->
+        <div id="overrideModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="glass-card w-full max-w-md">
+                <h3 class="text-xl font-bold mb-4">Manual Goal Override</h3>
+                <div class="mb-4">
+                    <label class="block text-gray-400 mb-2">Goal Value:</label>
+                    <input type="number" id="overrideValue" class="w-full bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 mb-2">Reason:</label>
+                    <textarea id="overrideReason" rows="3" class="w-full bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none"></textarea>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="applyOverride()" class="btn-primary flex-1">Apply</button>
+                    <button onclick="closeOverrideModal()" class="btn-secondary flex-1">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Natural Language Query Modal -->
+        <div id="nlQueryModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="glass-card w-full max-w-2xl">
+                <h3 class="text-xl font-bold mb-4">Natural Language Query</h3>
+                <div class="mb-4">
+                    <label class="block text-gray-400 mb-2">Ask about your goals:</label>
+                    <input type="text" id="nlQueryInput" placeholder="e.g., What were our open rates last year?" 
+                           class="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-purple-500 focus:outline-none">
+                </div>
+                <div class="mb-4">
+                    <div class="text-gray-400 text-sm">Example queries:</div>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <span onclick="setNLQuery('Show revenue trends for last 12 months')" class="px-3 py-1 bg-gray-800 rounded-full text-sm cursor-pointer hover:bg-gray-700">Revenue trends</span>
+                        <span onclick="setNLQuery('Compare this year click rates to last year')" class="px-3 py-1 bg-gray-800 rounded-full text-sm cursor-pointer hover:bg-gray-700">YoY comparison</span>
+                        <span onclick="setNLQuery('What is our best performing month')" class="px-3 py-1 bg-gray-800 rounded-full text-sm cursor-pointer hover:bg-gray-700">Best month</span>
+                    </div>
+                </div>
+                <div id="nlQueryResult" class="mb-4 hidden">
+                    <div class="text-gray-400 mb-2">Result:</div>
+                    <div class="bg-gray-800 p-4 rounded-lg"></div>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="executeNLQuery()" class="btn-primary flex-1">
+                        <i class="fas fa-search mr-2"></i>Search
+                    </button>
+                    <button onclick="closeNLQueryModal()" class="btn-secondary flex-1">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentClient = null;
+        let currentMetric = 'revenue';
+        let currentYear = new Date().getFullYear();
+        let goalsData = [];
+        let historicalData = {};
+        let chart = null;
+        let currentGoalId = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadClients();
+            document.getElementById('yearSelector').value = currentYear;
+            
+            // Event listeners
+            document.getElementById('clientSelector').addEventListener('change', (e) => {
+                currentClient = e.target.value;
+                if (currentClient) {
+                    updateApiKeyStatus();
+                    loadGoals();
+                    loadHistoricalData();
+                }
+            });
+            
+            document.getElementById('yearSelector').addEventListener('change', (e) => {
+                currentYear = parseInt(e.target.value);
+                if (currentClient) {
+                    loadGoals();
+                }
+            });
+        });
+        
+        async function loadClients() {
+            try {
+                // Use the admin clients endpoint which provides the full client list
+                const response = await fetch('/api/admin/clients');
+                const data = await response.json();
+                
+                const selector = document.getElementById('clientSelector');
+                selector.innerHTML = '<option value="">Select a client...</option>';
+                
+                if (data.clients && Array.isArray(data.clients)) {
+                    data.clients.forEach(client => {
+                        // Only add active clients with Klaviyo keys
+                        if (client.is_active && client.has_klaviyo_key) {
+                            const option = document.createElement('option');
+                            option.value = client.id || client.client_slug;
+                            option.textContent = client.name;
+                            selector.appendChild(option);
+                        }
+                    });
+                } else {
+                    console.error('No clients found in response');
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                // Try fallback to goals endpoint
+                try {
+                    const fallbackResponse = await fetch('/api/goals/clients');
+                    const fallbackData = await fallbackResponse.json();
+                    
+                    const selector = document.getElementById('clientSelector');
+                    if (fallbackData.clients && Array.isArray(fallbackData.clients)) {
+                        fallbackData.clients.forEach(client => {
+                            const option = document.createElement('option');
+                            option.value = client.id || client.clientId;
+                            option.textContent = client.name;
+                            selector.appendChild(option);
+                        });
+                    }
+                } catch (fallbackError) {
+                    console.error('Fallback also failed:', fallbackError);
+                }
+            }
+        }
+        
+        async function loadGoals() {
+            if (!currentClient) return;
+            
+            showLoading(true);
+            try {
+                const response = await fetch(`/api/goals/${currentClient}?year=${currentYear}`);
+                goalsData = await response.json();
+                renderGoals();
+            } catch (error) {
+                console.error('Error loading goals:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function loadHistoricalData() {
+            if (!currentClient) return;
+            
+            try {
+                const response = await fetch(`/api/goals/historical/${currentClient}?metric_type=${currentMetric}&timeframe=last_12_months`);
+                const data = await response.json();
+                historicalData = data.metrics;
+                updateChart();
+            } catch (error) {
+                console.error('Error loading historical data:', error);
+            }
+        }
+        
+        function renderGoals() {
+            const grid = document.getElementById('goalsGrid');
+            grid.innerHTML = '';
+            
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            for (let month = 1; month <= 12; month++) {
+                const monthGoal = goalsData.find(g => g.month === month);
+                
+                const card = document.createElement('div');
+                card.className = 'goal-card';
+                if (monthGoal?.human_override) {
+                    card.className += ' human-override';
+                }
+                
+                let goalValue = 0;
+                let actualValue = 0;
+                let confidence = 'low';
+                
+                if (monthGoal) {
+                    // Multi-metric support
+                    if (monthGoal.metrics && monthGoal.metrics[currentMetric]) {
+                        goalValue = monthGoal.metrics[currentMetric].goal || monthGoal.metrics[currentMetric].predicted || 0;
+                        actualValue = monthGoal.metrics[currentMetric].actual || 0;
+                    } else if (currentMetric === 'revenue' && monthGoal.revenue_goal) {
+                        goalValue = monthGoal.revenue_goal;
+                        actualValue = monthGoal.actual_revenue || 0;
+                    }
+                    confidence = monthGoal.confidence || 'medium';
+                }
+                
+                const progress = goalValue > 0 ? (actualValue / goalValue) * 100 : 0;
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-lg">${months[month - 1]} ${currentYear}</h3>
+                        ${monthGoal?.human_override ? '<span class="override-badge">Manual</span>' : ''}
+                    </div>
+                    <div class="mb-2">
+                        <div class="text-gray-400 text-sm">Goal</div>
+                        <div class="text-2xl font-bold">${formatValue(goalValue, currentMetric)}</div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="text-gray-400 text-sm">Actual</div>
+                        <div class="text-xl">${formatValue(actualValue, currentMetric)}</div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${Math.min(progress, 100)}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center mt-3">
+                        <span class="confidence-badge confidence-${confidence}">${confidence}</span>
+                        <button onclick="showOverrideModal('${monthGoal?.id || ''}', ${month}, ${goalValue})" 
+                                class="text-gray-400 hover:text-purple-500">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            }
+        }
+        
+        function updateChart() {
+            const ctx = document.getElementById('historicalChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+            
+            const metricData = historicalData[currentMetric] || {};
+            const monthlyValues = metricData.monthly_values || metricData.values || [];
+            
+            const labels = monthlyValues.map(v => v.month || 'N/A');
+            const values = monthlyValues.map(v => v.value || 0);
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: currentMetric.replace('_', ' ').toUpperCase(),
+                        data: values,
+                        borderColor: 'rgb(138, 108, 247)',
+                        backgroundColor: 'rgba(138, 108, 247, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.6)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.6)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function switchMetric(metric) {
+            currentMetric = metric;
+            
+            // Update tab styles
+            document.querySelectorAll('.metric-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.closest('.metric-tab').classList.add('active');
+            
+            // Reload data
+            renderGoals();
+            loadHistoricalData();
+        }
+        
+        async function generateYearlyGoals() {
+            if (!currentClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                const model = document.getElementById('modelSelector').value;
+                const response = await fetch(`/api/goals/generate-yearly/${currentClient}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        year: currentYear,
+                        metrics: ['revenue', 'open_rate', 'click_rate'],
+                        model: model,
+                        auto_save: true
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert(`Generated ${result.generated_goals} goals, saved ${result.saved_goals}`);
+                    loadGoals();
+                }
+            } catch (error) {
+                console.error('Error generating goals:', error);
+                alert('Failed to generate goals');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function syncWithKlaviyo() {
+            if (!currentClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            // Confirm backfill action
+            if (!confirm(`This will backfill historical data for ${window.currentClientData?.name || currentClient} using natural language queries. This may take a few minutes. Continue?`)) {
+                return;
+            }
+            
+            showLoading(true);
+            try {
+                // Use the new backfill endpoint
+                const response = await fetch(`/api/goals/backfill/${currentClient}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        metrics: ['revenue', 'open_rate', 'click_rate', 'bounce_rate', 'delivered'],
+                        years: 2  // Fetch 2 years of historical data
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    // Show detailed results
+                    const metrics = result.metrics_processed || [];
+                    const successMetrics = metrics.filter(m => m.status === 'success');
+                    
+                    let message = `Backfill Complete!\n\n`;
+                    message += `✓ Data points fetched: ${result.data_points_fetched || 0}\n`;
+                    message += `✓ Goals generated: ${result.goals_generated || 0}\n`;
+                    message += `✓ Metrics processed: ${successMetrics.length}/${metrics.length}\n`;
+                    
+                    if (result.errors && result.errors.length > 0) {
+                        message += `\n⚠ Some errors occurred:\n`;
+                        result.errors.forEach(err => {
+                            message += `  - ${err.metric || err.action}: ${err.error}\n`;
+                        });
+                    }
+                    
+                    alert(message);
+                    
+                    // Reload goals to show new data
+                    loadGoals();
+                    loadHistoricalData();
+                } else {
+                    alert(`Backfill failed: ${result.detail || result.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Backfill error:', error);
+                alert('Failed to backfill data. Please check the console for details.');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function showOverrideModal(goalId, month, currentValue) {
+            currentGoalId = { goalId, month };
+            document.getElementById('overrideValue').value = currentValue;
+            document.getElementById('overrideModal').classList.remove('hidden');
+        }
+        
+        function closeOverrideModal() {
+            document.getElementById('overrideModal').classList.add('hidden');
+            currentGoalId = null;
+        }
+        
+        async function applyOverride() {
+            const value = document.getElementById('overrideValue').value;
+            const reason = document.getElementById('overrideReason').value;
+            
+            if (!value) {
+                alert('Please enter a value');
+                return;
+            }
+            
+            try {
+                // Update goal with override
+                const endpoint = currentGoalId.goalId 
+                    ? `/api/goals/${currentGoalId.goalId}`
+                    : `/api/goals/${currentClient}`;
+                    
+                const method = currentGoalId.goalId ? 'PUT' : 'POST';
+                
+                const body = {
+                    revenue_goal: parseFloat(value),
+                    human_override: true,
+                    notes: reason,
+                    year: currentYear,
+                    month: currentGoalId.month
+                };
+                
+                const response = await fetch(endpoint, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                if (response.ok) {
+                    closeOverrideModal();
+                    loadGoals();
+                }
+            } catch (error) {
+                console.error('Error applying override:', error);
+                alert('Failed to apply override');
+            }
+        }
+        
+        function showNaturalLanguageQuery() {
+            document.getElementById('nlQueryModal').classList.remove('hidden');
+        }
+        
+        function closeNLQueryModal() {
+            document.getElementById('nlQueryModal').classList.add('hidden');
+            document.getElementById('nlQueryResult').classList.add('hidden');
+        }
+        
+        function setNLQuery(query) {
+            document.getElementById('nlQueryInput').value = query;
+        }
+        
+        async function executeNLQuery() {
+            const query = document.getElementById('nlQueryInput').value;
+            if (!query || !currentClient) return;
+            
+            try {
+                const response = await fetch('/api/mcp/nl/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        client_id: currentClient,
+                        context: { type: 'goals_analysis' }
+                    })
+                });
+                
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('nlQueryResult');
+                resultDiv.classList.remove('hidden');
+                resultDiv.querySelector('div:last-child').textContent = JSON.stringify(result.result || result, null, 2);
+            } catch (error) {
+                console.error('Error executing query:', error);
+                alert('Failed to execute query');
+            }
+        }
+        
+        function formatValue(value, metric) {
+            if (metric === 'revenue') {
+                if (value >= 1000000) {
+                    return `$${(value / 1000000).toFixed(1)}M`;
+                } else if (value >= 1000) {
+                    return `$${(value / 1000).toFixed(0)}k`;
+                } else {
+                    return `$${value.toFixed(0)}`;
+                }
+            } else if (metric.includes('rate')) {
+                return `${value.toFixed(1)}%`;
+            } else {
+                return value.toFixed(0);
+            }
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loadingIndicator').classList.toggle('hidden', !show);
+        }
+        
+        async function updateApiKeyStatus() {
+            const statusDiv = document.getElementById('apiKeyStatus');
+            if (!currentClient) {
+                statusDiv.innerHTML = '';
+                return;
+            }
+            
+            try {
+                // Check if the client has a Klaviyo API key configured
+                const response = await fetch(`/api/admin/clients/${currentClient}`);
+                const clientData = await response.json();
+                
+                if (clientData.client) {
+                    if (clientData.client.has_klaviyo_key) {
+                        statusDiv.innerHTML = '<span class="text-green-400"><i class="fas fa-check-circle"></i> API Key Configured</span>';
+                    } else {
+                        statusDiv.innerHTML = `
+                            <span class="text-yellow-400">
+                                <i class="fas fa-exclamation-circle"></i> No API Key
+                                <button onclick="showApiKeyHelp()" class="ml-2 text-xs underline">Configure</button>
+                            </span>
+                        `;
+                    }
+                    
+                    // Store client data for reference
+                    window.currentClientData = clientData.client;
+                }
+            } catch (error) {
+                console.error('Error checking API key status:', error);
+                statusDiv.innerHTML = '<span class="text-gray-500">Status unknown</span>';
+            }
+        }
+        
+        function showApiKeyHelp() {
+            alert(`To configure the Klaviyo API key for this client:
+            
+1. Go to the Admin Dashboard
+2. Navigate to Client Management
+3. Use the Klaviyo API Reconciliation tool
+4. Or manually add the API key in Secret Manager
+
+The system will automatically detect and use the API key once configured.`);
+        }
+        
+        async function reconcileClients() {
+            if (confirm('This will scan and reconcile all clients with their Klaviyo accounts. Continue?')) {
+                showLoading(true);
+                try {
+                    // Trigger client reconciliation
+                    const response = await fetch('/api/admin/clients/reconcile', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        alert(`Reconciliation complete! Found ${result.reconciled} clients.`);
+                        loadClients();
+                    }
+                } catch (error) {
+                    console.error('Reconciliation error:', error);
+                    alert('Reconciliation failed. Check console for details.');
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

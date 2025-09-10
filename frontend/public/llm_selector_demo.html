@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Model Selector - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">LLM Model Selector Component</h1>
+            <p class="text-gray-600">Select and compare AI models from OpenAI, Anthropic, and Google</p>
+            <a href="/static/langchain_dashboard.html" class="text-blue-600 hover:underline mt-2 inline-block">
+                ← Back to LangChain Dashboard
+            </a>
+        </div>
+
+        <!-- Model Selector Demo -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Interactive Model Selector</h2>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2">Select an AI Model:</label>
+                <select id="model-selector" class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <!-- OpenAI Models -->
+                    <optgroup label="OpenAI">
+                        <option value="gpt-4o-mini">GPT-4o Mini (Good - Fast & Cheap)</option>
+                        <option value="gpt-4o" selected>GPT-4o (Better - Balanced)</option>
+                        <option value="o1-preview">O1 Preview (Best - Advanced Reasoning)</option>
+                    </optgroup>
+                    
+                    <!-- Anthropic Models -->
+                    <optgroup label="Anthropic">
+                        <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Good - Fast)</option>
+                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Better - Balanced)</option>
+                        <option value="claude-3-opus-20240229">Claude 3 Opus (Best - Most Capable)</option>
+                    </optgroup>
+                    
+                    <!-- Google Models -->
+                    <optgroup label="Google">
+                        <option value="gemini-1.5-flash-002">Gemini 1.5 Flash (Good - Fast)</option>
+                        <option value="gemini-1.5-pro-002">Gemini 1.5 Pro (Better - Balanced)</option>
+                        <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Exp (Best - Latest)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <!-- Model Details Display -->
+            <div id="model-details" class="bg-gray-50 rounded p-4">
+                <h3 class="font-semibold mb-2">Model Details:</h3>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-600">Provider:</span>
+                        <span id="detail-provider" class="ml-2 font-medium">-</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Tier:</span>
+                        <span id="detail-tier" class="ml-2 font-medium">-</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Speed:</span>
+                        <span id="detail-speed" class="ml-2 font-medium">-</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Cost:</span>
+                        <span id="detail-cost" class="ml-2 font-medium">-</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Context Window:</span>
+                        <span id="detail-context" class="ml-2 font-medium">-</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Model ID:</span>
+                        <span id="detail-id" class="ml-2 font-medium font-mono text-xs">-</span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-gray-600">Description:</span>
+                        <span id="detail-description" class="ml-2 font-medium">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Use Case Recommendations -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Use Case Recommendations</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <button onclick="selectModelForUseCase('simple')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-blue-600">Simple Tasks</h3>
+                    <p class="text-sm text-gray-600">Basic Q&A, simple completions → GPT-4o Mini</p>
+                </button>
+                <button onclick="selectModelForUseCase('balanced')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-green-600">Balanced Performance</h3>
+                    <p class="text-sm text-gray-600">General purpose, most tasks → GPT-4o</p>
+                </button>
+                <button onclick="selectModelForUseCase('complex')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-purple-600">Complex Reasoning</h3>
+                    <p class="text-sm text-gray-600">Advanced analysis, problem solving → O1 Preview</p>
+                </button>
+                <button onclick="selectModelForUseCase('creative')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-pink-600">Creative Writing</h3>
+                    <p class="text-sm text-gray-600">Content generation, copywriting → Claude 3.5 Sonnet</p>
+                </button>
+                <button onclick="selectModelForUseCase('analytical')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-indigo-600">Deep Analysis</h3>
+                    <p class="text-sm text-gray-600">Research, detailed analysis → Claude 3 Opus</p>
+                </button>
+                <button onclick="selectModelForUseCase('fast')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-orange-600">Speed Priority</h3>
+                    <p class="text-sm text-gray-600">Real-time responses → Gemini 1.5 Flash</p>
+                </button>
+                <button onclick="selectModelForUseCase('large-context')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-teal-600">Large Documents</h3>
+                    <p class="text-sm text-gray-600">Long context processing → Gemini 1.5 Pro</p>
+                </button>
+                <button onclick="selectModelForUseCase('experimental')" class="text-left p-4 border rounded hover:bg-gray-50">
+                    <h3 class="font-semibold text-red-600">Cutting Edge</h3>
+                    <p class="text-sm text-gray-600">Latest features → Gemini 2.0 Flash Exp</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- Model Comparison Table -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Model Comparison Table</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Provider</th>
+                            <th class="px-4 py-2 text-left">Model</th>
+                            <th class="px-4 py-2 text-left">Tier</th>
+                            <th class="px-4 py-2 text-left">Speed</th>
+                            <th class="px-4 py-2 text-left">Cost</th>
+                            <th class="px-4 py-2 text-left">Context Window</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        <!-- OpenAI -->
+                        <tr class="hover:bg-gray-50">
+                            <td rowspan="3" class="px-4 py-2 font-semibold text-blue-600">OpenAI</td>
+                            <td class="px-4 py-2">GPT-4o Mini</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Good</span></td>
+                            <td class="px-4 py-2">Fast</td>
+                            <td class="px-4 py-2">$</td>
+                            <td class="px-4 py-2">128K tokens</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">GPT-4o</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Better</span></td>
+                            <td class="px-4 py-2">Medium</td>
+                            <td class="px-4 py-2">$$</td>
+                            <td class="px-4 py-2">128K tokens</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">O1 Preview</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Best</span></td>
+                            <td class="px-4 py-2">Slow</td>
+                            <td class="px-4 py-2">$$$</td>
+                            <td class="px-4 py-2">128K tokens</td>
+                        </tr>
+                        <!-- Anthropic -->
+                        <tr class="hover:bg-gray-50">
+                            <td rowspan="3" class="px-4 py-2 font-semibold text-purple-600">Anthropic</td>
+                            <td class="px-4 py-2">Claude 3.5 Haiku</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Good</span></td>
+                            <td class="px-4 py-2">Fast</td>
+                            <td class="px-4 py-2">$</td>
+                            <td class="px-4 py-2">200K tokens</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">Claude 3.5 Sonnet</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Better</span></td>
+                            <td class="px-4 py-2">Medium</td>
+                            <td class="px-4 py-2">$$</td>
+                            <td class="px-4 py-2">200K tokens</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">Claude 3 Opus</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Best</span></td>
+                            <td class="px-4 py-2">Slow</td>
+                            <td class="px-4 py-2">$$$</td>
+                            <td class="px-4 py-2">200K tokens</td>
+                        </tr>
+                        <!-- Google -->
+                        <tr class="hover:bg-gray-50">
+                            <td rowspan="3" class="px-4 py-2 font-semibold text-green-600">Google</td>
+                            <td class="px-4 py-2">Gemini 1.5 Flash</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Good</span></td>
+                            <td class="px-4 py-2">Fast</td>
+                            <td class="px-4 py-2">$</td>
+                            <td class="px-4 py-2">1M tokens</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">Gemini 1.5 Pro</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Better</span></td>
+                            <td class="px-4 py-2">Medium</td>
+                            <td class="px-4 py-2">$$</td>
+                            <td class="px-4 py-2">2M tokens</td>
+                        </tr>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">Gemini 2.0 Flash Exp</td>
+                            <td class="px-4 py-2"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Best</span></td>
+                            <td class="px-4 py-2">Fast</td>
+                            <td class="px-4 py-2">$$</td>
+                            <td class="px-4 py-2">1M tokens</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Integration Guide -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">How to Use This Component</h2>
+            <div class="prose max-w-none text-sm">
+                <p class="mb-3">The LLM Selector component can be included in any page to provide model selection functionality.</p>
+                
+                <h3 class="font-semibold mt-4 mb-2">Include the Component:</h3>
+                <pre class="bg-gray-100 p-3 rounded overflow-x-auto">
+&lt;!-- Include the component template --&gt;
+&lt;div id="llm-selector-container"&gt;&lt;/div&gt;
+&lt;script src="/static/components/llm-selector.html"&gt;&lt;/script&gt;</pre>
+
+                <h3 class="font-semibold mt-4 mb-2">JavaScript Usage:</h3>
+                <pre class="bg-gray-100 p-3 rounded overflow-x-auto">
+// Create a selector with default model
+const selector = createLLMSelector('gpt-4o');
+
+// Get recommended model for use case
+const model = getRecommendedModel('creative');
+
+// Listen for model changes
+selector.addEventListener('llm-changed', (e) => {
+    console.log('Selected:', e.detail);
+});</pre>
+
+                <h3 class="font-semibold mt-4 mb-2">Available Use Cases:</h3>
+                <ul class="list-disc ml-6">
+                    <li><code>simple</code> - Basic tasks → GPT-4o Mini</li>
+                    <li><code>balanced</code> - General purpose → GPT-4o</li>
+                    <li><code>complex</code> - Advanced reasoning → O1 Preview</li>
+                    <li><code>creative</code> - Content generation → Claude 3.5 Sonnet</li>
+                    <li><code>analytical</code> - Deep analysis → Claude 3 Opus</li>
+                    <li><code>fast</code> - Speed priority → Gemini 1.5 Flash</li>
+                    <li><code>large-context</code> - Long documents → Gemini 1.5 Pro</li>
+                    <li><code>experimental</code> - Latest features → Gemini 2.0 Flash Exp</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Model data
+        const LLM_MODELS = {
+            'gpt-4o-mini': {
+                provider: 'openai',
+                name: 'GPT-4o Mini',
+                tier: 'good',
+                description: 'Fast and cost-effective for simple tasks',
+                contextWindow: 128000,
+                costTier: '$',
+                speed: 'fast'
+            },
+            'gpt-4o': {
+                provider: 'openai',
+                name: 'GPT-4o',
+                tier: 'better',
+                description: 'Balanced performance for most tasks',
+                contextWindow: 128000,
+                costTier: '$$',
+                speed: 'medium'
+            },
+            'o1-preview': {
+                provider: 'openai',
+                name: 'O1 Preview',
+                tier: 'best',
+                description: 'Advanced reasoning and complex problem solving',
+                contextWindow: 128000,
+                costTier: '$$$',
+                speed: 'slow'
+            },
+            'claude-3-5-haiku-20241022': {
+                provider: 'anthropic',
+                name: 'Claude 3.5 Haiku',
+                tier: 'good',
+                description: 'Lightning-fast responses',
+                contextWindow: 200000,
+                costTier: '$',
+                speed: 'fast'
+            },
+            'claude-3-5-sonnet-20241022': {
+                provider: 'anthropic',
+                name: 'Claude 3.5 Sonnet',
+                tier: 'better',
+                description: 'Excellent balance of speed and intelligence',
+                contextWindow: 200000,
+                costTier: '$$',
+                speed: 'medium'
+            },
+            'claude-3-opus-20240229': {
+                provider: 'anthropic',
+                name: 'Claude 3 Opus',
+                tier: 'best',
+                description: 'Most capable for complex analysis',
+                contextWindow: 200000,
+                costTier: '$$$',
+                speed: 'slow'
+            },
+            'gemini-1.5-flash-002': {
+                provider: 'gemini',
+                name: 'Gemini 1.5 Flash',
+                tier: 'good',
+                description: 'Optimized for speed',
+                contextWindow: 1000000,
+                costTier: '$',
+                speed: 'fast'
+            },
+            'gemini-1.5-pro-002': {
+                provider: 'gemini',
+                name: 'Gemini 1.5 Pro',
+                tier: 'better',
+                description: 'Advanced capabilities with huge context',
+                contextWindow: 2000000,
+                costTier: '$$',
+                speed: 'medium'
+            },
+            'gemini-2.0-flash-exp': {
+                provider: 'gemini',
+                name: 'Gemini 2.0 Flash (Experimental)',
+                tier: 'best',
+                description: 'Latest experimental model with cutting-edge features',
+                contextWindow: 1000000,
+                costTier: '$$',
+                speed: 'fast'
+            }
+        };
+
+        // Use case recommendations
+        const USE_CASE_MODELS = {
+            'simple': 'gpt-4o-mini',
+            'balanced': 'gpt-4o',
+            'complex': 'o1-preview',
+            'creative': 'claude-3-5-sonnet-20241022',
+            'analytical': 'claude-3-opus-20240229',
+            'fast': 'gemini-1.5-flash-002',
+            'large-context': 'gemini-1.5-pro-002',
+            'experimental': 'gemini-2.0-flash-exp'
+        };
+
+        // Update model details when selection changes
+        document.getElementById('model-selector').addEventListener('change', (e) => {
+            updateModelDetails(e.target.value);
+        });
+
+        function updateModelDetails(modelId) {
+            const model = LLM_MODELS[modelId];
+            if (model) {
+                document.getElementById('detail-provider').textContent = model.provider.charAt(0).toUpperCase() + model.provider.slice(1);
+                document.getElementById('detail-tier').textContent = model.tier.charAt(0).toUpperCase() + model.tier.slice(1);
+                document.getElementById('detail-speed').textContent = model.speed.charAt(0).toUpperCase() + model.speed.slice(1);
+                document.getElementById('detail-cost').textContent = model.costTier;
+                document.getElementById('detail-context').textContent = (model.contextWindow / 1000) + 'K tokens';
+                document.getElementById('detail-id').textContent = modelId;
+                document.getElementById('detail-description').textContent = model.description;
+            }
+        }
+
+        function selectModelForUseCase(useCase) {
+            const modelId = USE_CASE_MODELS[useCase];
+            if (modelId) {
+                document.getElementById('model-selector').value = modelId;
+                updateModelDetails(modelId);
+                
+                // Highlight the selected model
+                const selector = document.getElementById('model-selector');
+                selector.classList.add('ring-2', 'ring-blue-500');
+                setTimeout(() => {
+                    selector.classList.remove('ring-2', 'ring-blue-500');
+                }, 1000);
+            }
+        }
+
+        // Initialize with default model
+        updateModelDetails('gpt-4o');
+    </script>
+</body>
+</html>

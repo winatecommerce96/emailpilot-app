@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Editor - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
+    <style>
+        .agent-card {
+            transition: all 0.3s ease;
+        }
+        .agent-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .agent-card.selected {
+            border-color: #4f46e5;
+            background-color: #f0f9ff;
+        }
+        .tool-checkbox {
+            cursor: pointer;
+        }
+        .tool-checkbox:checked {
+            background-color: #4f46e5;
+        }
+        #prompt-editor {
+            min-height: 300px;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="container mx-auto px-6 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <a href="/static/workflow_hub.html" class="text-gray-600 hover:text-gray-800 mr-4">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <h1 class="text-xl font-semibold text-gray-800">Agent Editor</h1>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="createNewAgent()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <i class="fas fa-plus mr-2"></i>New Agent
+                    </button>
+                    <button onclick="saveAgent()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-save mr-2"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-6 py-6">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Panel - Agent List -->
+            <div class="col-span-3">
+                <div class="bg-white rounded-lg shadow-sm p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold">Agents</h2>
+                        <span class="text-sm text-gray-500" id="agent-count">9 agents</span>
+                    </div>
+                    
+                    <!-- Search -->
+                    <div class="mb-4">
+                        <input type="text" placeholder="Search agents..." 
+                               class="w-full px-3 py-2 border rounded-lg text-sm"
+                               onkeyup="filterAgents(this.value)">
+                    </div>
+
+                    <!-- Agent List -->
+                    <div id="agent-list" class="space-y-2">
+                        <!-- High Priority Agents -->
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-4">High Priority</div>
+                        
+                        <div class="agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent" 
+                             onclick="selectAgent('monthly_goals_generator_v3')" 
+                             data-agent="monthly_goals_generator_v3">
+                            <div class="flex items-center">
+                                <i class="fas fa-chart-line text-indigo-500 mr-3"></i>
+                                <div>
+                                    <p class="font-medium text-sm">Monthly Goals Generator</p>
+                                    <p class="text-xs text-gray-500">Revenue goal planning</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent" 
+                             onclick="selectAgent('calendar_planner')" 
+                             data-agent="calendar_planner">
+                            <div class="flex items-center">
+                                <i class="fas fa-calendar text-purple-500 mr-3"></i>
+                                <div>
+                                    <p class="font-medium text-sm">Calendar Planner</p>
+                                    <p class="text-xs text-gray-500">Campaign scheduling</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent" 
+                             onclick="selectAgent('ab_test_coordinator')" 
+                             data-agent="ab_test_coordinator">
+                            <div class="flex items-center">
+                                <i class="fas fa-vial text-green-500 mr-3"></i>
+                                <div>
+                                    <p class="font-medium text-sm">A/B Test Coordinator</p>
+                                    <p class="text-xs text-gray-500">Test management</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Medium Priority Agents -->
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-4">Medium Priority</div>
+                        
+                        <div class="agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent" 
+                             onclick="selectAgent('revenue_analyst')" 
+                             data-agent="revenue_analyst">
+                            <div class="flex items-center">
+                                <i class="fas fa-dollar-sign text-green-500 mr-3"></i>
+                                <div>
+                                    <p class="font-medium text-sm">Revenue Analyst</p>
+                                    <p class="text-xs text-gray-500">Financial analysis</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent" 
+                             onclick="selectAgent('campaign_strategist')" 
+                             data-agent="campaign_strategist">
+                            <div class="flex items-center">
+                                <i class="fas fa-bullseye text-red-500 mr-3"></i>
+                                <div>
+                                    <p class="font-medium text-sm">Campaign Strategist</p>
+                                    <p class="text-xs text-gray-500">Strategy planning</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent" 
+                             onclick="selectAgent('audience_architect')" 
+                             data-agent="audience_architect">
+                            <div class="flex items-center">
+                                <i class="fas fa-users text-blue-500 mr-3"></i>
+                                <div>
+                                    <p class="font-medium text-sm">Audience Architect</p>
+                                    <p class="text-xs text-gray-500">Segmentation</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel - Editor -->
+            <div class="col-span-6">
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <div id="editor-placeholder" class="text-center py-12 text-gray-400">
+                        <i class="fas fa-robot text-6xl mb-4"></i>
+                        <p class="text-lg">Select an agent to edit</p>
+                    </div>
+
+                    <div id="editor-content" class="hidden">
+                        <!-- Agent Header -->
+                        <div class="mb-6">
+                            <input type="text" id="agent-name" placeholder="Agent Name" 
+                                   class="text-2xl font-bold bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-indigo-500 outline-none w-full mb-2">
+                            <textarea id="agent-description" placeholder="Agent description..." 
+                                      class="w-full text-gray-600 bg-transparent resize-none outline-none"
+                                      rows="2"></textarea>
+                        </div>
+
+                        <!-- System Prompt Editor -->
+                        <div class="mb-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-lg font-semibold">System Prompt</h3>
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="formatPrompt()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                                        <i class="fas fa-magic mr-1"></i>Format
+                                    </button>
+                                    <button onclick="testPrompt()" class="text-sm text-green-600 hover:text-green-800">
+                                        <i class="fas fa-play mr-1"></i>Test
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="prompt-editor" class="font-mono text-sm"></div>
+                        </div>
+
+                        <!-- Variables Used -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold mb-3">Variables Used</h3>
+                            <div id="variables-list" class="flex flex-wrap gap-2">
+                                <!-- Variables will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Test Console -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold mb-3">Test Console</h3>
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <div class="mb-3">
+                                    <input type="text" id="test-input" placeholder="Enter test query..." 
+                                           class="w-full px-3 py-2 border rounded-lg"
+                                           onkeypress="if(event.key==='Enter') runTest()">
+                                </div>
+                                <div id="test-output" class="bg-white rounded-lg p-3 min-h-[100px] text-sm text-gray-600">
+                                    <p class="text-gray-400">Test output will appear here...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Tools & Settings -->
+            <div class="col-span-3">
+                <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+                    <h3 class="text-lg font-semibold mb-4">Enhanced MCP Tools</h3>
+                    <p class="text-sm text-gray-600 mb-4">Select tools this agent can access:</p>
+                    
+                    <div id="tools-list" class="space-y-2 max-h-96 overflow-y-auto">
+                        <!-- Campaign Tools -->
+                        <div class="mb-3">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Campaigns</p>
+                            <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="tool-checkbox mr-3" value="klaviyo_campaigns">
+                                <span class="text-sm">List Campaigns</span>
+                            </label>
+                            <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="tool-checkbox mr-3" value="klaviyo_campaign_metrics">
+                                <span class="text-sm">Campaign Metrics</span>
+                            </label>
+                        </div>
+
+                        <!-- Metrics Tools -->
+                        <div class="mb-3">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Metrics</p>
+                            <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="tool-checkbox mr-3" value="klaviyo_metrics_aggregate">
+                                <span class="text-sm">Aggregate Metrics</span>
+                            </label>
+                            <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="tool-checkbox mr-3" value="klaviyo_reporting_revenue">
+                                <span class="text-sm">Revenue Reports</span>
+                            </label>
+                        </div>
+
+                        <!-- Segment Tools -->
+                        <div class="mb-3">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Segments</p>
+                            <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="tool-checkbox mr-3" value="klaviyo_segments">
+                                <span class="text-sm">List Segments</span>
+                            </label>
+                            <label class="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                <input type="checkbox" class="tool-checkbox mr-3" value="klaviyo_profiles">
+                                <span class="text-sm">Profile Data</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t">
+                        <button onclick="selectAllTools()" class="text-sm text-indigo-600 hover:text-indigo-800 mr-4">
+                            Select All
+                        </button>
+                        <button onclick="clearAllTools()" class="text-sm text-gray-600 hover:text-gray-800">
+                            Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Agent Settings -->
+                <div class="bg-white rounded-lg shadow-sm p-4">
+                    <h3 class="text-lg font-semibold mb-4">Settings</h3>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                        <select id="agent-model" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Default)</option>
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+                        <input type="range" id="agent-temperature" min="0" max="1" step="0.1" value="0.7" 
+                               class="w-full" onchange="updateTempValue(this.value)">
+                        <span id="temp-value" class="text-sm text-gray-500">0.7</span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Tokens</label>
+                        <input type="number" id="agent-max-tokens" value="2000" 
+                               class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="agent-enabled" checked class="mr-2">
+                            <span class="text-sm">Agent Enabled</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <script>
+        let currentAgent = null;
+        let editor = null;
+
+        // Agent data (mock for now)
+        const agents = {
+            'monthly_goals_generator_v3': {
+                name: 'Monthly Goals Generator',
+                description: 'Generate monthly revenue goals with seasonality analysis',
+                prompt: `You are a world-class financial analyst and goal-setting strategist for e-commerce brands.
+Your objective is to generate realistic, data-driven monthly revenue goals for {{client_name}} in {{fiscal_year}}.
+
+Use only the variables provided in context. Do not invent new variables.
+
+Method:
+1) Determine year context using {{fiscal_year}} or {{current_year}}
+2) Establish baseline from historical data
+3) Apply seasonality weights
+4) Calculate stretch goals
+5) Output as JSON with monthly targets`,
+                tools: ['klaviyo_metrics_aggregate', 'klaviyo_reporting_revenue', 'klaviyo_campaigns'],
+                model: 'gemini-1.5-flash',
+                temperature: 0.7,
+                max_tokens: 2000,
+                enabled: true
+            },
+            'calendar_planner': {
+                name: 'Calendar Planner',
+                description: 'Plan and optimize email campaign calendars',
+                prompt: `You are an email marketing calendar specialist.
+Create optimized campaign schedules for {{client_name}} considering:
+- Historical performance data
+- Seasonal trends
+- Industry best practices
+- Customer engagement patterns`,
+                tools: ['klaviyo_campaigns', 'klaviyo_campaign_metrics', 'klaviyo_segments', 'klaviyo_events'],
+                model: 'gemini-1.5-flash',
+                temperature: 0.8,
+                max_tokens: 2500,
+                enabled: true
+            }
+        };
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('prompt-editor'), {
+                value: '',
+                language: 'markdown',
+                theme: 'vs',
+                minimap: { enabled: false },
+                wordWrap: 'on',
+                fontSize: 14,
+                lineNumbers: 'off',
+                automaticLayout: true
+            });
+        });
+
+        function selectAgent(agentId) {
+            // Update UI selection
+            document.querySelectorAll('.agent-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelector(`[data-agent="${agentId}"]`).classList.add('selected');
+
+            // Load agent data
+            currentAgent = agentId;
+            const agent = agents[agentId] || {};
+            
+            // Show editor
+            document.getElementById('editor-placeholder').classList.add('hidden');
+            document.getElementById('editor-content').classList.remove('hidden');
+            
+            // Populate fields
+            document.getElementById('agent-name').value = agent.name || agentId;
+            document.getElementById('agent-description').value = agent.description || '';
+            
+            if (editor) {
+                editor.setValue(agent.prompt || '');
+            }
+            
+            // Set tools
+            document.querySelectorAll('.tool-checkbox').forEach(checkbox => {
+                checkbox.checked = agent.tools && agent.tools.includes(checkbox.value);
+            });
+            
+            // Set settings
+            document.getElementById('agent-model').value = agent.model || 'gemini-1.5-flash';
+            document.getElementById('agent-temperature').value = agent.temperature || 0.7;
+            document.getElementById('temp-value').textContent = agent.temperature || 0.7;
+            document.getElementById('agent-max-tokens').value = agent.max_tokens || 2000;
+            document.getElementById('agent-enabled').checked = agent.enabled !== false;
+            
+            // Extract variables
+            extractVariables(agent.prompt || '');
+        }
+
+        function extractVariables(prompt) {
+            const regex = /\{\{([^}]+)\}\}/g;
+            const variables = [];
+            let match;
+            
+            while ((match = regex.exec(prompt)) !== null) {
+                if (!variables.includes(match[1])) {
+                    variables.push(match[1]);
+                }
+            }
+            
+            const container = document.getElementById('variables-list');
+            container.innerHTML = variables.map(v => 
+                `<span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-sm">${v}</span>`
+            ).join('');
+        }
+
+        function saveAgent() {
+            if (!currentAgent) {
+                alert('Please select an agent first');
+                return;
+            }
+            
+            const agentData = {
+                name: document.getElementById('agent-name').value,
+                description: document.getElementById('agent-description').value,
+                prompt: editor ? editor.getValue() : '',
+                tools: Array.from(document.querySelectorAll('.tool-checkbox:checked')).map(cb => cb.value),
+                model: document.getElementById('agent-model').value,
+                temperature: parseFloat(document.getElementById('agent-temperature').value),
+                max_tokens: parseInt(document.getElementById('agent-max-tokens').value),
+                enabled: document.getElementById('agent-enabled').checked
+            };
+            
+            // Save to mock storage
+            agents[currentAgent] = agentData;
+            
+            showNotification('Agent saved successfully!', 'success');
+        }
+
+        function createNewAgent() {
+            const name = prompt('Enter agent name:');
+            if (name) {
+                const agentId = name.toLowerCase().replace(/\s+/g, '_');
+                agents[agentId] = {
+                    name: name,
+                    description: '',
+                    prompt: '',
+                    tools: [],
+                    model: 'gemini-1.5-flash',
+                    temperature: 0.7,
+                    max_tokens: 2000,
+                    enabled: true
+                };
+                
+                // Add to list
+                const agentList = document.getElementById('agent-list');
+                const newCard = document.createElement('div');
+                newCard.className = 'agent-card p-3 bg-gray-50 rounded-lg cursor-pointer border-2 border-transparent';
+                newCard.setAttribute('data-agent', agentId);
+                newCard.setAttribute('onclick', `selectAgent('${agentId}')`);
+                newCard.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-robot text-gray-500 mr-3"></i>
+                        <div>
+                            <p class="font-medium text-sm">${name}</p>
+                            <p class="text-xs text-gray-500">New agent</p>
+                        </div>
+                    </div>
+                `;
+                agentList.appendChild(newCard);
+                
+                selectAgent(agentId);
+                showNotification('New agent created!', 'success');
+            }
+        }
+
+        function runTest() {
+            const input = document.getElementById('test-input').value;
+            const output = document.getElementById('test-output');
+            
+            output.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Running test...';
+            
+            // Simulate API call
+            setTimeout(() => {
+                output.innerHTML = `
+                    <div class="mb-2">
+                        <strong>Input:</strong> ${input}
+                    </div>
+                    <div>
+                        <strong>Response:</strong> Based on the analysis of ${currentAgent}, here are the recommendations...
+                    </div>
+                `;
+            }, 1500);
+        }
+
+        function formatPrompt() {
+            if (editor) {
+                const content = editor.getValue();
+                // Simple formatting - you could add more sophisticated formatting here
+                const formatted = content.replace(/\n{3,}/g, '\n\n').trim();
+                editor.setValue(formatted);
+            }
+        }
+
+        function testPrompt() {
+            document.getElementById('test-input').focus();
+        }
+
+        function filterAgents(query) {
+            const cards = document.querySelectorAll('.agent-card');
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query.toLowerCase()) ? 'flex' : 'none';
+            });
+        }
+
+        function selectAllTools() {
+            document.querySelectorAll('.tool-checkbox').forEach(cb => cb.checked = true);
+        }
+
+        function clearAllTools() {
+            document.querySelectorAll('.tool-checkbox').forEach(cb => cb.checked = false);
+        }
+
+        function updateTempValue(value) {
+            document.getElementById('temp-value').textContent = value;
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

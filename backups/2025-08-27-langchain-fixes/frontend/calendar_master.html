@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Master - EmailPilot AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@900&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --brand-blue: #3369DC;
+            --brand-purple: #8A6CF7;
+            --brand-lime: #C5FF75;
+            --black: #000000;
+            --white: #FFFFFF;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Red Hat Display', sans-serif;
+            font-weight: 900;
+        }
+        
+        /* 90s Memphis Design Background Pattern */
+        .retro-bg {
+            background-color: #000000;
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 35px, #3369DC 35px, #3369DC 70px),
+                repeating-linear-gradient(-45deg, transparent, transparent 35px, #8A6CF7 35px, #8A6CF7 70px);
+            background-size: 100px 100px;
+            background-position: 0 0, 50px 50px;
+            opacity: 0.1;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+        }
+        
+        /* Zigzag Pattern Overlay */
+        .zigzag-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 10px,
+                    rgba(197, 255, 117, 0.03) 10px,
+                    rgba(197, 255, 117, 0.03) 20px
+                );
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        /* Retro Glass Cards */
+        .retro-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 3px solid var(--brand-purple);
+            border-radius: 0;
+            position: relative;
+            box-shadow: 
+                5px 5px 0px var(--brand-lime),
+                10px 10px 0px var(--brand-blue),
+                10px 10px 20px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        .retro-card:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 
+                7px 7px 0px var(--brand-lime),
+                14px 14px 0px var(--brand-blue),
+                14px 14px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Neon Glow Effect */
+        .neon-glow {
+            text-shadow: 
+                0 0 10px var(--brand-lime),
+                0 0 20px var(--brand-lime),
+                0 0 30px var(--brand-lime);
+        }
+        
+        /* 90s Style Buttons */
+        .retro-btn {
+            background: linear-gradient(45deg, var(--brand-blue), var(--brand-purple));
+            color: white;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 12px 24px;
+            border: 3px solid var(--black);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .retro-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--brand-lime), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .retro-btn:hover::before {
+            left: 100%;
+        }
+        
+        .retro-btn:hover {
+            transform: scale(1.05) rotate(-1deg);
+            box-shadow: 
+                5px 5px 0px var(--brand-lime),
+                5px 5px 20px rgba(197, 255, 117, 0.5);
+        }
+        
+        /* Quick Clear Button Special */
+        .quick-clear-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #ff0080, #ff8c00);
+            color: white;
+            padding: 16px 32px;
+            font-family: 'Red Hat Display', sans-serif;
+            font-weight: 900;
+            font-size: 18px;
+            text-transform: uppercase;
+            border: 4px solid var(--black);
+            box-shadow: 
+                5px 5px 0px var(--brand-lime),
+                10px 10px 0px var(--black);
+            z-index: 100;
+            transition: all 0.3s ease;
+            animation: pulse-neon 2s infinite;
+        }
+        
+        @keyframes pulse-neon {
+            0%, 100% { 
+                box-shadow: 
+                    5px 5px 0px var(--brand-lime),
+                    10px 10px 0px var(--black),
+                    0 0 20px rgba(197, 255, 117, 0.5);
+            }
+            50% { 
+                box-shadow: 
+                    5px 5px 0px var(--brand-lime),
+                    10px 10px 0px var(--black),
+                    0 0 40px rgba(197, 255, 117, 0.8);
+            }
+        }
+        
+        .quick-clear-btn:hover {
+            transform: scale(1.1) rotate(-3deg);
+        }
+        
+        /* Calendar Day Cells */
+        .calendar-day {
+            background: white;
+            border: 2px solid var(--brand-purple);
+            min-height: 100px;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .calendar-day:hover {
+            background: linear-gradient(45deg, rgba(138, 108, 247, 0.1), rgba(197, 255, 117, 0.1));
+            border-color: var(--brand-lime);
+            transform: scale(1.02);
+            z-index: 10;
+        }
+        
+        .calendar-day.today {
+            background: linear-gradient(135deg, rgba(51, 105, 220, 0.2), rgba(138, 108, 247, 0.2));
+            border-width: 3px;
+            border-color: var(--brand-lime);
+        }
+        
+        /* Campaign Cards */
+        .campaign-chip {
+            background: var(--brand-purple);
+            color: white;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 2px solid var(--black);
+            margin: 2px 0;
+            cursor: move;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .campaign-chip:hover {
+            transform: translateX(2px);
+            box-shadow: 3px 3px 0px var(--brand-lime);
+        }
+        
+        .campaign-chip.promotional {
+            background: linear-gradient(45deg, #ff0080, #ff8c00);
+        }
+        
+        .campaign-chip.content {
+            background: linear-gradient(45deg, var(--brand-blue), var(--brand-purple));
+        }
+        
+        .campaign-chip.engagement {
+            background: linear-gradient(45deg, var(--brand-purple), var(--brand-lime));
+            color: var(--black);
+        }
+        
+        /* Status Indicators */
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--black);
+            margin-right: 8px;
+            animation: blink-neon 2s infinite;
+        }
+        
+        .status-indicator.active {
+            background: var(--brand-lime);
+            box-shadow: 0 0 10px var(--brand-lime);
+        }
+        
+        .status-indicator.loading {
+            background: linear-gradient(45deg, var(--brand-purple), var(--brand-lime));
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes blink-neon {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        /* Toast Notification */
+        .retro-toast {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: var(--black);
+            color: var(--brand-lime);
+            padding: 16px 24px;
+            border: 3px solid var(--brand-lime);
+            box-shadow: 
+                5px 5px 0px var(--brand-purple),
+                5px 5px 20px rgba(197, 255, 117, 0.5);
+            font-family: 'Poppins', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { 
+                transform: translateX(400px) rotate(10deg); 
+                opacity: 0;
+            }
+            to { 
+                transform: translateX(0) rotate(0); 
+                opacity: 1;
+            }
+        }
+        
+        /* Geometric Decorations */
+        .triangle-decoration {
+            width: 0;
+            height: 0;
+            border-style: solid;
+            position: absolute;
+        }
+        
+        .triangle-top-left {
+            border-width: 50px 50px 0 0;
+            border-color: var(--brand-lime) transparent transparent transparent;
+            top: 0;
+            left: 0;
+        }
+        
+        .triangle-bottom-right {
+            border-width: 0 0 50px 50px;
+            border-color: transparent transparent var(--brand-purple) transparent;
+            bottom: 0;
+            right: 0;
+        }
+        
+        /* Input Styles */
+        input, select, textarea {
+            border: 3px solid var(--brand-purple);
+            background: white;
+            font-family: 'Poppins', sans-serif;
+            transition: all 0.2s;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--brand-lime);
+            box-shadow: 0 0 0 3px rgba(197, 255, 117, 0.3);
+        }
+        
+        /* Command Palette */
+        .command-palette {
+            background: var(--black);
+            border: 4px solid var(--brand-lime);
+            box-shadow: 
+                0 0 0 8px var(--brand-purple),
+                0 0 40px rgba(197, 255, 117, 0.5);
+        }
+        
+        /* View Mode Buttons */
+        .view-btn {
+            background: white;
+            color: var(--brand-purple);
+            border: 2px solid var(--brand-purple);
+            padding: 8px 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        
+        .view-btn.active {
+            background: linear-gradient(45deg, var(--brand-blue), var(--brand-purple));
+            color: white;
+            border-color: var(--brand-lime);
+            box-shadow: 3px 3px 0px var(--brand-lime);
+        }
+        
+        .view-btn:hover:not(.active) {
+            background: rgba(138, 108, 247, 0.1);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-white">
+    <!-- Retro Background Patterns -->
+    <div class="retro-bg"></div>
+    <div class="zigzag-overlay"></div>
+    
+    <!-- Header -->
+    <header class="bg-black border-b-4 border-lime relative z-50" style="border-color: #C5FF75;">
+        <div class="triangle-decoration triangle-top-left"></div>
+        <div class="triangle-decoration triangle-bottom-right"></div>
+        
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-4xl text-white neon-glow">📅 CALENDAR MASTER</h1>
+                    <span class="text-lime font-semibold uppercase tracking-wider" style="color: #C5FF75;">AI-Powered Campaign Planning</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- Agent Status -->
+                    <div class="flex items-center space-x-3 text-white text-sm font-semibold">
+                        <span class="status-indicator active"></span>
+                        <span>LANGCHAIN</span>
+                        <span class="status-indicator active"></span>
+                        <span>KLAVIYO</span>
+                        <span class="status-indicator loading"></span>
+                        <span>LANGGRAPH</span>
+                    </div>
+                    
+                    <!-- Command Palette Button -->
+                    <button onclick="openCommandPalette()" class="retro-btn">
+                        ⌘K
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Quick Clear Button -->
+    <button onclick="quickClear()" class="quick-clear-btn">
+        🗑️ CLEAR
+    </button>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="retro-toast">
+        <div class="flex items-center space-x-3">
+            <span id="toastMessage">Calendar cleared!</span>
+            <button onclick="undo()" class="text-white hover:text-lime transition" style="color: #FFFFFF;">UNDO</button>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <div class="grid grid-cols-12 gap-6">
+            <!-- Left Sidebar - Controls -->
+            <div class="col-span-3">
+                <div class="retro-card p-6 mb-6">
+                    <h2 class="text-2xl font-black mb-4" style="color: #3369DC;">📊 CONTROLS</h2>
+                    
+                    <!-- View Switcher -->
+                    <div class="mb-6">
+                        <label class="text-sm font-bold uppercase tracking-wider text-purple" style="color: #8A6CF7;">View Mode</label>
+                        <div class="flex space-x-2 mt-2">
+                            <button onclick="setView('month')" class="view-btn active">Month</button>
+                            <button onclick="setView('week')" class="view-btn">Week</button>
+                            <button onclick="setView('timeline')" class="view-btn">Timeline</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Client Selector -->
+                    <div class="mb-6">
+                        <label class="text-sm font-bold uppercase tracking-wider text-purple" style="color: #8A6CF7;">Client</label>
+                        <select id="clientSelect" class="w-full mt-2 px-4 py-2">
+                            <option value="">Select Client...</option>
+                            <option value="rogue-creamery">Rogue Creamery</option>
+                            <option value="fashion-forward">Fashion Forward</option>
+                            <option value="tech-innovators">Tech Innovators</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Month Selector -->
+                    <div class="mb-6">
+                        <label class="text-sm font-bold uppercase tracking-wider text-purple" style="color: #8A6CF7;">Month</label>
+                        <input type="month" id="monthSelect" value="2025-03" class="w-full mt-2 px-4 py-2">
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="space-y-3">
+                        <button onclick="generateWithAI()" class="retro-btn w-full">
+                            🤖 Generate with AI
+                        </button>
+                        <button onclick="loadTestData()" class="w-full py-3 px-4 bg-white border-3 font-bold uppercase hover:bg-gray-50" style="border: 3px solid #8A6CF7;">
+                            🧪 Test Data
+                        </button>
+                        <button onclick="saveSession()" class="w-full py-3 px-4 bg-white border-3 font-bold uppercase hover:bg-gray-50" style="border: 3px solid #3369DC;">
+                            💾 Save
+                        </button>
+                        <button onclick="loadSession()" class="w-full py-3 px-4 bg-white border-3 font-bold uppercase hover:bg-gray-50" style="border: 3px solid #C5FF75; color: #000;">
+                            📁 Load
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Campaign Types -->
+                <div class="retro-card p-6">
+                    <h3 class="text-xl font-black mb-4" style="color: #3369DC;">🎨 CAMPAIGN TYPES</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 border-2 border-black" style="background: linear-gradient(45deg, #ff0080, #ff8c00);"></div>
+                            <span class="font-semibold uppercase text-sm">Promotional</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 border-2 border-black" style="background: linear-gradient(45deg, #3369DC, #8A6CF7);"></div>
+                            <span class="font-semibold uppercase text-sm">Content</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 border-2 border-black" style="background: linear-gradient(45deg, #8A6CF7, #C5FF75);"></div>
+                            <span class="font-semibold uppercase text-sm">Engagement</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 border-2 border-black" style="background: #C5FF75;"></div>
+                            <span class="font-semibold uppercase text-sm">Seasonal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Center - Calendar Display -->
+            <div class="col-span-6">
+                <div class="retro-card p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-black" style="color: #8A6CF7;">MARCH 2025</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="previousMonth()" class="px-4 py-2 font-bold hover:text-purple" style="color: #8A6CF7;">◀</button>
+                            <button onclick="today()" class="px-4 py-2 font-bold uppercase hover:bg-gray-100" style="border: 2px solid #C5FF75;">Today</button>
+                            <button onclick="nextMonth()" class="px-4 py-2 font-bold hover:text-purple" style="color: #8A6CF7;">▶</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Calendar Grid -->
+                    <div class="mb-4">
+                        <div class="grid grid-cols-7 gap-1 mb-2">
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Sun</div>
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Mon</div>
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Tue</div>
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Wed</div>
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Thu</div>
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Fri</div>
+                            <div class="text-center font-bold uppercase text-sm py-2" style="color: #8A6CF7;">Sat</div>
+                        </div>
+                        <div id="calendarGrid" class="grid grid-cols-7 gap-1">
+                            <!-- Calendar days will be generated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Sidebar -->
+            <div class="col-span-3">
+                <!-- Campaign Details -->
+                <div class="retro-card p-6 mb-6">
+                    <h3 class="text-xl font-black mb-4" style="color: #3369DC;">📧 CAMPAIGN DETAILS</h3>
+                    <div id="campaignDetails" class="text-gray-700">
+                        <p class="font-semibold uppercase text-sm">Select a campaign to view details</p>
+                    </div>
+                </div>
+                
+                <!-- AI Suggestions -->
+                <div class="retro-card p-6">
+                    <h3 class="text-xl font-black mb-4" style="color: #3369DC;">💡 AI SUGGESTIONS</h3>
+                    <div id="aiSuggestions" class="space-y-3">
+                        <div class="p-3 border-2" style="border-color: #C5FF75; background: rgba(197, 255, 117, 0.1);">
+                            <p class="font-semibold text-sm uppercase">Best Send Time</p>
+                            <p class="text-lg font-bold" style="color: #8A6CF7;">Tuesday 10 AM</p>
+                        </div>
+                        <div class="p-3 border-2" style="border-color: #8A6CF7; background: rgba(138, 108, 247, 0.1);">
+                            <p class="font-semibold text-sm uppercase">Target Segment</p>
+                            <p class="text-lg font-bold" style="color: #3369DC;">VIP Customers (2.3k)</p>
+                        </div>
+                        <div class="p-3 border-2" style="border-color: #3369DC; background: rgba(51, 105, 220, 0.1);">
+                            <p class="font-semibold text-sm uppercase">Expected Open Rate</p>
+                            <p class="text-lg font-bold" style="color: #8A6CF7;">28.5%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Command Palette Modal -->
+    <div id="commandPalette" class="command-palette fixed inset-0 hidden items-center justify-center z-50">
+        <div class="bg-black p-6 max-w-2xl w-full mx-4" style="border: 4px solid #C5FF75;">
+            <input type="text" id="commandInput" placeholder="TYPE A COMMAND..." 
+                   class="w-full px-4 py-3 mb-4 bg-white text-black font-bold uppercase" style="border: 3px solid #8A6CF7;">
+            <div id="commandList" class="space-y-2 max-h-96 overflow-y-auto">
+                <div class="command-item px-4 py-2 bg-white hover:bg-lime cursor-pointer font-semibold uppercase" style="border: 2px solid #8A6CF7;">
+                    📅 Create New Campaign
+                </div>
+                <div class="command-item px-4 py-2 bg-white hover:bg-lime cursor-pointer font-semibold uppercase" style="border: 2px solid #8A6CF7;">
+                    🗑️ Clear Calendar (⌘⇧C)
+                </div>
+                <div class="command-item px-4 py-2 bg-white hover:bg-lime cursor-pointer font-semibold uppercase" style="border: 2px solid #8A6CF7;">
+                    ↩️ Undo Last Action (⌘Z)
+                </div>
+                <div class="command-item px-4 py-2 bg-white hover:bg-lime cursor-pointer font-semibold uppercase" style="border: 2px solid #8A6CF7;">
+                    🤖 Generate with AI
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Clear Confirmation Modal -->
+    <div id="clearModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="retro-card p-8 max-w-md">
+            <h3 class="text-2xl font-black mb-4" style="color: #3369DC;">CLEAR CALENDAR?</h3>
+            <p class="mb-6 font-semibold">This will remove all campaigns. You can undo within 10 seconds.</p>
+            <div class="flex space-x-3">
+                <button onclick="confirmClear()" class="retro-btn flex-1">
+                    CLEAR IT!
+                </button>
+                <button onclick="closeClearModal()" class="flex-1 py-3 px-4 bg-white font-bold uppercase" style="border: 3px solid #8A6CF7;">
+                    CANCEL
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Calendar Manager Class
+        class CalendarManager {
+            constructor() {
+                this.history = [];
+                this.currentCalendar = [];
+                this.undoTimer = null;
+                this.maxHistory = 5;
+                this.campaigns = [];
+                this.currentView = 'month';
+                this.selectedDate = new Date();
+            }
+            
+            quickClear() {
+                document.getElementById('clearModal').style.display = 'flex';
+            }
+            
+            confirmClear() {
+                if (this.currentCalendar.length > 0) {
+                    this.history.push([...this.currentCalendar]);
+                    if (this.history.length > this.maxHistory) {
+                        this.history.shift();
+                    }
+                }
+                
+                this.animateClear();
+                document.getElementById('clearModal').style.display = 'none';
+                this.showToast('CALENDAR CLEARED! 10 SECONDS TO UNDO');
+                this.startUndoTimer();
+            }
+            
+            animateClear() {
+                const campaigns = document.querySelectorAll('.campaign-chip');
+                campaigns.forEach((card, index) => {
+                    setTimeout(() => {
+                        card.style.transform = 'scale(0) rotate(360deg)';
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 300);
+                    }, index * 50);
+                });
+                
+                this.currentCalendar = [];
+                this.campaigns = [];
+                sessionStorage.setItem('calendar_cleared', Date.now());
+            }
+            
+            undo() {
+                if (this.history.length > 0) {
+                    this.currentCalendar = this.history.pop();
+                    this.render();
+                    this.showToast('CALENDAR RESTORED!');
+                    
+                    if (this.undoTimer) {
+                        clearTimeout(this.undoTimer);
+                        this.undoTimer = null;
+                    }
+                }
+            }
+            
+            startUndoTimer() {
+                this.undoTimer = setTimeout(() => {
+                    this.history = [];
+                    this.showToast('UNDO HISTORY CLEARED');
+                }, 10000);
+            }
+            
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                document.getElementById('toastMessage').textContent = message;
+                toast.style.display = 'block';
+                
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 5000);
+            }
+            
+            render() {
+                this.renderCalendar();
+            }
+            
+            renderCalendar() {
+                const grid = document.getElementById('calendarGrid');
+                grid.innerHTML = '';
+                
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth();
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const today = new Date();
+                
+                // Add empty cells for days before month starts
+                for (let i = 0; i < firstDay; i++) {
+                    const emptyDay = document.createElement('div');
+                    emptyDay.className = 'calendar-day opacity-50';
+                    grid.appendChild(emptyDay);
+                }
+                
+                // Add days of month
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(year, month, day);
+                    const isToday = currentDate.toDateString() === today.toDateString();
+                    
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = `calendar-day p-2 relative ${isToday ? 'today' : ''}`;
+                    dayDiv.innerHTML = `
+                        <div class="font-bold text-sm mb-1" style="color: ${isToday ? '#C5FF75' : '#8A6CF7'}">${day}</div>
+                        <div class="campaigns-container space-y-1">
+                            ${this.getCampaignsForDay(day)}
+                        </div>
+                    `;
+                    
+                    dayDiv.ondrop = (e) => this.handleDrop(e, day);
+                    dayDiv.ondragover = (e) => e.preventDefault();
+                    
+                    grid.appendChild(dayDiv);
+                }
+            }
+            
+            getCampaignsForDay(day) {
+                const campaigns = this.campaigns.filter(c => {
+                    const campaignDay = new Date(c.date).getDate();
+                    return campaignDay === day;
+                });
+                
+                return campaigns.map(c => `
+                    <div class="campaign-chip ${c.type}" draggable="true" data-campaign-id="${c.id}">
+                        ${c.name}
+                    </div>
+                `).join('');
+            }
+            
+            handleDrop(e, day) {
+                e.preventDefault();
+                const campaignId = e.dataTransfer.getData('campaignId');
+                const campaign = this.campaigns.find(c => c.id === campaignId);
+                if (campaign) {
+                    campaign.date = new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth(), day);
+                    this.render();
+                }
+            }
+            
+            saveSession() {
+                const session = {
+                    campaigns: this.campaigns,
+                    calendar: this.currentCalendar,
+                    date: this.selectedDate,
+                    timestamp: Date.now()
+                };
+                
+                localStorage.setItem('calendar_session', JSON.stringify(session));
+                this.showToast('SESSION SAVED!');
+            }
+            
+            loadSession() {
+                const saved = localStorage.getItem('calendar_session');
+                if (saved) {
+                    const session = JSON.parse(saved);
+                    this.campaigns = session.campaigns || [];
+                    this.currentCalendar = session.calendar || [];
+                    this.selectedDate = new Date(session.date);
+                    this.render();
+                    this.showToast('SESSION LOADED!');
+                }
+            }
+        }
+        
+        // Initialize Calendar Manager
+        const calendarManager = new CalendarManager();
+        
+        // Global Functions
+        function quickClear() {
+            calendarManager.quickClear();
+        }
+        
+        function confirmClear() {
+            calendarManager.confirmClear();
+        }
+        
+        function closeClearModal() {
+            document.getElementById('clearModal').style.display = 'none';
+        }
+        
+        function undo() {
+            calendarManager.undo();
+        }
+        
+        function openCommandPalette() {
+            const palette = document.getElementById('commandPalette');
+            palette.style.display = palette.style.display === 'flex' ? 'none' : 'flex';
+            if (palette.style.display === 'flex') {
+                document.getElementById('commandInput').focus();
+            }
+        }
+        
+        function setView(view) {
+            calendarManager.currentView = view;
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            calendarManager.render();
+        }
+        
+        function generateWithAI() {
+            const client = document.getElementById('clientSelect').value;
+            const month = document.getElementById('monthSelect').value;
+            
+            if (!client || !month) {
+                calendarManager.showToast('SELECT CLIENT AND MONTH FIRST!');
+                return;
+            }
+            
+            calendarManager.showToast('GENERATING WITH AI...');
+            
+            setTimeout(() => {
+                loadTestData();
+                calendarManager.showToast('AI CALENDAR GENERATED!');
+            }, 2000);
+        }
+        
+        function loadTestData() {
+            const types = [
+                { name: 'SPRING SALE', type: 'promotional' },
+                { name: 'NEWSLETTER', type: 'content' },
+                { name: 'SURVEY', type: 'engagement' },
+                { name: 'LAUNCH', type: 'seasonal' }
+            ];
+            
+            const campaigns = [];
+            const year = calendarManager.selectedDate.getFullYear();
+            const month = calendarManager.selectedDate.getMonth();
+            
+            for (let i = 0; i < 12; i++) {
+                const type = types[i % types.length];
+                const day = Math.floor((i / 12) * 28) + 1;
+                
+                campaigns.push({
+                    id: `campaign-${i}`,
+                    name: type.name,
+                    type: type.type,
+                    date: new Date(year, month, day),
+                    metrics: {
+                        openRate: Math.random() * 0.3 + 0.15,
+                        clickRate: Math.random() * 0.1 + 0.02,
+                        revenue: Math.floor(Math.random() * 10000) + 1000
+                    }
+                });
+            }
+            
+            calendarManager.campaigns = campaigns;
+            calendarManager.currentCalendar = campaigns;
+            calendarManager.render();
+            calendarManager.showToast('TEST DATA LOADED!');
+        }
+        
+        function saveSession() {
+            calendarManager.saveSession();
+        }
+        
+        function loadSession() {
+            calendarManager.loadSession();
+        }
+        
+        function previousMonth() {
+            calendarManager.selectedDate.setMonth(calendarManager.selectedDate.getMonth() - 1);
+            calendarManager.render();
+            updateMonthDisplay();
+        }
+        
+        function nextMonth() {
+            calendarManager.selectedDate.setMonth(calendarManager.selectedDate.getMonth() + 1);
+            calendarManager.render();
+            updateMonthDisplay();
+        }
+        
+        function today() {
+            calendarManager.selectedDate = new Date();
+            calendarManager.render();
+            updateMonthDisplay();
+        }
+        
+        function updateMonthDisplay() {
+            const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+                               'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+            const month = calendarManager.selectedDate.getMonth();
+            const year = calendarManager.selectedDate.getFullYear();
+            document.querySelector('.col-span-6 h2').textContent = `${monthNames[month]} ${year}`;
+        }
+        
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Cmd+Shift+C - Quick Clear
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'c') {
+                e.preventDefault();
+                quickClear();
+            }
+            
+            // Cmd+Z - Undo
+            if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            }
+            
+            // Cmd+K - Command Palette
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                openCommandPalette();
+            }
+            
+            // Escape - Close modals
+            if (e.key === 'Escape') {
+                document.getElementById('commandPalette').style.display = 'none';
+                document.getElementById('clearModal').style.display = 'none';
+            }
+        });
+        
+        // Command palette search
+        document.getElementById('commandInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const items = document.querySelectorAll('.command-item');
+            
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        });
+        
+        // Initialize calendar on load
+        window.addEventListener('load', () => {
+            calendarManager.render();
+            
+            // Check for recent clear
+            const lastClear = sessionStorage.getItem('calendar_cleared');
+            if (lastClear) {
+                const timeSinceClear = Date.now() - parseInt(lastClear);
+                if (timeSinceClear < 10000) {
+                    const remainingTime = Math.ceil((10000 - timeSinceClear) / 1000);
+                    calendarManager.showToast(`CALENDAR CLEARED. ${remainingTime}s TO UNDO.`);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

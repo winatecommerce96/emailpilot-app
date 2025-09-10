@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Workflow Integration Test</h1>
+        
+        <div class="space-y-4">
+            <div id="api-status" class="p-4 bg-gray-50 rounded">
+                <h2 class="font-semibold mb-2">API Status</h2>
+                <div id="api-results" class="text-sm space-y-1"></div>
+            </div>
+            
+            <div id="workflow-agents" class="p-4 bg-blue-50 rounded">
+                <h2 class="font-semibold mb-2">Calendar Workflow Agents</h2>
+                <div id="agents-list" class="text-sm space-y-1"></div>
+            </div>
+            
+            <div id="langgraph-status" class="p-4 bg-purple-50 rounded">
+                <h2 class="font-semibold mb-2">LangGraph Tracing</h2>
+                <div id="tracing-info" class="text-sm space-y-1"></div>
+            </div>
+            
+            <div id="page-elements" class="p-4 bg-green-50 rounded">
+                <h2 class="font-semibold mb-2">Page Elements Check</h2>
+                <div id="elements-check" class="text-sm space-y-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testIntegration() {
+            // Test 1: Check API endpoints
+            const apiResults = document.getElementById('api-results');
+            
+            try {
+                const allAgentsResp = await fetch('/api/workflow-agents/all-agents');
+                const allAgentsData = await allAgentsResp.json();
+                apiResults.innerHTML += `<div class="text-green-600">✅ All agents endpoint: ${allAgentsData.agents.length} agents found</div>`;
+                
+                // Store workflow agents for visual indicators
+                const workflowAgents = {};
+                allAgentsData.agents.forEach(agent => {
+                    workflowAgents[agent.name] = agent.workflow;
+                });
+                
+                // Show workflow badges
+                const agentBadges = allAgentsData.agents.map(agent => 
+                    `<span class="inline-block px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs mr-2">
+                        ${agent.workflow.icon} ${agent.name}
+                    </span>`
+                ).join('');
+                apiResults.innerHTML += `<div class="mt-2">${agentBadges}</div>`;
+                
+            } catch (error) {
+                apiResults.innerHTML += `<div class="text-red-600">❌ API Error: ${error.message}</div>`;
+            }
+            
+            // Test 2: Load calendar workflow agents
+            const agentsList = document.getElementById('agents-list');
+            try {
+                const workflowResp = await fetch('/api/workflow-agents/workflow/calendar_workflow');
+                const workflowData = await workflowResp.json();
+                
+                workflowData.agents.forEach(agent => {
+                    agentsList.innerHTML += `
+                        <div class="flex items-center justify-between p-2 bg-white rounded">
+                            <span class="font-medium">${agent.name}</span>
+                            <span class="text-xs bg-blue-100 px-2 py-1 rounded">${agent.role}</span>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                agentsList.innerHTML = `<div class="text-red-600">❌ Failed to load workflow agents: ${error.message}</div>`;
+            }
+            
+            // Test 3: Check LangGraph status
+            const tracingInfo = document.getElementById('tracing-info');
+            try {
+                const langGraphResp = await fetch('/api/workflow-agents/langgraph-status/calendar_workflow');
+                const langGraphData = await langGraphResp.json();
+                
+                tracingInfo.innerHTML = `
+                    <div class="text-green-600">✅ LangGraph Enabled: ${langGraphData.enabled}</div>
+                    <div>📊 Project: emailpilot-calendar</div>
+                    <div>🔗 Trace URL: <a href="${langGraphData.trace_url}" target="_blank" class="text-blue-600 underline">${langGraphData.trace_url}</a></div>
+                `;
+            } catch (error) {
+                tracingInfo.innerHTML = `<div class="text-red-600">❌ LangGraph check failed: ${error.message}</div>`;
+            }
+            
+            // Test 4: Check if agent_creator_enhanced.html has the elements
+            const elementsCheck = document.getElementById('elements-check');
+            
+            // Check in iframe
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = '/static/agent_creator_enhanced.html';
+            document.body.appendChild(iframe);
+            
+            iframe.onload = function() {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                
+                // Check for workflow filter
+                const workflowFilter = iframeDoc.getElementById('workflow-filter');
+                if (workflowFilter) {
+                    elementsCheck.innerHTML += `<div class="text-green-600">✅ Workflow filter dropdown found</div>`;
+                    elementsCheck.innerHTML += `<div class="ml-4 text-xs">Options: ${workflowFilter.options.length}</div>`;
+                } else {
+                    elementsCheck.innerHTML += `<div class="text-red-600">❌ Workflow filter dropdown NOT found</div>`;
+                }
+                
+                // Check for workflow indicator
+                const workflowIndicator = iframeDoc.getElementById('workflow-indicator');
+                if (workflowIndicator) {
+                    elementsCheck.innerHTML += `<div class="text-green-600">✅ Workflow indicator element found</div>`;
+                } else {
+                    elementsCheck.innerHTML += `<div class="text-red-600">❌ Workflow indicator element NOT found</div>`;
+                }
+                
+                // Check for existing agents dropdown
+                const agentsSelect = iframeDoc.getElementById('existing-agents-select');
+                if (agentsSelect) {
+                    elementsCheck.innerHTML += `<div class="text-green-600">✅ Agents dropdown found</div>`;
+                } else {
+                    elementsCheck.innerHTML += `<div class="text-red-600">❌ Agents dropdown NOT found</div>`;
+                }
+                
+                // Remove iframe after check
+                setTimeout(() => document.body.removeChild(iframe), 1000);
+            };
+        }
+        
+        // Run tests on load
+        window.addEventListener('load', testIntegration);
+    </script>
+</body>
+</html>

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clerk Authentication Test - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Clerk SDK -->
+    <script crossorigin="anonymous" data-clerk-publishable-key="" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .clerk-loaded {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <div class="gradient-bg text-white py-6">
+            <div class="max-w-6xl mx-auto px-4">
+                <h1 class="text-3xl font-bold">Clerk Authentication Test</h1>
+                <p class="mt-2 opacity-90">EmailPilot SSO Integration</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-6xl mx-auto px-4 py-8">
+            <!-- Status Card -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <span class="mr-2">🔐</span> Clerk Configuration Status
+                </h2>
+                <div id="clerkStatus" class="space-y-3">
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                        <span>Loading configuration...</span>
+                        <div class="animate-spin h-5 w-5 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clerk Sign-In Options -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Clerk UI Component -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Clerk Sign-In Component</h2>
+                    <div id="clerkSignIn"></div>
+                    <div id="clerkError" class="mt-4"></div>
+                </div>
+
+                <!-- Manual Integration -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Manual Integration</h2>
+                    <div class="space-y-4">
+                        <button onclick="signInWithClerk()" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                            </svg>
+                            Sign in with Clerk SSO
+                        </button>
+                        
+                        <button onclick="signInWithEmail()" class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                            Sign in with Email
+                        </button>
+
+                        <button onclick="signInWithGoogle()" class="w-full px-4 py-2 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                            Sign in with Google
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Session Info -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6" id="userSessionCard" style="display: none;">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <span class="mr-2">👤</span> Current Session
+                </h2>
+                <div id="userSession" class="space-y-3"></div>
+                <div class="mt-4 flex gap-2">
+                    <button onclick="refreshSession()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                        Refresh Session
+                    </button>
+                    <button onclick="signOut()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+
+            <!-- API Test Console -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <span class="mr-2">🧪</span> API Test Console
+                </h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <button onclick="testEndpoint('/api/auth/v2/auth/clerk')" class="px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700">
+                            GET /auth/clerk
+                        </button>
+                        <button onclick="testEndpoint('/api/auth/v2/auth/sso/clerk')" class="px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700">
+                            GET /sso/clerk
+                        </button>
+                        <button onclick="testEndpoint('/api/auth/v2/auth/me')" class="px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700">
+                            GET /me
+                        </button>
+                        <button onclick="testCallback()" class="px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700">
+                            Test Callback
+                        </button>
+                    </div>
+                    <div id="apiResponse" class="mt-4 p-4 bg-gray-100 rounded font-mono text-xs overflow-auto max-h-64">
+                        <span class="text-gray-500">API responses will appear here...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let clerkInstance = null;
+        let clerkPublishableKey = null;
+        let currentTokens = {
+            access_token: localStorage.getItem('access_token_v2'),
+            refresh_token: localStorage.getItem('refresh_token_v2')
+        };
+
+        // Initialize on page load
+        async function initializeClerk() {
+            const statusDiv = document.getElementById('clerkStatus');
+            
+            try {
+                // First, fetch the Clerk configuration from backend
+                const configResponse = await fetch('/api/auth/v2/clerk-config');
+                const config = await configResponse.json();
+                
+                if (config.publishable_key) {
+                    clerkPublishableKey = config.publishable_key;
+                    
+                    // Initialize Clerk with the key
+                    const Clerk = window.Clerk;
+                    clerkInstance = new Clerk(clerkPublishableKey);
+                    await clerkInstance.load();
+                    
+                    statusDiv.innerHTML = `
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between p-3 bg-green-50 rounded">
+                                <span class="text-green-800">✅ Clerk SDK Loaded</span>
+                                <span class="text-sm text-green-600">v${clerkInstance.version || 'latest'}</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-green-50 rounded">
+                                <span class="text-green-800">✅ Publishable Key</span>
+                                <span class="text-sm text-gray-600 font-mono">${clerkPublishableKey.substring(0, 20)}...</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-blue-50 rounded">
+                                <span class="text-blue-800">🌐 Environment</span>
+                                <span class="text-sm text-blue-600">${config.environment || 'Development'}</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Mount Clerk sign-in component
+                    const signInDiv = document.getElementById('clerkSignIn');
+                    clerkInstance.mountSignIn(signInDiv, {
+                        afterSignInUrl: window.location.href,
+                        signUpUrl: null
+                    });
+                    
+                    // Check if user is already signed in
+                    checkSession();
+                    
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="space-y-2">
+                            <div class="p-4 bg-yellow-50 border border-yellow-200 rounded">
+                                <p class="text-yellow-800 font-medium">⚠️ Clerk Not Configured</p>
+                                <p class="text-sm text-yellow-600 mt-2">To enable Clerk authentication:</p>
+                                <ol class="list-decimal list-inside text-sm text-gray-600 mt-2 space-y-1">
+                                    <li>Sign up at <a href="https://clerk.com" target="_blank" class="text-blue-600 hover:underline">clerk.com</a></li>
+                                    <li>Get your publishable key from the dashboard</li>
+                                    <li>Add to Secret Manager: <code class="bg-gray-100 px-1">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code></li>
+                                    <li>Add secret key: <code class="bg-gray-100 px-1">CLERK_SECRET_KEY</code></li>
+                                    <li>Restart the server</li>
+                                </ol>
+                            </div>
+                            <div class="p-3 bg-gray-50 rounded">
+                                <span class="text-gray-600">📝 Using fallback authentication</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to initialize Clerk:', error);
+                statusDiv.innerHTML = `
+                    <div class="p-4 bg-red-50 border border-red-200 rounded">
+                        <p class="text-red-800 font-medium">❌ Initialization Error</p>
+                        <p class="text-sm text-red-600 mt-1">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Check current session
+        async function checkSession() {
+            if (clerkInstance && clerkInstance.session) {
+                const session = clerkInstance.session;
+                const user = clerkInstance.user;
+                
+                document.getElementById('userSessionCard').style.display = 'block';
+                document.getElementById('userSession').innerHTML = `
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">User ID</p>
+                            <p class="font-mono text-sm">${user?.id || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Email</p>
+                            <p class="font-mono text-sm">${user?.primaryEmailAddress?.emailAddress || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Session ID</p>
+                            <p class="font-mono text-sm">${session?.id || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            <p class="font-mono text-sm">${session?.status || 'N/A'}</p>
+                        </div>
+                    </div>
+                `;
+                
+                // Get session token for API calls
+                const token = await session.getToken();
+                if (token) {
+                    currentTokens.clerk_token = token;
+                }
+            } else if (currentTokens.access_token) {
+                // Check EmailPilot session
+                try {
+                    const response = await fetch('/api/auth/v2/auth/me', {
+                        headers: {
+                            'Authorization': `Bearer ${currentTokens.access_token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const user = await response.json();
+                        document.getElementById('userSessionCard').style.display = 'block';
+                        document.getElementById('userSession').innerHTML = `
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-gray-500">Email</p>
+                                    <p class="font-mono text-sm">${user.email}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Name</p>
+                                    <p class="font-mono text-sm">${user.name || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Role</p>
+                                    <p class="font-mono text-sm">${user.role || 'user'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Auth Type</p>
+                                    <p class="font-mono text-sm">EmailPilot JWT</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Session check failed:', error);
+                }
+            }
+        }
+
+        // Sign in with Clerk SSO
+        async function signInWithClerk() {
+            if (clerkInstance) {
+                try {
+                    await clerkInstance.openSignIn();
+                } catch (error) {
+                    alert('Clerk sign-in failed: ' + error.message);
+                }
+            } else {
+                // Fallback to backend SSO endpoint
+                window.location.href = '/api/auth/v2/auth/sso/clerk';
+            }
+        }
+
+        // Sign in with Email
+        async function signInWithEmail() {
+            const email = prompt('Enter your email:');
+            const password = prompt('Enter your password:');
+            
+            if (email && password) {
+                try {
+                    const response = await fetch('/api/auth/v2/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        currentTokens.access_token = data.access_token;
+                        currentTokens.refresh_token = data.refresh_token;
+                        localStorage.setItem('access_token_v2', data.access_token);
+                        localStorage.setItem('refresh_token_v2', data.refresh_token);
+                        alert('Login successful!');
+                        checkSession();
+                    } else {
+                        alert('Login failed: ' + (data.detail || 'Unknown error'));
+                    }
+                } catch (error) {
+                    alert('Login error: ' + error.message);
+                }
+            }
+        }
+
+        // Sign in with Google
+        function signInWithGoogle() {
+            window.location.href = '/api/auth/v2/auth/sso/google';
+        }
+
+        // Sign out
+        async function signOut() {
+            if (clerkInstance && clerkInstance.session) {
+                await clerkInstance.signOut();
+            }
+            
+            // Clear EmailPilot tokens
+            localStorage.removeItem('access_token_v2');
+            localStorage.removeItem('refresh_token_v2');
+            currentTokens = {};
+            
+            document.getElementById('userSessionCard').style.display = 'none';
+            alert('Signed out successfully');
+        }
+
+        // Refresh session
+        async function refreshSession() {
+            checkSession();
+            alert('Session refreshed');
+        }
+
+        // Test API endpoint
+        async function testEndpoint(endpoint) {
+            const responseDiv = document.getElementById('apiResponse');
+            
+            try {
+                responseDiv.innerHTML = `<span class="text-blue-600">Testing ${endpoint}...</span>`;
+                
+                const headers = {};
+                if (currentTokens.access_token) {
+                    headers['Authorization'] = `Bearer ${currentTokens.access_token}`;
+                }
+                if (currentTokens.clerk_token) {
+                    headers['X-Clerk-Token'] = currentTokens.clerk_token;
+                }
+                
+                const response = await fetch(endpoint, { headers });
+                const contentType = response.headers.get('content-type');
+                
+                let data;
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else if (contentType && contentType.includes('text/html')) {
+                    data = { html: '(HTML response - check network tab for details)' };
+                } else {
+                    data = await response.text();
+                }
+                
+                responseDiv.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold">${endpoint}</span>
+                            <span class="px-2 py-1 text-xs rounded ${response.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${response.status} ${response.statusText}
+                            </span>
+                        </div>
+                        <pre class="text-xs overflow-auto">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                responseDiv.innerHTML = `
+                    <div class="p-3 bg-red-50 rounded">
+                        <p class="text-red-800 font-medium">Error testing ${endpoint}</p>
+                        <p class="text-sm text-red-600 mt-1">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Test callback
+        async function testCallback() {
+            // Simulate a Clerk callback
+            const mockCallbackData = {
+                session_id: 'sess_' + Math.random().toString(36).substr(2, 9),
+                user_id: 'user_' + Math.random().toString(36).substr(2, 9),
+                email: 'test@clerk.example',
+                first_name: 'Test',
+                last_name: 'User'
+            };
+            
+            try {
+                const response = await fetch('/api/auth/v2/auth/callback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(mockCallbackData)
+                });
+                
+                const data = await response.json();
+                
+                document.getElementById('apiResponse').innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold">Callback Test</span>
+                            <span class="px-2 py-1 text-xs rounded ${response.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                                ${response.status}
+                            </span>
+                        </div>
+                        <pre class="text-xs overflow-auto">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+                
+                if (response.ok && data.access_token) {
+                    currentTokens.access_token = data.access_token;
+                    currentTokens.refresh_token = data.refresh_token;
+                    localStorage.setItem('access_token_v2', data.access_token);
+                    localStorage.setItem('refresh_token_v2', data.refresh_token);
+                    checkSession();
+                }
+            } catch (error) {
+                document.getElementById('apiResponse').innerHTML = `
+                    <div class="p-3 bg-red-50 rounded">
+                        <p class="text-red-800 font-medium">Callback test failed</p>
+                        <p class="text-sm text-red-600 mt-1">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize Clerk when page loads
+        window.addEventListener('load', initializeClerk);
+    </script>
+</body>
+</html>

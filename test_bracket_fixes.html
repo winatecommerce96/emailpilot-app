@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bracket Syntax Fixes Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">🔧 Bracket Syntax Auto-Fix Test</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-6">
+            <h2 class="text-lg font-semibold mb-4">Test Cases</h2>
+            <div class="space-y-4">
+                <button onclick="testDoubleBrackets()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Test Double Brackets
+                </button>
+                <button onclick="testQuotedVariables()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                    Test Quoted Variables
+                </button>
+                <button onclick="testMalformedBrackets()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+                    Test Malformed Brackets
+                </button>
+                <button onclick="testSpacesAndHyphens()" class="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700">
+                    Test Spaces & Hyphens
+                </button>
+                <button onclick="testAllIssues()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                    Test All Issues
+                </button>
+            </div>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">Results</h2>
+            <div id="test-results" class="font-mono text-sm space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        function fixBracketSyntax(text) {
+            if (!text || typeof text !== 'string') return text;
+            
+            let fixedText = text;
+            const fixes = [];
+            
+            // 1. Convert double brackets {{variable}} to single brackets {variable}
+            const doubleBracketMatches = [...fixedText.matchAll(/\{\{([^}]+)\}\}/g)];
+            if (doubleBracketMatches.length > 0) {
+                doubleBracketMatches.forEach(match => {
+                    fixes.push(`{{${match[1]}}} → {${match[1]}}`);
+                });
+                fixedText = fixedText.replace(/\{\{([^}]+)\}\}/g, '{$1}');
+            }
+            
+            // 2. Fix malformed brackets with quotes: {tools'} or {'tools} → {tools}
+            const quoteMatches = [...fixedText.matchAll(/\{([^{}]*)'([^{}]*)\}/g)];
+            if (quoteMatches.length > 0) {
+                quoteMatches.forEach(match => {
+                    const original = match[0];
+                    const fixed = `{${match[1]}${match[2]}}`;
+                    fixes.push(`${original} → ${fixed}`);
+                });
+                fixedText = fixedText.replace(/\{([^{}]*)'([^{}]*)\}/g, '{$1$2}');
+            }
+            
+            // 3. Fix quoted variable names: {'variable'} or {"variable"} → {variable}
+            const quotedVarMatches = [...fixedText.matchAll(/\{['"]([^'"]+)['"]\}/g)];
+            if (quotedVarMatches.length > 0) {
+                quotedVarMatches.forEach(match => {
+                    fixes.push(`${match[0]} → {${match[1]}}`);
+                });
+                fixedText = fixedText.replace(/\{['"]([^'"]+)['"]\}/g, '{$1}');
+            }
+            
+            // 4. Remove empty brackets {}
+            const emptyBracketMatches = [...fixedText.matchAll(/\{\s*\}/g)];
+            if (emptyBracketMatches.length > 0) {
+                emptyBracketMatches.forEach(() => {
+                    fixes.push('Empty brackets {} removed');
+                });
+                fixedText = fixedText.replace(/\{\s*\}/g, '');
+            }
+            
+            // 5. Fix spaces in variable names: {variable name} → {variable_name}
+            const spaceMatches = [...fixedText.matchAll(/\{([^{}]*\s[^{}]*)\}/g)];
+            if (spaceMatches.length > 0) {
+                spaceMatches.forEach(match => {
+                    const original = match[0];
+                    const fixed = `{${match[1].replace(/\s+/g, '_')}}`;
+                    fixes.push(`${original} → ${fixed}`);
+                });
+                fixedText = fixedText.replace(/\{([^{}]*\s[^{}]*)\}/g, (match, p1) => `{${p1.replace(/\s+/g, '_')}}`);
+            }
+            
+            // 6. Fix hyphens in variable names: {variable-name} → {variable_name}
+            const hyphenMatches = [...fixedText.matchAll(/\{([^{}]*-[^{}]*)\}/g)];
+            if (hyphenMatches.length > 0) {
+                hyphenMatches.forEach(match => {
+                    const original = match[0];
+                    const fixed = `{${match[1].replace(/-/g, '_')}}`;
+                    fixes.push(`${original} → ${fixed}`);
+                });
+                fixedText = fixedText.replace(/\{([^{}]*-[^{}]*)\}/g, (match, p1) => `{${p1.replace(/-/g, '_')}}`);
+            }
+            
+            // 7. Fix common typos like {tools'} specifically
+            const commonTypos = [
+                { pattern: /\{tools'\}/g, replacement: '{tools}', name: "{tools'} → {tools}" },
+                { pattern: /\{'tools\}/g, replacement: '{tools}', name: "{'tools} → {tools}" },
+                { pattern: /\{"\w+"'\}/g, replacement: (match) => `{${match.slice(2, -3)}}`, name: 'Mixed quotes fixed' }
+            ];
+            
+            commonTypos.forEach(({ pattern, replacement, name }) => {
+                const matches = [...fixedText.matchAll(pattern)];
+                if (matches.length > 0) {
+                    fixes.push(name);
+                    fixedText = fixedText.replace(pattern, replacement);
+                }
+            });
+            
+            return { fixedText, fixes };
+        }
+
+        function displayTest(title, original, expectedFixes) {
+            const result = fixBracketSyntax(original);
+            const resultsDiv = document.getElementById('test-results');
+            
+            const success = result.fixes.length > 0;
+            const statusColor = success ? 'text-green-600' : 'text-gray-600';
+            
+            resultsDiv.innerHTML += `
+                <div class="border rounded p-4 mb-4">
+                    <div class="font-bold ${statusColor} mb-2">${title}</div>
+                    <div class="mb-2"><strong>Original:</strong> <code class="bg-gray-100 p-1 rounded">${original}</code></div>
+                    <div class="mb-2"><strong>Fixed:</strong> <code class="bg-green-100 p-1 rounded">${result.fixedText}</code></div>
+                    <div class="mb-2"><strong>Changes:</strong></div>
+                    <ul class="ml-4 text-sm">
+                        ${result.fixes.length > 0 
+                            ? result.fixes.map(fix => `<li>• ${fix}</li>`).join('')
+                            : '<li class="text-gray-500">• No fixes needed</li>'
+                        }
+                    </ul>
+                </div>
+            `;
+        }
+
+        function testDoubleBrackets() {
+            document.getElementById('test-results').innerHTML = '';
+            displayTest(
+                '🔸 Double Brackets Test',
+                'Use {{client_name}} and {{email_open_rate}} for analysis.',
+                ['Double brackets converted to single']
+            );
+        }
+
+        function testQuotedVariables() {
+            document.getElementById('test-results').innerHTML = '';
+            displayTest(
+                '🔸 Quoted Variables Test',
+                'Check {"client_name"} and {\'email_rate\'} values.',
+                ['Quoted variables fixed']
+            );
+        }
+
+        function testMalformedBrackets() {
+            document.getElementById('test-results').innerHTML = '';
+            displayTest(
+                '🔸 Malformed Brackets Test',
+                'Fix {tools\'} and {\'client} and {} empty brackets.',
+                ['Malformed brackets fixed']
+            );
+        }
+
+        function testSpacesAndHyphens() {
+            document.getElementById('test-results').innerHTML = '';
+            displayTest(
+                '🔸 Spaces & Hyphens Test',
+                'Replace {client name} and {email-rate} and {revenue-per-user}.',
+                ['Spaces and hyphens fixed']
+            );
+        }
+
+        function testAllIssues() {
+            document.getElementById('test-results').innerHTML = '';
+            displayTest(
+                '🔸 Complex Issues Test',
+                'You are {{agent_name}} working with {"client_name"} data. Use {tools\'} to analyze {email rate} and {revenue-per-user}. Remove {} empty brackets.',
+                ['Multiple issues fixed']
+            );
+        }
+    </script>
+</body>
+</html>

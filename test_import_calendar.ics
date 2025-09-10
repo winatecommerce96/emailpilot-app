@@ -1,0 +1,88 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//EmailPilot//Campaign Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Marketing Campaign Calendar
+X-WR-TIMEZONE:America/New_York
+X-WR-CALDESC:EmailPilot campaign scheduling calendar
+
+BEGIN:VEVENT
+UID:campaign-001@emailpilot.ai
+DTSTART:20240401T140000Z
+DTEND:20240401T150000Z
+DTSTAMP:20240401T120000Z
+SUMMARY:Easter Sale Launch
+DESCRIPTION:Easter weekend sale with 40% off spring items targeting seasonal shoppers. Key messaging focuses on renewal and fresh starts.
+LOCATION:Email Campaign
+CATEGORIES:PROMOTIONAL
+STATUS:CONFIRMED
+PRIORITY:1
+END:VEVENT
+
+BEGIN:VEVENT
+UID:campaign-002@emailpilot.ai
+DTSTART:20240415T160000Z
+DTEND:20240415T170000Z
+DTSTAMP:20240415T140000Z
+SUMMARY:Earth Day Sustainability Newsletter
+DESCRIPTION:Educational content about sustainable practices and eco-friendly products. Targets environmentally conscious segment.
+LOCATION:Email Campaign
+CATEGORIES:EDUCATIONAL
+STATUS:CONFIRMED
+PRIORITY:3
+END:VEVENT
+
+BEGIN:VEVENT
+UID:campaign-003@emailpilot.ai
+DTSTART:20240501T130000Z
+DTEND:20240501T140000Z
+DTSTAMP:20240501T110000Z
+SUMMARY:May Day Flash Sale SMS
+DESCRIPTION:24-hour flash sale announcement via SMS to mobile subscribers with 50% off select items.
+LOCATION:SMS Campaign
+CATEGORIES:FLASH_SALE
+STATUS:CONFIRMED
+PRIORITY:1
+END:VEVENT
+
+BEGIN:VEVENT
+UID:campaign-004@emailpilot.ai
+DTSTART:20240512T180000Z
+DTEND:20240512T190000Z
+DTSTAMP:20240512T160000Z
+SUMMARY:Mother's Day Gift Guide
+DESCRIPTION:Curated gift guide for Mother's Day with personalized recommendations based on purchase history.
+LOCATION:Email Campaign
+CATEGORIES:SEASONAL
+STATUS:CONFIRMED
+PRIORITY:2
+END:VEVENT
+
+BEGIN:VEVENT
+UID:campaign-005@emailpilot.ai
+DTSTART:20240604T150000Z
+DTEND:20240604T160000Z
+DTSTAMP:20240604T130000Z
+SUMMARY:Summer Kickoff Welcome Series - Day 1
+DESCRIPTION:First email in automated welcome series for new summer subscribers with brand introduction and expectations.
+LOCATION:Email Campaign
+CATEGORIES:NURTURING
+STATUS:CONFIRMED
+PRIORITY:2
+END:VEVENT
+
+BEGIN:VEVENT
+UID:campaign-006@emailpilot.ai
+DTSTART:20240621T190000Z
+DTEND:20240621T200000Z
+DTSTAMP:20240621T170000Z
+SUMMARY:Summer Solstice Celebration
+DESCRIPTION:Celebrate longest day of year with community-focused content and summer product highlights.
+LOCATION:Email Campaign
+CATEGORIES:COMMUNITY
+STATUS:CONFIRMED
+PRIORITY:3
+END:VEVENT
+
+END:VCALENDAR

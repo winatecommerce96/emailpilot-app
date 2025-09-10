@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "client_name": "Fashion Forward Boutique",
+    "export_date": "2024-01-15T10:30:00Z",
+    "total_campaigns": 4,
+    "month": "2024-02"
+  },
+  "events": [
+    {
+      "id": "ff-valentine-2024",
+      "title": "Valentine's Day Collection Launch",
+      "date": "2024-02-10",
+      "event_type": "promotional",
+      "content": "Romantic collection launch with couples' gifts and special Valentine's packaging",
+      "segment": "romantic_shoppers",
+      "color": "bg-pink-300 text-pink-800",
+      "send_time": "6:00 PM EST",
+      "subject_a": "💕 Fall in Love with Our Valentine's Collection",
+      "subject_b": "💝 Perfect Gifts for Your Perfect Someone",
+      "preview_text": "Romantic styles that speak the language of love",
+      "main_cta": "Shop Valentine's Collection",
+      "offer": "25% off couples' items + free gift wrapping",
+      "ab_test": "romantic_emotion_vs_practical_gift",
+      "campaign_metadata": {
+        "expected_open_rate": 0.28,
+        "target_revenue": 15000,
+        "design_theme": "romantic_pink"
+      }
+    },
+    {
+      "title": "Valentine's Day Last Chance SMS",
+      "date": "2024-02-13",
+      "event_type": "sms", 
+      "content": "Urgent SMS reminder for last-minute Valentine's shoppers",
+      "segment": "sms_subscribers",
+      "color": "bg-orange-200 text-orange-800",
+      "send_time": "2:00 PM EST",
+      "offer": "Same-day delivery still available for Valentine's gifts!"
+    },
+    {
+      "title": "Post-Valentine's Thank You + Spring Teaser",
+      "date": "2024-02-16",
+      "event_type": "nurturing",
+      "content": "Thank customers for Valentine's purchases and tease spring collection",
+      "segment": "recent_buyers",
+      "color": "bg-green-100 text-green-800",
+      "send_time": "10:00 AM EST",
+      "subject_a": "Thank You + A Sneak Peek at What's Next...",
+      "subject_b": "Hope Your Valentine's Was Perfect! Spring Preview Inside",
+      "main_cta": "Get Spring Preview"
+    },
+    {
+      "title": "Presidents Day Weekend Sale",
+      "date": "2024-02-19",
+      "event_type": "flash sale",
+      "content": "Three-day Presidents Day weekend sale with patriotic themed messaging",
+      "segment": "bargain_hunters",
+      "color": "bg-blue-300 text-blue-800",
+      "send_time": "8:00 AM EST",
+      "subject_a": "🇺🇸 Presidents Day Sale: 40% Off Everything!",
+      "subject_b": "Celebrate Presidents Day with Presidential Savings",
+      "offer": "40% off sitewide with code PRESIDENTS40",
+      "campaign_metadata": {
+        "holiday": "presidents_day",
+        "discount_type": "percentage",
+        "discount_value": 40
+      }
+    }
+  ]
+}

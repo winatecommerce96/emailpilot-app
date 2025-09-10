@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Prompts Panel Test</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto p-8">
+        <h1 class="text-3xl font-bold mb-6">Agent Prompts Panel Test</h1>
+        
+        <div id="status" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+            <h2 class="font-bold text-blue-800">Status Checks:</h2>
+            <ul id="status-list" class="mt-2 text-sm">
+                <li>⏳ Checking component loading...</li>
+            </ul>
+        </div>
+        
+        <div id="root"></div>
+    </div>
+    
+    <script src="/static/dist/LangChainPromptsPanel.js"></script>
+    <script>
+        const statusList = document.getElementById('status-list');
+        
+        function addStatus(message, success = true) {
+            const li = document.createElement('li');
+            li.innerHTML = `${success ? '✅' : '❌'} ${message}`;
+            li.className = success ? 'text-green-700' : 'text-red-700';
+            statusList.appendChild(li);
+        }
+        
+        // Check if component loaded
+        if (typeof LangChainPromptsPanel !== 'undefined') {
+            addStatus('LangChainPromptsPanel component loaded successfully');
+            
+            // Test API endpoints
+            Promise.all([
+                fetch('/api/admin/langchain/agents').then(r => r.json()),
+                fetch('/api/admin/langchain/agents/rag/prompt').then(r => r.json()),
+                fetch('/api/admin/langchain/orchestration/variables/all?include_mcp=true&include_firestore=true').then(r => r.json())
+            ]).then(([agents, prompt, variables]) => {
+                addStatus(`Found ${agents.agents ? agents.agents.length : 0} agents`);
+                addStatus(`RAG agent prompt loaded: ${prompt.agent_name ? 'Yes' : 'No'}`);
+                addStatus(`Found ${variables.variables ? variables.variables.length : 0} variables`);
+                
+                // Mount the component
+                const root = ReactDOM.createRoot(document.getElementById('root'));
+                root.render(React.createElement(LangChainPromptsPanel));
+                addStatus('Component rendered successfully');
+            }).catch(error => {
+                addStatus(`API error: ${error.message}`, false);
+                console.error('API Error:', error);
+            });
+        } else {
+            addStatus('LangChainPromptsPanel component not found', false);
+            
+            // Check for syntax errors
+            fetch('/static/dist/LangChainPromptsPanel.js')
+                .then(r => r.text())
+                .then(script => {
+                    try {
+                        new Function(script);
+                        addStatus('Script syntax is valid but component not registered', false);
+                    } catch (e) {
+                        addStatus(`Syntax error in script: ${e.message}`, false);
+                    }
+                });
+        }
+        
+        // Log console errors
+        window.addEventListener('error', (event) => {
+            addStatus(`JavaScript error: ${event.error.message}`, false);
+            console.error('Error:', event.error);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Chat Interface - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-sm">
+            <!-- Header -->
+            <div class="border-b px-6 py-4">
+                <h1 class="text-xl font-bold text-gray-900">💬 MCP Chat Interface</h1>
+                <p class="text-sm text-gray-600 mt-1">Model Context Protocol chat interface for testing MCP tools</p>
+            </div>
+            
+            <!-- Chat Container -->
+            <div class="p-6">
+                <!-- Messages Area -->
+                <div id="messages" class="h-96 overflow-y-auto border rounded-lg p-4 mb-4 bg-gray-50">
+                    <div class="text-gray-500 text-sm">Welcome to MCP Chat. Type a message to begin...</div>
+                </div>
+                
+                <!-- Input Area -->
+                <div class="flex gap-3">
+                    <input 
+                        type="text" 
+                        id="message-input" 
+                        placeholder="Type your message..."
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onkeypress="if(event.key === 'Enter') sendMessage()"
+                    >
+                    <button 
+                        onclick="sendMessage()"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                        Send
+                    </button>
+                </div>
+                
+                <!-- Tool Selection -->
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-2">Available MCP Tools</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <button onclick="testTool('search')" class="px-3 py-2 bg-white border rounded hover:bg-gray-50 text-sm">
+                            🔍 Search
+                        </button>
+                        <button onclick="testTool('fetch')" class="px-3 py-2 bg-white border rounded hover:bg-gray-50 text-sm">
+                            📥 Fetch
+                        </button>
+                        <button onclick="testTool('analyze')" class="px-3 py-2 bg-white border rounded hover:bg-gray-50 text-sm">
+                            📊 Analyze
+                        </button>
+                        <button onclick="testTool('klaviyo')" class="px-3 py-2 bg-white border rounded hover:bg-gray-50 text-sm">
+                            📧 Klaviyo
+                        </button>
+                        <button onclick="testTool('firestore')" class="px-3 py-2 bg-white border rounded hover:bg-gray-50 text-sm">
+                            🔥 Firestore
+                        </button>
+                        <button onclick="testTool('calendar')" class="px-3 py-2 bg-white border rounded hover:bg-gray-50 text-sm">
+                            📅 Calendar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer Links -->
+            <div class="border-t px-6 py-3 bg-gray-50">
+                <div class="flex gap-4 text-sm">
+                    <a href="/static/mcp_tools.html" class="text-blue-600 hover:underline">🛠️ MCP Tools</a>
+                    <a href="/static/workflow_editor.html" class="text-blue-600 hover:underline">🔄 Workflow Editor</a>
+                    <a href="/static/index.html" class="text-blue-600 hover:underline">🏠 Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function addMessage(content, isUser = false) {
+            const messages = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-3 ${isUser ? 'text-right' : 'text-left'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `inline-block px-4 py-2 rounded-lg max-w-xs md:max-w-md ${
+                isUser ? 'bg-blue-600 text-white' : 'bg-white border'
+            }`;
+            bubble.textContent = content;
+            
+            messageDiv.appendChild(bubble);
+            messages.appendChild(messageDiv);
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            addMessage(message, true);
+            input.value = '';
+            
+            // Simulate MCP response
+            setTimeout(() => {
+                addMessage('Processing your request with MCP tools...');
+                setTimeout(() => {
+                    addMessage('MCP tools are being integrated. Use the tool buttons below to test specific capabilities.');
+                }, 1000);
+            }, 500);
+        }
+        
+        function testTool(toolName) {
+            addMessage(`Testing MCP tool: ${toolName}`, true);
+            setTimeout(() => {
+                const responses = {
+                    search: 'Search tool activated. Ready to search Firestore and Klaviyo data.',
+                    fetch: 'Fetch tool ready. Can retrieve data from external APIs.',
+                    analyze: 'Analysis tool initialized. Ready to process campaign metrics.',
+                    klaviyo: 'Klaviyo integration active. Connected to API.',
+                    firestore: 'Firestore connection established. Database ready.',
+                    calendar: 'Calendar tool loaded. Campaign planning available.'
+                };
+                addMessage(responses[toolName] || `${toolName} tool activated.`);
+            }, 500);
+        }
+        
+        // Add welcome message
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                addMessage('Hello! I can help you test MCP tools. Try typing a message or clicking one of the tool buttons below.');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

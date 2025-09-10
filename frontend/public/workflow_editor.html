@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Editor - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h1 class="text-2xl font-bold text-gray-900 mb-4">🔄 Workflow Editor</h1>
+            <p class="text-gray-600 mb-6">Design and manage your email automation workflows.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="border rounded-lg p-4">
+                    <h2 class="font-semibold text-gray-800 mb-3">📊 LangGraph Studio Integration</h2>
+                    <p class="text-sm text-gray-600 mb-3">
+                        Connect to LangGraph Studio for visual workflow editing.
+                    </p>
+                    <div class="space-y-2">
+                        <a href="http://localhost:2024" target="_blank" class="block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-center">
+                            Open LangGraph Studio
+                        </a>
+                        <p class="text-xs text-gray-500">Requires LangGraph Studio running on port 2024</p>
+                    </div>
+                </div>
+                
+                <div class="border rounded-lg p-4">
+                    <h2 class="font-semibold text-gray-800 mb-3">🤖 Agent Management</h2>
+                    <p class="text-sm text-gray-600 mb-3">
+                        Configure and test EmailPilot agents.
+                    </p>
+                    <div class="space-y-2">
+                        <a href="/static/test_all_agents.html" class="block px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-center">
+                            Test All Agents
+                        </a>
+                        <a href="/static/test_agent_prompts_final.html" class="block px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-center">
+                            Edit Agent Prompts
+                        </a>
+                        <a href="/agent_creator.html" class="block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-center">
+                            🆕 Create New Agent
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 bg-gray-50 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-800 mb-2">Quick Links</h3>
+                <ul class="space-y-1">
+                    <li><a href="/static/index.html" class="text-blue-600 hover:underline">← Back to Dashboard</a></li>
+                    <li><a href="/static/calendar_planner.html" class="text-blue-600 hover:underline">📅 Calendar Planner</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

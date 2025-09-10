@@ -7,6 +7,14 @@
 help:
 	@echo "EmailPilot Development Commands:"
 	@echo ""
+	@echo "🎯 Workflow Management (NEW):"
+	@echo "  make workflow-hub    - Open Workflow Management Hub in browser"
+	@echo "  make workflow-new    - Create new workflow with wizard"
+	@echo "  make workflow-test   - Test workflows with real data"
+	@echo "  make agent-list      - List all available AI agents"
+	@echo "  make calendar-plan   - Plan next month's email calendar"
+	@echo "  make tools-available - Show all Enhanced MCP tools"
+	@echo ""
 	@echo "🚀 Development:"
 	@echo "  make setup      - Install dependencies and start dev server"
 	@echo "  make setup-emu  - Install dependencies and start with emulator"
@@ -199,6 +207,76 @@ status:
 	@curl -s http://localhost:8000/api/calendar/health > /dev/null 2>&1 && echo "✅ Available" || echo "❌ Not available"
 	@echo -n "Auth API: "
 	@curl -s http://localhost:8000/api/auth/session > /dev/null 2>&1 && echo "✅ Available" || echo "❌ Not available"
+
+# ========== WORKFLOW MANAGEMENT COMMANDS ==========
+# Open Workflow Hub in browser
+workflow-hub:
+	@echo "🎯 Opening Workflow Management Hub..."
+	@python -m webbrowser "http://localhost:8000/static/workflow_hub.html" || open "http://localhost:8000/static/workflow_hub.html" || xdg-open "http://localhost:8000/static/workflow_hub.html"
+	@echo "✅ Hub opened in browser"
+
+# Create new workflow with wizard
+workflow-new:
+	@echo "🪄 Opening Workflow Creation Wizard..."
+	@python -m webbrowser "http://localhost:8000/static/workflow_wizard.html" || open "http://localhost:8000/static/workflow_wizard.html" || xdg-open "http://localhost:8000/static/workflow_wizard.html"
+	@echo "✅ Wizard opened in browser"
+
+# Test workflows
+workflow-test:
+	@echo "🧪 Testing Enhanced MCP and Workflows..."
+	@python verify_enhanced_mcp.py || echo "⚠️  Please ensure services are running: make dev"
+
+# List all agents
+agent-list:
+	@echo "🤖 Available AI Agents with Enhanced MCP:"
+	@echo ""
+	@echo "High Priority:"
+	@echo "  • monthly_goals_generator_v3 - Revenue goal planning"
+	@echo "  • calendar_planner - Campaign scheduling"
+	@echo "  • ab_test_coordinator - A/B test management"
+	@echo ""
+	@echo "Medium Priority:"
+	@echo "  • revenue_analyst - Financial analysis"
+	@echo "  • campaign_strategist - Strategy planning"
+	@echo "  • audience_architect - Segmentation"
+	@echo "  • compliance_checker - Regulatory compliance"
+	@echo "  • engagement_optimizer - Engagement optimization"
+	@echo "  • performance_analyst - Performance metrics"
+	@echo ""
+	@echo "All agents have Enhanced MCP tools for real Klaviyo data access"
+
+# Plan calendar
+calendar-plan:
+	@echo "📅 Opening Calendar Planner..."
+	@python -m webbrowser "http://localhost:8000/static/calendar_planner.html" || open "http://localhost:8000/static/calendar_planner.html" || xdg-open "http://localhost:8000/static/calendar_planner.html"
+	@echo "✅ Calendar planner opened"
+
+# Show available tools
+tools-available:
+	@echo "🔧 Enhanced MCP Tools (26 Available):"
+	@echo ""
+	@echo "📧 Campaign Tools:"
+	@echo "  • campaigns.list - List all campaigns"
+	@echo "  • campaigns.get - Get specific campaign"
+	@echo "  • campaign_messages.list - List campaign messages"
+	@echo ""
+	@echo "📊 Metrics Tools:"
+	@echo "  • metrics.list - List all metrics"
+	@echo "  • metrics.aggregate - Aggregate metrics data"
+	@echo "  • metrics.timeline - Timeline metrics"
+	@echo "  • reporting.revenue - Revenue reports"
+	@echo ""
+	@echo "👥 Audience Tools:"
+	@echo "  • segments.list - List segments"
+	@echo "  • segments.get - Get segment details"
+	@echo "  • profiles.get - Get profile data"
+	@echo ""
+	@echo "🎯 Event Tools:"
+	@echo "  • events.list - List events"
+	@echo "  • flows.list - List flows"
+	@echo "  • templates.list - List templates"
+	@echo ""
+	@echo "Use 'rogue-creamery' client for testing (has API keys configured)"
 
 # Extended status with HTTP codes and snippets
 status-all:

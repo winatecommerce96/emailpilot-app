@@ -1,0 +1,107 @@
+[
+  {
+    "description": "Check Python version",
+    "command": "python3 --version",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "Python 3.12.7"
+  },
+  {
+    "description": "Check pip",
+    "command": "pip3 --version",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "pip 25.2 from /opt/anaconda3/lib/python3.12/site-packages/pip (python 3.12)"
+  },
+  {
+    "description": "Check uvicorn",
+    "command": "uvicorn --version",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "Running uvicorn 0.29.0 with CPython 3.12.7 on Darwin"
+  },
+  {
+    "description": "Check npm",
+    "command": "npm --version",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "11.5.1"
+  },
+  {
+    "description": "Check make",
+    "command": "make --version | head -1",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "GNU Make 3.81"
+  },
+  {
+    "description": "Test make help",
+    "command": "make help",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "EmailPilot Development Commands:\n\n\ud83d\ude80 Development:\n  make setup      - Install dependencies and start dev server\n  make setup-emu  - Install dependencies and start with emulator\n  make dev        - Star"
+  },
+  {
+    "description": "Check for requirements.txt",
+    "command": "ls -la requirements.txt",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "-rw-r--r--  1 Damon  staff  687 Aug 20 15:43 requirements.txt"
+  },
+  {
+    "description": "Check for package.json",
+    "command": "ls -la package.json",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "-rw-r--r--  1 Damon  staff  428 Aug 22 14:36 package.json"
+  },
+  {
+    "description": "Check for Makefile",
+    "command": "ls -la Makefile",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "-rw-r--r--  1 Damon  staff  13546 Aug 17 21:29 Makefile"
+  },
+  {
+    "description": "Check main_firestore.py",
+    "command": "ls -la main_firestore.py",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "-rw-r--r--  1 Damon  staff  35482 Aug 22 12:04 main_firestore.py"
+  },
+  {
+    "description": "Test Python imports",
+    "command": "python3 -c \"import fastapi; import uvicorn; print(\"FastAPI imports OK\")\"",
+    "status": "\ud83d\udfe8 Partial",
+    "exit_code": 1,
+    "output_preview": "File \"<string>\", line 1\n    import fastapi; import uvicorn; print(FastAPI\n                                         ^\nSyntaxError: '(' was never closed"
+  },
+  {
+    "description": "Check frontend build dir",
+    "command": "ls -la frontend/public/dist/ | head -5",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "No output"
+  },
+  {
+    "description": "Check scripts dir",
+    "command": "ls -la scripts/ | head -10",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "total 712\ndrwxr-xr-x    3 Damon  staff     96 Aug 22 14:04 _orchestrator_logs\ndrwxr-xr-x   55 Damon  staff   1760 Aug 22 14:10 .\ndrwxr-xr-x  539 Damon  staff  17248 Aug 25 06:13 ..\n-rw-r--r--@   1 Dam"
+  },
+  {
+    "description": "Check workflow dir",
+    "command": "ls -la workflow/ | head -5",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "total 192\ndrwxr-xr-x    3 Damon  staff     96 Aug 22 10:23 __pycache__\ndrwxr-xr-x   27 Damon  staff    864 Aug 25 05:50 .\ndrwxr-xr-x  539 Damon  staff  17248 Aug 25 06:13 ..\n-rw-r--r--@   1 Damon  sta"
+  },
+  {
+    "description": "Check multi-agent dir",
+    "command": "ls -la multi-agent/ | head -5",
+    "status": "\u2705 Works",
+    "exit_code": 0,
+    "output_preview": "total 160\n-rw-r--r--    1 Damon  staff      0 Aug 19 21:48 __init__.py\ndrwxr-xr-x    3 Damon  staff     96 Aug 19 21:49 __pycache__\ndrwxr-xr-x   26 Damon  staff    832 Aug 20 07:57 .\ndrwxr-xr-x  539 D"
+  }
+]

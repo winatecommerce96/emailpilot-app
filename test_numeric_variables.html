@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Numeric Variable Validation Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">🔢 Numeric Variable Validation Test</h1>
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-6">
+            <h2 class="text-lg font-semibold mb-4">Test Cases</h2>
+            <div class="space-y-4">
+                <button onclick="testNumericVariables()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                    Test Numeric Variables
+                </button>
+                <button onclick="testMixedVariables()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                    Test Mixed Variables
+                </button>
+                <button onclick="testInvalidQuotes()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                    Test Invalid Quotes
+                </button>
+            </div>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">Validation Results</h2>
+            <div id="test-results" class="font-mono text-sm space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        function validateBracketSyntax(text) {
+            const results = {
+                hasErrors: false,
+                criticalErrors: [],
+                warnings: []
+            };
+            
+            // Check for various bracket syntax issues - CORRECTED for LangChain
+            const bracketPatterns = [
+                // Invalid variable patterns - only match actual quoted strings, not numeric variables
+                { pattern: /\{['"]([^'"]+)['"]\}/g, type: 'critical', message: 'Quoted variable name', suggestion: 'Remove quotes, use {variable_name}' },
+                { pattern: /\{([^{}'"\d]+)'([^{}]*)\}/g, type: 'critical', message: 'Invalid quote inside brackets', suggestion: 'Remove quotes from variable names' },
+                { pattern: /\{([^{}"'\d]+)"([^{}]*)\}/g, type: 'critical', message: 'Invalid quote inside brackets', suggestion: 'Remove quotes from variable names' },
+                
+                // Empty brackets
+                { pattern: /\{\}/g, type: 'critical', message: 'Empty brackets', suggestion: 'Add variable name: {variable_name}' },
+                
+                // Spaces in variable names
+                { pattern: /\{[^{}]*\s+[^{}]*\}/g, type: 'warning', message: 'Spaces in variable name', suggestion: 'Use underscores: {variable_name}' },
+                
+                // Hyphens (warning)
+                { pattern: /\{[^{}]*-[^{}]*\}/g, type: 'warning', message: 'Hyphen in variable name', suggestion: 'Consider using underscores: {variable_name}' },
+                
+                // Double brackets (should be single for LangChain)
+                { pattern: /\{\{[^}]+\}\}/g, type: 'critical', message: 'Double brackets detected', suggestion: 'Use single brackets: {variable}' }
+            ];
+            
+            bracketPatterns.forEach(({ pattern, type, message, suggestion }) => {
+                const matches = [...text.matchAll(pattern)];
+                matches.forEach(match => {
+                    const issue = {
+                        text: match[0],
+                        index: match.index,
+                        message: message,
+                        suggestion: suggestion
+                    };
+                    
+                    if (type === 'critical') {
+                        results.criticalErrors.push(issue);
+                        results.hasErrors = true;
+                    } else {
+                        results.warnings.push(issue);
+                    }
+                });
+            });
+            
+            return results;
+        }
+
+        function displayValidation(title, text) {
+            const validation = validateBracketSyntax(text);
+            const resultsDiv = document.getElementById('test-results');
+            
+            const hasIssues = validation.criticalErrors.length > 0 || validation.warnings.length > 0;
+            const statusColor = validation.criticalErrors.length > 0 ? 'text-red-600' : 
+                               validation.warnings.length > 0 ? 'text-yellow-600' : 'text-green-600';
+            const statusText = validation.criticalErrors.length > 0 ? '❌ Has Errors' : 
+                              validation.warnings.length > 0 ? '⚠️ Has Warnings' : '✅ Valid';
+            
+            resultsDiv.innerHTML += `
+                <div class="border rounded p-4 mb-4">
+                    <div class="font-bold ${statusColor} mb-2">${title} - ${statusText}</div>
+                    <div class="mb-2"><strong>Text:</strong> <code class="bg-gray-100 p-1 rounded text-xs">${text}</code></div>
+                    ${validation.criticalErrors.length > 0 ? `
+                        <div class="mb-2 text-red-600">
+                            <strong>Critical Errors:</strong>
+                            <ul class="ml-4 text-sm">
+                                ${validation.criticalErrors.map(err => `<li>• "${err.text}" - ${err.message}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    ${validation.warnings.length > 0 ? `
+                        <div class="mb-2 text-yellow-600">
+                            <strong>Warnings:</strong>
+                            <ul class="ml-4 text-sm">
+                                ${validation.warnings.map(warn => `<li>• "${warn.text}" - ${warn.message}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    ${!hasIssues ? '<div class="text-green-600 text-sm">✅ No issues found - all syntax is valid!</div>' : ''}
+                </div>
+            `;
+        }
+
+        function testNumericVariables() {
+            document.getElementById('test-results').innerHTML = '';
+            displayValidation(
+                '🔢 Numeric Variables Test',
+                'These are valid variables: {1}, {2}, {3}, {10}, {100}, {client_1}, {metric_2}'
+            );
+        }
+
+        function testMixedVariables() {
+            document.getElementById('test-results').innerHTML = '';
+            displayValidation(
+                '🔤 Mixed Variables Test',
+                'Mix of valid: {client_name}, {1}, {revenue}, {2}, {email_rate}, {100}'
+            );
+        }
+
+        function testInvalidQuotes() {
+            document.getElementById('test-results').innerHTML = '';
+            displayValidation(
+                '❌ Invalid Quotes Test',
+                'These should be errors: {"client"}, {\'revenue\'}, {tools\'}, but {1} and {2} are valid'
+            );
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+[
+  {
+    "service": "MCP Revenue API",
+    "endpoint": "GET /healthz",
+    "status": "\u2705 Works",
+    "status_code": 200
+  },
+  {
+    "service": "MCP Revenue API",
+    "endpoint": "GET /clients/by-slug/rogue-creamery/revenue/last7?timeframe_key=last_7_days",
+    "status": "\ud83d\udfe5 Broken",
+    "error": "HTTPConnectionPool(host='localhost', port=9090): Read timed out. (read timeout=2)"
+  },
+  {
+    "service": "MCP Revenue API",
+    "endpoint": "GET /clients/by-slug/rogue-creamery/weekly/metrics",
+    "status": "\ud83d\udfe5 Broken",
+    "error": "HTTPConnectionPool(host='localhost', port=9090): Read timed out. (read timeout=2)"
+  },
+  {
+    "service": "MCP Performance API",
+    "endpoint": "GET /healthz",
+    "status": "\u2705 Works",
+    "status_code": 200
+  },
+  {
+    "service": "MCP Performance API",
+    "endpoint": "POST /jobs/weekly?client_id=demo",
+    "status": "\ud83d\udfe8 Likely works",
+    "status_code": 422
+  }
+]

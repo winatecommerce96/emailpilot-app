@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Creator Pro - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .variable-category { transition: all 0.3s ease; }
+        .variable-category.collapsed { max-height: 48px; overflow: hidden; }
+        .variable-item { cursor: pointer; transition: background 0.2s; }
+        .variable-item:hover { background: rgb(239 246 255); }
+        .copied { animation: pulse 0.5s; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        
+        /* Agent Dropdown Constraints */
+        .agent-dropdown {
+            max-width: calc(100% - 80px); /* Leave space for Load button */
+            min-width: 200px;
+        }
+        .agent-dropdown option {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        
+        @media (max-width: 640px) {
+            .agent-dropdown {
+                max-width: calc(100% - 70px); /* Smaller button spacing on mobile */
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b sticky top-0 z-10">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">🤖 AI Agent Creator Pro</h1>
+                        <p class="text-sm text-gray-600 mt-1">Create agents with full variable integration</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <span id="variable-count" class="px-3 py-2 bg-blue-100 text-blue-700 rounded text-sm font-medium">
+                            Loading variables...
+                        </span>
+                        <button onclick="refreshVariables()" class="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                <!-- Left: Variable Reference Panel -->
+                <div class="xl:col-span-1">
+                    <div class="bg-white rounded-lg shadow-sm p-4 sticky top-24">
+                        <h2 class="font-semibold text-gray-900 mb-3">📚 Available Variables</h2>
+                        <div class="mb-3">
+                            <input type="text" id="variable-search" placeholder="Search variables..." 
+                                class="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                                onkeyup="filterVariables()">
+                        </div>
+                        <div id="variables-reference" class="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
+                            <div class="text-gray-500 text-sm">Loading variables...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center: Agent Creation Form -->
+                <div class="xl:col-span-2">
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <h2 class="text-lg font-semibold text-gray-900 mb-4">Agent Configuration</h2>
+                        
+                        <!-- Load Existing Agent -->
+                        <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <label class="block text-sm font-medium text-blue-900 mb-2">Load Existing Agent</label>
+                            <div class="flex gap-2 items-center">
+                                <select id="existing-agents-select" class="agent-dropdown px-3 py-2 border border-blue-300 rounded bg-white text-sm flex-grow">
+                                    <option value="">-- Select an agent to edit --</option>
+                                </select>
+                                <button onclick="loadExistingAgent()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm whitespace-nowrap flex-shrink-0">
+                                    Load
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Basic Info -->
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Agent Name</label>
+                                <input type="text" id="agent-name" placeholder="e.g., revenue_optimizer" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <input type="text" id="agent-description" placeholder="What does this agent do?" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Agent Type</label>
+                                <select id="agent-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="general">General Purpose</option>
+                                    <option value="email">Email/SMS Specialist</option>
+                                    <option value="analytics">Analytics & Reporting</option>
+                                    <option value="planning">Campaign Planning</option>
+                                    <option value="creative">Creative & Content</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- System Prompt with Variable Helper -->
+                        <div class="mb-6">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-medium text-gray-700">System Prompt</label>
+                                <div class="text-xs text-gray-500">
+                                    Click variables on the left to insert →
+                                </div>
+                            </div>
+                            <textarea id="system-prompt" rows="12" placeholder="Enter the agent's system prompt. Use {{variable_name}} syntax for variables..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                            
+                            <div class="mt-2 flex gap-2">
+                                <button onclick="optimizePrompt()" class="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700">
+                                    ✨ AI Optimize
+                                </button>
+                                <button onclick="loadTemplate()" class="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700">
+                                    📋 Template
+                                </button>
+                                <button onclick="validateVariables()" class="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700">
+                                    ✔️ Validate
+                                </button>
+                            </div>
+                            
+                            <div id="variable-validation" class="mt-2"></div>
+                        </div>
+
+                        <!-- Tools & Policies -->
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Allowed Tools</label>
+                                <div class="space-y-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" name="tools" value="search" class="mr-2">
+                                        <span class="text-sm">Search</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" name="tools" value="klaviyo" class="mr-2" checked>
+                                        <span class="text-sm">Klaviyo API</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" name="tools" value="firestore" class="mr-2" checked>
+                                        <span class="text-sm">Firestore</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Policies</label>
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="text-xs text-gray-600">Max Tool Calls</label>
+                                        <input type="number" id="max-tool-calls" value="10" min="1" max="50"
+                                            class="w-full px-2 py-1 border rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-600">Timeout (sec)</label>
+                                        <input type="number" id="timeout-seconds" value="30" min="10" max="300"
+                                            class="w-full px-2 py-1 border rounded text-sm">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex gap-3">
+                            <button onclick="createAgent()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                                🚀 Create Agent
+                            </button>
+                            <button onclick="testAgent()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                                🧪 Test
+                            </button>
+                            <button onclick="resetForm()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Status & Optimization -->
+                <div class="xl:col-span-1 space-y-6">
+                    <!-- AI Optimization -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <h3 class="font-semibold text-gray-900 mb-3">🎯 AI Optimization</h3>
+                        <div id="optimization-results" class="text-sm text-gray-600">
+                            <p class="text-gray-500">Click "AI Optimize" for suggestions</p>
+                        </div>
+                    </div>
+
+                    <!-- Variable Usage Stats -->
+                    <div class="bg-white rounded-lg shadow-sm p-4">
+                        <h3 class="font-semibold text-gray-900 mb-3">📊 Variable Usage</h3>
+                        <div id="variable-stats" class="text-sm space-y-1">
+                            <div class="text-gray-500">No variables used yet</div>
+                        </div>
+                    </div>
+
+                    <!-- Creation Log -->
+                    <div class="bg-gray-900 rounded-lg p-4">
+                        <h3 class="text-green-400 font-mono text-sm mb-2">Console</h3>
+                        <pre id="console" class="text-green-400 text-xs font-mono h-32 overflow-y-auto">Ready...</pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let allVariables = {};
+        let variableCategories = {};
+        let loadedAgentData = {};
+        
+        const log = (msg, type = 'info') => {
+            const console = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            const symbols = {error: '❌', success: '✅', warning: '⚠️', info: 'ℹ️'};
+            console.textContent += `\n${symbols[type]} [${time}] ${msg}`;
+            console.scrollTop = console.scrollHeight;
+        };
+
+        async function loadVariables() {
+            try {
+                log('Loading variables from API...');
+                const response = await fetch('/api/variables/all');
+                if (response.ok) {
+                    const data = await response.json();
+                    allVariables = data.variables;
+                    variableCategories = data.variables;
+                    
+                    const total = data.metadata.total_variables;
+                    document.getElementById('variable-count').textContent = `${total}+ Variables Available`;
+                    document.getElementById('variable-count').className = 'px-3 py-2 bg-green-100 text-green-700 rounded text-sm font-medium';
+                    
+                    renderVariables();
+                    log(`Loaded ${total} variables`, 'success');
+                }
+            } catch (error) {
+                log(`Failed to load variables: ${error.message}`, 'error');
+                loadFallbackVariables();
+            }
+        }
+
+        async function loadAgentsList() {
+            try {
+                // Load from agent creator endpoint
+                const response = await fetch('/api/admin/agent-creator/agents');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const agents = await response.json();
+                
+                // Clear the cache
+                loadedAgentData = {};
+                
+                // Populate dropdown
+                const select = document.getElementById('existing-agents-select');
+                select.innerHTML = '<option value="">-- Select an agent to edit --</option>';
+                
+                agents.forEach(agent => {
+                    const option = document.createElement('option');
+                    // Use agent_id or id as the value
+                    const agentId = agent.agent_id || agent.id || agent.name;
+                    option.value = agentId;
+                    
+                    // Store the full agent data for later use
+                    loadedAgentData[agentId] = agent;
+                    
+                    // Display name can be display_name, name, agent_id or id
+                    const displayName = agent.display_name || agent.name || agent.agent_id || agent.id;
+                    const description = agent.description || agent.role || 'No description';
+                    
+                    // Truncate long text for better dropdown display
+                    const maxDisplayLength = 45; // Adjust based on typical container width
+                    const fullText = `${displayName} - ${description}`;
+                    const truncatedText = fullText.length > maxDisplayLength 
+                        ? fullText.substring(0, maxDisplayLength - 3) + '...'
+                        : fullText;
+                    
+                    option.textContent = truncatedText;
+                    option.title = fullText; // Show full text on hover
+                    select.appendChild(option);
+                });
+                
+                log(`Loaded ${agents.length} existing agents`, 'success');
+            } catch (error) {
+                log(`Failed to load agents list: ${error.message}`, 'error');
+                console.error('Error loading agents:', error);
+            }
+        }
+
+        async function loadExistingAgent() {
+            const agentId = document.getElementById('existing-agents-select').value;
+            if (!agentId) {
+                alert('Please select an agent to load');
+                return;
+            }
+            
+            log(`Loading agent: ${agentId}...`);
+            
+            try {
+                let agentData = null;
+                
+                // First check if we have the data cached from the list
+                if (loadedAgentData[agentId]) {
+                    agentData = loadedAgentData[agentId];
+                    log('Using cached agent data');
+                } else {
+                    // Try to fetch the specific agent
+                    try {
+                        const response = await fetch(`/api/admin/agent-creator/agent/${agentId}`);
+                    if (response.ok) {
+                        agentData = await response.json();
+                    }
+                } catch (e) {
+                        log(`Failed to fetch individual agent: ${e.message}`, 'warning');
+                    }
+                }
+                
+                if (agentData) {
+                    // Populate form fields
+                    // Use appropriate field names based on what's available
+                    const name = agentData.name || agentData.agent_id || agentData.id || '';
+                    const description = agentData.description || agentData.role || '';
+                    const prompt = agentData.prompt_template || agentData.system_prompt || '';
+                    
+                    document.getElementById('agent-name').value = name;
+                    document.getElementById('agent-description').value = description;
+                    document.getElementById('system-prompt').value = prompt;
+                    
+                    // Set agent type if available
+                    if (agentData.type) {
+                        document.getElementById('agent-type').value = agentData.type;
+                    }
+                    
+                    // Set policies
+                    if (agentData.policy) {
+                        document.getElementById('max-tool-calls').value = agentData.policy.max_tool_calls || 10;
+                        document.getElementById('timeout-seconds').value = agentData.policy.timeout_seconds || 30;
+                        
+                        // Set allowed tools
+                        document.querySelectorAll('input[name="tools"]').forEach(cb => cb.checked = false);
+                        if (agentData.policy.allowed_tools) {
+                            agentData.policy.allowed_tools.forEach(tool => {
+                                const checkbox = document.querySelector(`input[name="tools"][value="${tool}"]`);
+                                if (checkbox) checkbox.checked = true;
+                            });
+                        }
+                    }
+                    
+                    // Handle capabilities (alternative to allowed_tools)
+                    if (agentData.capabilities && Array.isArray(agentData.capabilities)) {
+                        document.querySelectorAll('input[name="tools"]').forEach(cb => cb.checked = false);
+                        agentData.capabilities.forEach(capability => {
+                            const checkbox = document.querySelector(`input[name="tools"][value="${capability}"]`);
+                            if (checkbox) checkbox.checked = true;
+                        });
+                    }
+                    
+                    updateVariableStats();
+                    validateVariables();
+                    log(`Loaded agent: ${name}`, 'success');
+                    
+                    // Show update button
+                    showUpdateButton(agentId);
+                } else {
+                    log(`Agent ${agentId} not found`, 'error');
+                    alert('Could not load agent data. The agent may not exist or there was an error fetching it.');
+                }
+            } catch (error) {
+                log(`Error loading agent: ${error.message}`, 'error');
+                console.error('Full error:', error);
+                alert('Error loading agent: ' + error.message);
+            }
+        }
+
+        function showUpdateButton(agentName) {
+            // Add an update button next to create button
+            const existingUpdate = document.getElementById('update-btn');
+            if (existingUpdate) existingUpdate.remove();
+            
+            const createBtn = document.querySelector('button[onclick="createAgent()"]');
+            const updateBtn = document.createElement('button');
+            updateBtn.id = 'update-btn';
+            updateBtn.className = 'px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium';
+            updateBtn.textContent = '🔄 Update Agent';
+            updateBtn.onclick = () => updateAgent(agentName);
+            
+            createBtn.parentElement.insertBefore(updateBtn, createBtn.nextSibling);
+        }
+
+        async function updateAgent(originalName) {
+            const name = document.getElementById('agent-name').value;
+            const description = document.getElementById('agent-description').value;
+            const prompt = document.getElementById('system-prompt').value;
+            
+            if (!name || !description || !prompt) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            const tools = Array.from(document.querySelectorAll('input[name="tools"]:checked')).map(cb => cb.value);
+            
+            const agentConfig = {
+                name: name,
+                description: description,
+                type: document.getElementById('agent-type').value,
+                prompt_template: prompt,
+                variables: [],
+                policy: {
+                    allowed_tools: tools,
+                    max_tool_calls: parseInt(document.getElementById('max-tool-calls').value),
+                    timeout_seconds: parseInt(document.getElementById('timeout-seconds').value)
+                }
+            };
+            
+            log(`Updating agent: ${originalName}...`);
+            
+            try {
+                // For now, create a new version (can implement PUT endpoint later)
+                const response = await fetch('/api/admin/agent-creator/agents', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...agentConfig, version: "2.0"})
+                });
+                
+                if (response.ok) {
+                    log(`Agent ${name} updated successfully!`, 'success');
+                    alert(`✅ Agent "${name}" updated!`);
+                    loadAgentsList(); // Refresh the list
+                } else {
+                    const error = await response.json();
+                    log(`Update failed: ${error.detail}`, 'error');
+                    alert(`Error: ${error.detail}`);
+                }
+            } catch (error) {
+                log(`Update error: ${error.message}`, 'error');
+            }
+        }
+
+        function renderVariables() {
+            const container = document.getElementById('variables-reference');
+            let html = '';
+            
+            for (const [category, vars] of Object.entries(variableCategories)) {
+                const count = Object.keys(vars).length;
+                html += `
+                    <div class="variable-category border rounded-lg">
+                        <div class="px-3 py-2 bg-gray-50 font-medium text-sm cursor-pointer flex justify-between items-center"
+                             onclick="toggleCategory('${category}')">
+                            <span>${category.charAt(0).toUpperCase() + category.slice(1)} (${count})</span>
+                            <span id="arrow-${category}">▼</span>
+                        </div>
+                        <div id="vars-${category}" class="p-2 space-y-1">
+                `;
+                
+                for (const [key, value] of Object.entries(vars)) {
+                    const displayValue = typeof value === 'string' ? value : JSON.stringify(value);
+                    html += `
+                        <div class="variable-item px-2 py-1 text-xs rounded cursor-pointer flex justify-between items-center"
+                             onclick="insertVariable('${key}', '${category}')">
+                            <span class="font-mono text-gray-700">${key}</span>
+                            <span class="text-gray-400">${displayValue.substring(0, 20)}...</span>
+                        </div>
+                    `;
+                }
+                
+                html += `</div></div>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function toggleCategory(category) {
+            const varsDiv = document.getElementById(`vars-${category}`);
+            const arrow = document.getElementById(`arrow-${category}`);
+            if (varsDiv.style.display === 'none') {
+                varsDiv.style.display = 'block';
+                arrow.textContent = '▼';
+            } else {
+                varsDiv.style.display = 'none';
+                arrow.textContent = '▶';
+            }
+        }
+
+        function insertVariable(varName, category) {
+            const prompt = document.getElementById('system-prompt');
+            const cursorPos = prompt.selectionStart;
+            const text = prompt.value;
+            const varSyntax = `{{${varName}}}`;
+            
+            prompt.value = text.slice(0, cursorPos) + varSyntax + text.slice(cursorPos);
+            prompt.focus();
+            prompt.setSelectionRange(cursorPos + varSyntax.length, cursorPos + varSyntax.length);
+            
+            // Flash the variable item
+            event.target.classList.add('copied', 'bg-blue-100');
+            setTimeout(() => event.target.classList.remove('copied', 'bg-blue-100'), 500);
+            
+            updateVariableStats();
+            log(`Inserted variable: ${varName}`);
+        }
+
+        function filterVariables() {
+            const search = document.getElementById('variable-search').value.toLowerCase();
+            const items = document.querySelectorAll('.variable-item');
+            
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(search) ? 'flex' : 'none';
+            });
+        }
+
+        function updateVariableStats() {
+            const prompt = document.getElementById('system-prompt').value;
+            const regex = /\{\{(\w+)\}\}/g;
+            const matches = [...prompt.matchAll(regex)];
+            const stats = document.getElementById('variable-stats');
+            
+            if (matches.length > 0) {
+                const unique = [...new Set(matches.map(m => m[1]))];
+                stats.innerHTML = `
+                    <div class="text-green-600">✓ ${matches.length} variables used</div>
+                    <div class="text-gray-600">${unique.length} unique</div>
+                    <div class="text-xs text-gray-500 mt-2">
+                        ${unique.slice(0, 5).join(', ')}${unique.length > 5 ? '...' : ''}
+                    </div>
+                `;
+            } else {
+                stats.innerHTML = '<div class="text-gray-500">No variables used yet</div>';
+            }
+        }
+
+        function validateVariables() {
+            const prompt = document.getElementById('system-prompt').value;
+            const regex = /\{\{(\w+)\}\}/g;
+            const matches = [...prompt.matchAll(regex)];
+            const validation = document.getElementById('variable-validation');
+            
+            const invalid = [];
+            const valid = [];
+            
+            // Flatten all variables for checking
+            const allVarNames = new Set();
+            for (const vars of Object.values(variableCategories)) {
+                for (const key of Object.keys(vars)) {
+                    allVarNames.add(key);
+                }
+            }
+            
+            matches.forEach(match => {
+                if (allVarNames.has(match[1])) {
+                    valid.push(match[1]);
+                } else {
+                    invalid.push(match[1]);
+                }
+            });
+            
+            if (invalid.length > 0) {
+                validation.innerHTML = `
+                    <div class="p-2 bg-red-50 border border-red-200 rounded text-xs">
+                        <span class="text-red-700">⚠️ Invalid variables: ${invalid.join(', ')}</span>
+                    </div>
+                `;
+            } else if (valid.length > 0) {
+                validation.innerHTML = `
+                    <div class="p-2 bg-green-50 border border-green-200 rounded text-xs">
+                        <span class="text-green-700">✅ All ${valid.length} variables are valid</span>
+                    </div>
+                `;
+            } else {
+                validation.innerHTML = '';
+            }
+        }
+
+        async function optimizePrompt() {
+            const prompt = document.getElementById('system-prompt').value;
+            const type = document.getElementById('agent-type').value;
+            
+            if (!prompt) {
+                alert('Please enter a prompt to optimize');
+                return;
+            }
+
+            log('Optimizing prompt with AI...');
+            const resultsDiv = document.getElementById('optimization-results');
+            resultsDiv.innerHTML = '<div class="text-blue-600">🔄 Analyzing...</div>';
+
+            try {
+                const response = await fetch('/api/admin/agent-creator/optimize-prompt', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        agent_type: type
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML = `
+                        <div class="space-y-2">
+                            <div class="p-2 bg-green-50 rounded">
+                                <div class="font-medium text-green-800">Score: ${data.score}/100</div>
+                                <div class="text-xs text-green-700">${data.summary}</div>
+                            </div>
+                            ${data.suggestions?.length > 0 ? data.suggestions.map(s => `
+                                <div class="p-2 bg-blue-50 rounded text-xs">
+                                    <strong>${s.type}:</strong> ${s.text}
+                                </div>
+                            `).join('') : ''}
+                            ${data.optimized_prompt ? `
+                                <button onclick="applyOptimized('${btoa(data.optimized_prompt)}')" 
+                                    class="w-full px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">
+                                    Apply Optimized
+                                </button>
+                            ` : ''}
+                        </div>
+                    `;
+                    log('Optimization complete', 'success');
+                }
+            } catch (error) {
+                log(`Optimization error: ${error.message}`, 'error');
+            }
+        }
+
+        function applyOptimized(encodedPrompt) {
+            document.getElementById('system-prompt').value = atob(encodedPrompt);
+            updateVariableStats();
+            log('Applied optimized prompt', 'success');
+        }
+
+        function loadTemplate() {
+            const type = document.getElementById('agent-type').value;
+            const templates = {
+                analytics: `You are an advanced analytics specialist for email marketing campaigns.
+
+Core Capabilities:
+- Analyze performance metrics: {{email_open_rate}}, {{email_click_rate}}, {{email_conversion_rate}}
+- Track revenue metrics: {{total_revenue}}, {{revenue_growth_rate}}, {{average_order_value}}
+- Monitor list health: {{total_subscribers}}, {{list_growth_rate}}, {{engaged_subscribers}}
+- Segment analysis: {{vip_segment_size}}, {{at_risk_segment_size}}
+
+Context:
+- Current month: {{selected_month_full}}
+- Client: {{client_name}}
+- Industry: {{client_industry}}
+- Timezone: {{client_timezone}}
+
+When analyzing data:
+1. Compare {{selected_month}} vs {{selected_month_1y_ago}}
+2. Identify trends and anomalies
+3. Provide actionable recommendations
+4. Focus on ROI and revenue impact`,
+
+                email: `You are an expert email marketing specialist for {{client_name}}.
+
+Campaign Expertise:
+- Create campaigns for {{client_industry}} industry
+- Optimize for {{client_timezone}} timezone
+- Work within {{client_monthly_email_limit}} monthly limit
+
+Available Data:
+- List size: {{client_list_size}} subscribers
+- Engagement rate: {{client_engagement_rate}}
+- Average order value: {{client_average_order_value}}
+- Current performance: {{email_open_rate}} open rate
+
+Time Context:
+- Current period: {{selected_month_full}}
+- YoY comparison: {{selected_month_1y_ago_full}}
+- Season: {{season}}
+- Holiday season: {{is_holiday_season}}
+
+Focus on maximizing {{email_revenue_per_recipient}} while maintaining deliverability.`
+            };
+            
+            document.getElementById('system-prompt').value = templates[type] || templates.analytics;
+            updateVariableStats();
+            log(`Loaded ${type} template with variables`, 'success');
+        }
+
+        async function createAgent() {
+            const name = document.getElementById('agent-name').value;
+            const description = document.getElementById('agent-description').value;
+            const prompt = document.getElementById('system-prompt').value;
+            
+            if (!name || !description || !prompt) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            // Validate variables first
+            validateVariables();
+            
+            const tools = Array.from(document.querySelectorAll('input[name="tools"]:checked')).map(cb => cb.value);
+            
+            const agentConfig = {
+                name: name,
+                description: description,
+                type: document.getElementById('agent-type').value,
+                prompt_template: prompt,
+                variables: [],
+                policy: {
+                    allowed_tools: tools,
+                    max_tool_calls: parseInt(document.getElementById('max-tool-calls').value),
+                    timeout_seconds: parseInt(document.getElementById('timeout-seconds').value)
+                }
+            };
+
+            log(`Creating agent: ${name}...`);
+
+            try {
+                const response = await fetch('/api/admin/agent-creator/agents', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(agentConfig)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Agent ${name} created successfully!`, 'success');
+                    alert(`✅ Agent "${name}" created and registered!`);
+                    
+                    if (confirm('Test the new agent now?')) {
+                        testAgentByName(name);
+                    }
+                } else {
+                    const error = await response.json();
+                    log(`Failed: ${error.detail}`, 'error');
+                    alert(`Error: ${error.detail}`);
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAgent() {
+            const name = document.getElementById('agent-name').value;
+            if (!name) {
+                alert('Enter agent name first');
+                return;
+            }
+            testAgentByName(name);
+        }
+
+        async function testAgentByName(agentName) {
+            const input = prompt('Test input:', 'Analyze campaign performance for this month');
+            if (!input) return;
+
+            log(`Testing ${agentName}...`);
+            
+            try {
+                const response = await fetch(`/api/admin/langchain/agent/${agentName}/invoke`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({input: input})
+                });
+
+                const data = await response.json();
+                log(`Test complete`, 'success');
+                alert(`Response:\n\n${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                log(`Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function resetForm() {
+            if (confirm('Reset all fields?')) {
+                document.getElementById('agent-name').value = '';
+                document.getElementById('agent-description').value = '';
+                document.getElementById('system-prompt').value = '';
+                updateVariableStats();
+                log('Form reset', 'info');
+            }
+        }
+
+        function refreshVariables() {
+            loadVariables();
+        }
+
+        function loadFallbackVariables() {
+            // Fallback variable set if API fails
+            variableCategories = {
+                time_frames: {
+                    current_date: "2025-08-25",
+                    selected_month: "2025-08",
+                    selected_month_full: "August 2025",
+                    selected_month_1y_ago: "2024-08",
+                    previous_month: "2025-07",
+                    season: "Summer"
+                },
+                client: {
+                    client_name: "{{client_name}}",
+                    client_email: "{{client_email}}",
+                    client_industry: "{{industry}}",
+                    client_timezone: "{{timezone}}",
+                    client_list_size: "{{subscribers}}"
+                },
+                performance: {
+                    email_open_rate: "{{open_rate}}",
+                    email_click_rate: "{{click_rate}}",
+                    total_revenue: "{{revenue}}",
+                    average_order_value: "{{aov}}"
+                }
+            };
+            renderVariables();
+            log('Using fallback variables', 'warning');
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            loadVariables();
+            loadAgentsList();
+            document.getElementById('system-prompt').addEventListener('input', updateVariableStats);
+            log('Agent Creator Pro initialized', 'success');
+        });
+    </script>
+</body>
+</html>

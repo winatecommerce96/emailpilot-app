@@ -4,6 +4,107 @@
 
 EmailPilot is a Klaviyo automation and planning platform with **Centralized AI Orchestrator**, **Multi-Agent AI Orchestration** and **Dynamic Model Selection** capabilities. It features a lightweight frontend served from `frontend/public` and a Python backend under `app/`.
 
+## 🆕 Latest Updates (2025-08-29)
+
+### ✨ New Features
+
+- **📊 Klaviyo Data Backfill System**: Comprehensive historical data synchronization
+  - Day-by-day backfill for campaigns, flows, and granular order data
+  - Real-time progress tracking with resume capability  
+  - Web management interface at `/static/backfill_manager.html`
+  - Processes complete order details including items, UTM parameters, and customer info
+  - Tested with Rogue Creamery, ready for all connected clients
+  - [Full Documentation](./BACKFILL_SYSTEM_DOCUMENTATION.md)
+
+## Previous Updates (2025-08-27)
+
+### ✨ Features
+- **🎯 Workflow Manager**: Advanced workflow visualization and management system at `/static/workflow_manager.html`
+  - Interactive execution flow diagrams with dependency visualization
+  - Click-to-edit agents within workflows
+  - Real-time workflow status and execution tracking
+  - Modern glass morphism UI with smooth animations
+  
+- **🤖 Enhanced Calendar Workflow Integration**: Multi-agent system for AI-powered campaign planning
+  - Brand Calendar Agent for client-specific configurations
+  - Historical Analyst for performance analysis
+  - Segment Strategist for audience targeting
+  - Content Optimizer for campaign content
+  - Calendar Orchestrator for final assembly
+
+- **📊 Centralized LLM Configuration**: Updated to latest models (Dec 2024)
+  - **OpenAI**: GPT-4o Mini (Good), GPT-4o (Better), O1 Preview (Best)
+  - **Anthropic**: Claude 3.5 Haiku (Good), Claude 3.5 Sonnet (Better/Best)
+  - **Google**: Gemini 1.5 Flash (Good), Gemini 1.5 Pro (Better), Gemini 2.0 Flash Experimental (Best)
+
+### 🔧 Fixes & Improvements
+- **✅ Claude API Integration**: Fixed authentication and model configuration
+  - Proper Secret Manager integration for API keys
+  - Support for all Claude 3.5 models
+  - Resolved credit and authentication issues
+  
+- **✅ Workflow Builder AI**: Fixed hanging issues and API errors
+  - Corrected model ID handling in workflow generation
+  - Improved error reporting and debugging
+  - Fixed API key passing for all LLM providers
+  
+- **✅ Workflow Management UI**: Complete functionality restored
+  - Fixed edit capabilities for all workflows including Revenue Performance Analyzer
+  - Corrected LangGraph Studio link
+  - Fixed execution counter persistence
+  - Agent editing now works across all workflows
+
+### 🚀 Quick Access
+- **Backfill Manager**: `http://localhost:8000/static/backfill_manager.html` 🆕
+- **Workflow Manager**: `http://localhost:8000/static/workflow_manager.html`
+- **Workflow Builder AI**: `http://localhost:8000/static/workflow_builder_ai.html`
+- **Calendar Master**: `http://localhost:8000/static/calendar_master.html`
+- **Agent Creator Pro**: `http://localhost:8000/static/agent_creator_enhanced.html`
+
+## 🎨 Workflow Management System
+
+The EmailPilot workflow system provides comprehensive management of AI agent workflows with visual execution tracking and real-time editing capabilities.
+
+### Key Components
+
+#### 1. **Workflow Manager** (`/static/workflow_manager.html`)
+- **Visual Execution Flow**: Interactive diagrams showing agent dependencies and execution order
+- **Live Agent Editing**: Click any agent to modify prompts and configurations
+- **Workflow Categories**: Marketing, Analytics, and Automation workflows
+- **Execution Tracking**: Real-time status updates and execution statistics
+
+#### 2. **Available Workflows**
+- **📅 Calendar Planning Workflow**: 5-agent system for campaign calendar generation
+- **✉️ Email Campaign Generator**: End-to-end email creation with 4 specialized agents
+- **💰 Revenue Performance Analyzer**: 2-agent system for revenue analysis
+
+#### 3. **Agent Registry System**
+- **Dynamic Configuration**: Agents loaded from Firestore or registry
+- **Dependency Management**: Automatic handling of agent dependencies
+- **Role-Based Organization**: Each agent has a specific role in the workflow
+- **Version Control**: Track and manage agent versions
+
+### Workflow API Endpoints
+```
+GET  /api/workflow-agents/workflows              # List all workflows
+GET  /api/workflow-agents/workflow/{id}          # Get workflow details
+GET  /api/workflow-agents/workflow/{id}/execution-graph  # Get execution graph
+GET  /api/workflow-agents/agent/{name}           # Get agent details
+POST /api/workflow-agents/agent/{name}/update    # Update agent configuration
+POST /api/workflow/generate                      # Generate new workflow from prompt
+```
+
+### Backfill API Endpoints
+```
+POST /api/backfill/start/{client_id}             # Start backfill for a client
+GET  /api/backfill/status/{client_id}            # Check backfill status
+GET  /api/backfill/status                        # Get all backfill statuses
+POST /api/backfill/start-all                     # Start backfill for all clients
+GET  /api/backfill/data/{client_id}/summary      # Get backfilled data summary
+GET  /api/backfill/data/{client_id}/orders       # Get backfilled order data
+DELETE /api/backfill/clear/{client_id}           # Clear backfill status
+```
+
 ## 🚀 NEW: LangGraph Studio + LangSmith Integration
 
 **Full integration with LangGraph Studio for visual debugging and LangSmith for production tracing.**
@@ -262,7 +363,53 @@ curl -sI http://localhost:8000/api/auth/google/status | head -n1
 - The build outputs to `frontend/dist`. Do not point new features to other locations.
 - The script mirrors outputs to `frontend/public/dist` to support existing HTML during transition.
 
-### Google OAuth Login (Restore)
+### Modern Authentication with Clerk (NEW - Recommended)
+
+EmailPilot now supports **Clerk** for modern, secure authentication with SSO, multi-tenant support, and refresh tokens.
+
+#### Setting up Clerk Authentication:
+
+1. **Create a Clerk account** at https://dashboard.clerk.com
+2. **Get your API keys** from the Clerk dashboard
+3. **Store keys in Google Secret Manager**:
+   ```bash
+   # Store Clerk keys (already done - keys are in Secret Manager)
+   gcloud secrets versions list CLERK_SECRET_KEY
+   gcloud secrets versions list NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+   ```
+
+4. **Test the new auth endpoints**:
+   ```bash
+   # Check auth status
+   curl -s http://localhost:8000/api/auth/v2/auth/me
+   
+   # Login with email/password
+   curl -X POST http://localhost:8000/api/auth/v2/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"demo@emailpilot.ai","password":"demo"}'
+   
+   # Create API key (requires auth)
+   curl -X POST http://localhost:8000/api/auth/v2/auth/api-keys \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"My API Key","scopes":["read","write"]}'
+   ```
+
+5. **Access the test dashboard**:
+   ```
+   http://localhost:8000/static/test-auth-v2.html
+   ```
+
+#### Features of the New Auth System:
+- ✅ **Multi-tenant support** - Isolate data per organization
+- ✅ **Refresh tokens** - Automatic token renewal
+- ✅ **API key management** - Programmatic access
+- ✅ **SSO with Clerk** - Enterprise-grade authentication
+- ✅ **No timeouts** - Fixed the 2+ second OAuth delays
+
+See [AUTH_V2_MIGRATION_GUIDE.md](AUTH_V2_MIGRATION_GUIDE.md) for complete migration instructions.
+
+### Google OAuth Login (Legacy - Being Replaced)
 
 Status endpoints to confirm wiring:
 
@@ -622,44 +769,142 @@ Error response:
 - Check agent is mapped to a prompt template
 - Verify with: `curl http://localhost:8000/api/agent-config/agents`
 
-## 🎯 MCP (Model Context Protocol) - Data Services Only
+## 🎯 Klaviyo MCP Enhanced - Advanced Analytics & 18+ Tool Categories
 
-**Note**: MCP Email/SMS agents have been replaced by LangGraph. MCP is now used exclusively for deterministic data operations.
+### 🚀 NEW: Enhanced MCP Integration (August 2025)
+EmailPilot now features the **Klaviyo MCP Server Enhanced** with comprehensive API coverage and advanced capabilities:
 
-### Active MCP Services
-1. **Klaviyo Revenue API** (`services/klaviyo_api/`)
-   - Port: 9090
-   - Tools: revenue queries, metric aggregation
+#### Key Features
+- **18 Tool Categories**: Profiles, Lists, Segments, Campaigns, Metrics, Flows, Templates, Catalogs, Tags, Webhooks, Data Privacy, Coupons, Forms, Reviews, Images, Reporting, Events, Attribution
+- **Advanced Analytics**: Campaign performance metrics, revenue attribution, custom metric aggregation
+- **Intelligent Gateway**: Routes to Enhanced MCP (primary) or Python MCP (fallback)
+- **Dynamic API Keys**: Automatic retrieval from Secret Manager via Firestore references
+- **Full Integration**: Works with LangChain, LangGraph, and Calendar Planning
 
-2. **Performance API** (`services/performance_api/`)
-   - Port: 9091
-   - Tools: weekly/monthly job execution
+#### Architecture
+```
+EmailPilot → MCP Gateway → Enhanced MCP (Node.js, Port 9095)
+                        ↘ Fallback MCP (Python, Port 9090)
+```
 
-### Starting MCP Services
+### Starting Enhanced MCP Services
 ```bash
-# Start Klaviyo API (for revenue tools)
+# Start Enhanced MCP Server (Node.js)
+cd services/klaviyo_mcp_enhanced
+npm start  # Runs on port 9095
+
+# Start Fallback Python MCP (automatic fallback)
 uvicorn services.klaviyo_api.main:app --host 127.0.0.1 --port 9090
 
-# Start Performance API
-uvicorn services.performance_api.main:app --host 127.0.0.1 --port 9091
-
-# Or use Admin UI to start/stop services
-curl -X POST http://localhost:8000/api/admin/mcp/start \
-  -H "Content-Type: application/json" \
-  -d '{"kind": "openapi_revenue"}'
+# Or use the convenience script
+./scripts/start_mcp_enhanced.sh
 ```
+
+### Admin Dashboard
+Access the Enhanced MCP management interface:
+```
+http://localhost:8000/mcp_enhanced_admin.html
+```
+
+Features:
+- Real-time service status monitoring
+- 18 tool category overview
+- Client API key validation
+- Tool testing interface
+- Gateway routing control
+
+### API Key Management
+The Enhanced MCP Gateway automatically:
+1. Reads client documents from Firestore
+2. Retrieves `klaviyo_api_key_secret` field
+3. Fetches actual API key from Secret Manager
+4. Injects key into Enhanced MCP requests
+5. Falls back to Python MCP if Enhanced fails
+
+No manual API key configuration needed!
+
+### ClientKeyResolver - Centralized API Key Resolution
+
+**IMPORTANT**: All new code accessing Klaviyo API keys MUST use the `ClientKeyResolver` service instead of direct Secret Manager or Firestore access.
+
+#### Overview
+The `ClientKeyResolver` (`app/services/client_key_resolver.py`) provides a centralized, intelligent service for resolving Klaviyo API keys with comprehensive fallback handling.
+
+#### Features
+- **Automatic Secret Manager Integration**: Seamlessly fetches keys from Google Secret Manager
+- **Intelligent Name Mapping**: Generates secret names from client names (e.g., "Consumer Law Attorneys" → "klaviyo-api-consumer-law-attorneys")
+- **Field Standardization**: Uses `klaviyo_api_key_secret` as the standard field (with backward compatibility for `klaviyo_secret_name`)
+- **Legacy Support**: Falls back to plaintext fields (`klaviyo_api_key`, `klaviyo_private_key`) when needed
+- **Automatic Migration**: Migrates legacy plaintext keys to Secret Manager on first access
+- **Development Mode**: Supports environment variable fallbacks for local development
+
+#### Usage in FastAPI Endpoints
+
+```python
+from fastapi import Depends
+from app.services.client_key_resolver import ClientKeyResolver, get_client_key_resolver
+
+@router.get("/endpoint")
+async def your_endpoint(
+    client_id: str,
+    key_resolver: ClientKeyResolver = Depends(get_client_key_resolver)
+):
+    # Get the API key for a client
+    api_key = await key_resolver.get_client_klaviyo_key(client_id)
+    
+    if not api_key:
+        raise HTTPException(status_code=404, detail="No API key found")
+    
+    # Use the API key...
+    return {"status": "success"}
+```
+
+#### Usage in Non-FastAPI Code
+
+```python
+from app.services.client_key_resolver import ClientKeyResolver
+from app.services.secrets import SecretManagerService
+from google.cloud import firestore
+
+# Initialize dependencies
+db = firestore.Client(project="emailpilot-438321")
+secret_manager = SecretManagerService("emailpilot-438321")
+resolver = ClientKeyResolver(db=db, secret_manager=secret_manager)
+
+# Get API key
+api_key = await resolver.get_client_klaviyo_key("client-id")
+```
+
+#### Fallback Order
+1. **Primary**: `klaviyo_api_key_secret` field → Secret Manager
+2. **Legacy Field**: `klaviyo_secret_name` field → Secret Manager (backward compatibility)
+3. **Generated Name**: Auto-generated from client name → Secret Manager
+4. **Legacy Plaintext**: `klaviyo_api_key` or `klaviyo_private_key` fields (with auto-migration)
+5. **Environment Variables**: Development mode fallback (e.g., `KLAVIYO_API_KEY_CLIENT_SLUG`)
+
+#### Field Naming Standard
+- **Use**: `klaviyo_api_key_secret` in Firestore documents
+- **Avoid**: `klaviyo_secret_name` (deprecated but supported)
+- **Never**: Store raw API keys in `klaviyo_api_key` or `klaviyo_private_key` (auto-migrated)
+
+#### Benefits
+- **Single Source of Truth**: All API key logic centralized in one place
+- **Automatic Handling**: Manages Secret Manager access, fallbacks, and migrations
+- **Security**: Ensures keys are stored securely and never exposed in logs
+- **Consistency**: Standardizes field naming across the entire codebase
+- **Dependency Injection**: Works seamlessly with FastAPI's dependency system
 
 ## 📝 Configuration Files Reference
 
 ### Required Files
-- `email-sms-mcp-server/agents_config.json` - Agent definitions (REQUIRED)
-- `email-sms-mcp-server/server.py` - Orchestrator implementation (REQUIRED)
+- `services/klaviyo_mcp_enhanced/` - Enhanced MCP server (Node.js)
+- `app/api/mcp_gateway.py` - Gateway service for routing
 - `requirements.txt` - Python dependencies
-- `.env` - Environment variables (optional, for local dev)
+- `.env` - Environment variables (includes MCP settings)
 
 ### Optional Files
-- `email-sms-mcp-server/custom_instructions.json` - Override agent behavior
 - `docs/services_catalog.json` - Service registry for Admin UI
+- Custom agent configurations in Firestore
 
 ## 🔄 Development Workflow
 
@@ -1252,6 +1497,62 @@ Preflight Deploy (CI)
 - Manual workflow: “Preflight Deploy to Cloud Run (Manual)” in GitHub Actions
   - Inputs: confirm (type “yes”), service, region (defaults provided)
   - Runs smoke tests before building and deploying
+
+## 🔧 Troubleshooting
+
+### Common Issues and Solutions
+
+#### Workflow Builder AI Hanging
+- **Issue**: Page loads but workflow generation doesn't work
+- **Solution**: 
+  - Ensure server is running: `uvicorn main_firestore:app --port 8000 --host localhost --reload`
+  - Check API keys are in Secret Manager: `emailpilot-claude`, `openai-api-key`, `emailpilot-gemini-api-key`
+  - Verify model selection matches available models in dropdown
+
+#### Claude API Errors
+- **Issue**: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" or authentication errors
+- **Solution**:
+  - API key is stored as `emailpilot-claude` in Secret Manager (not `anthropic-api-key`)
+  - Run test: `python test_claude_api.py` (if available)
+  - Check credits at: https://console.anthropic.com/settings/billing
+
+#### Workflow Management Issues
+- **Issue**: Can't edit agents or workflows don't load
+- **Solution**:
+  - Clear browser cache and reload
+  - Check Firestore connection is working
+  - Verify agents are properly registered in `/api/workflow-agents/workflows`
+
+#### LangGraph Studio Link
+- **Issue**: Link doesn't open or shows 404
+- **Solution**: Correct URL is `https://smith.langchain.com/` (not `/studio/`)
+
+#### Execution Counter Issues
+- **Issue**: "Executions Today" number changes on refresh
+- **Solution**: This is now fixed with sessionStorage persistence. Clear browser storage if seeing old behavior.
+
+### Required Environment Variables
+```bash
+# In .env file or Secret Manager
+GOOGLE_CLOUD_PROJECT=emailpilot-438321
+USE_SECRET_MANAGER=true
+ANTHROPIC_SECRET_NAME=emailpilot-claude
+OPENAI_SECRET_NAME=openai-api-key
+GEMINI_SECRET_NAME=emailpilot-gemini-api-key
+```
+
+### API Key Configuration
+All API keys should be stored in Google Secret Manager:
+- **OpenAI**: `openai-api-key`
+- **Anthropic/Claude**: `emailpilot-claude`
+- **Google/Gemini**: `emailpilot-gemini-api-key`
+
+To add/update keys:
+```bash
+gcloud secrets create {secret-name} --data-file=- <<< "your-api-key-here"
+```
+
+## 📚 Architecture Notes
 
 Prompt Systems: MCP vs AI Models
 - MCP (Model Context Protocol): deterministic tool execution over a defined interface. In EmailPilot, we wrap HTTP services (e.g., Klaviyo API and Performance API) via OpenAPI MCP, exposing tools like `GET /clients/{client_id}/revenue/last7` and `/jobs/weekly`. Use MCP when you need reliable data retrieval or to run jobs/ops with predictable inputs/outputs.

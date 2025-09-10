@@ -13,10 +13,17 @@ import httpx
 from langchain_core.tools import tool, StructuredTool
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger(__name__)
+
 from ..config import LangChainConfig, get_config
 from ..deps import get_firestore_client, get_cache
-
-logger = logging.getLogger(__name__)
+# Will import Enhanced MCP adapter when it exists
+try:
+    from ..adapters.enhanced_mcp_adapter import get_enhanced_tools_for_agent, get_enhanced_mcp_adapter
+    ENHANCED_MCP_AVAILABLE = True
+except ImportError:
+    ENHANCED_MCP_AVAILABLE = False
+    logger.warning("Enhanced MCP adapter not available")
 
 
 # Tool input schemas using Pydantic v1 for LangChain compatibility
@@ -371,12 +378,14 @@ def get_mcp_tools(config: Optional[LangChainConfig] = None) -> List[Any]:
     return tools
 
 
-def get_all_tools(config: Optional[LangChainConfig] = None) -> List[Any]:
+def get_all_tools(config: Optional[LangChainConfig] = None, agent_name: str = None, client_id: str = None) -> List[Any]:
     """
-    Get all available tools (native + MCP).
+    Get all available tools (native + MCP + Enhanced MCP).
     
     Args:
         config: Configuration
+        agent_name: Name of agent requesting tools
+        client_id: Default client ID for Klaviyo
     
     Returns:
         List of all tool instances
@@ -384,4 +393,48 @@ def get_all_tools(config: Optional[LangChainConfig] = None) -> List[Any]:
     native = get_native_tools()
     mcp = get_mcp_tools(config)
     
-    return native + mcp
+    # Add Enhanced MCP tools if available
+    enhanced_tools = []
+    if ENHANCED_MCP_AVAILABLE:
+        try:
+            if agent_name:
+                enhanced_tools = get_enhanced_tools_for_agent(agent_name, client_id)
+            else:
+                adapter = get_enhanced_mcp_adapter()
+                enhanced_tools = adapter.get_all_enhanced_tools(client_id)
+        except Exception as e:
+            logger.error(f"Failed to get Enhanced MCP tools: {e}")
+    
+    combined = native + mcp + enhanced_tools
+    
+    logger.info(f"Total tools available: {len(combined)} "
+                f"(Native: {len(native)}, MCP: {len(mcp)}, "
+                f"Enhanced MCP: {len(enhanced_tools)})")
+    
+    return combined
+
+
+def get_enhanced_tools_only(agent_name: str = None, client_id: str = None) -> List[Any]:
+    """
+    Get only Enhanced MCP tools.
+    
+    Args:
+        agent_name: Name of agent requesting tools
+        client_id: Default client ID for Klaviyo
+    
+    Returns:
+        List of Enhanced MCP tool instances
+    """
+    if not ENHANCED_MCP_AVAILABLE:
+        logger.warning("Enhanced MCP not available")
+        return []
+    
+    try:
+        if agent_name:
+            return get_enhanced_tools_for_agent(agent_name, client_id)
+        else:
+            adapter = get_enhanced_mcp_adapter()
+            return adapter.get_all_enhanced_tools(client_id)
+    except Exception as e:
+        logger.error(f"Failed to get Enhanced MCP tools: {e}")
+        return []

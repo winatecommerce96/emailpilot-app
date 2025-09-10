@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Server Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="navbar-container"></div>
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">MCP Server Management</h1>
+            <p class="text-gray-600">Configure and test Model Context Protocol servers</p>
+        </div>
+
+        <!-- Servers Table -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="p-6 border-b">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">Configured Servers</h2>
+                    <button onclick="addServer()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Add Server
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-sm font-medium">Name</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium">Type</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium">Endpoint</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium">Status</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="servers-tbody">
+                        <tr class="border-b">
+                            <td class="px-6 py-4">Klaviyo MCP</td>
+                            <td class="px-6 py-4">stdio</td>
+                            <td class="px-6 py-4">email-sms-mcp-server/server.py</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">Active</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <button onclick="viewTools('klaviyo')" class="text-blue-600 hover:underline mr-3">Tools</button>
+                                <button onclick="testServer('klaviyo')" class="text-green-600 hover:underline">Test</button>
+                            </td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="px-6 py-4">Firestore MCP</td>
+                            <td class="px-6 py-4">http</td>
+                            <td class="px-6 py-4">http://localhost:9091</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded text-sm">Inactive</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <button onclick="viewTools('firestore')" class="text-blue-600 hover:underline mr-3">Tools</button>
+                                <button onclick="testServer('firestore')" class="text-green-600 hover:underline">Test</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tools Drawer -->
+        <div id="tools-drawer" class="bg-white rounded-lg shadow p-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Available Tools: <span id="server-name"></span></h2>
+            <div id="tools-list" class="space-y-4">
+                <!-- Tools will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Test Panel -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Dry-Run Tester</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Select Tool</label>
+                    <select id="test-tool" class="w-full px-3 py-2 border rounded mb-4">
+                        <option value="">-- Select a tool --</option>
+                        <option value="content_strategist">Content Strategist</option>
+                        <option value="copywriter">Copywriter</option>
+                        <option value="designer">Designer</option>
+                        <option value="segmentation_expert">Segmentation Expert</option>
+                    </select>
+                    
+                    <label class="block text-sm font-medium mb-2">Parameters (JSON)</label>
+                    <textarea id="test-params" class="w-full px-3 py-2 border rounded font-mono text-sm" rows="8">{
+  "brand_id": "test-brand",
+  "campaign_type": "promotional",
+  "target_audience": "vip_customers"
+}</textarea>
+                    
+                    <button onclick="runDryTest()" class="mt-4 w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+                        Run Dry Test
+                    </button>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">Test Result</label>
+                    <div id="test-result" class="bg-gray-100 p-4 rounded h-64 overflow-auto font-mono text-sm">
+                        Test results will appear here...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load navbar
+        fetch('navbar.html')
+            .then(r => r.text())
+            .then(html => document.getElementById('navbar-container').innerHTML = html);
+
+        function addServer() {
+            alert('Add server dialog coming soon!');
+        }
+
+        function viewTools(serverId) {
+            const drawer = document.getElementById('tools-drawer');
+            const serverName = document.getElementById('server-name');
+            const toolsList = document.getElementById('tools-list');
+            
+            drawer.classList.remove('hidden');
+            serverName.textContent = serverId.charAt(0).toUpperCase() + serverId.slice(1);
+            
+            // Sample tools data
+            const tools = [
+                { name: 'content_strategist', description: 'Plans content strategy for campaigns' },
+                { name: 'copywriter', description: 'Generates email copy and subject lines' },
+                { name: 'designer', description: 'Creates design specifications' },
+                { name: 'segmentation_expert', description: 'Defines audience segments' }
+            ];
+            
+            toolsList.innerHTML = tools.map(tool => 
+                '<div class="border rounded p-4">' +
+                '<h3 class="font-semibold">' + tool.name + '</h3>' +
+                '<p class="text-gray-600 text-sm">' + tool.description + '</p>' +
+                '</div>'
+            ).join('');
+        }
+
+        async function testServer(serverId) {
+            alert('Testing ' + serverId + ' server...');
+            // TODO: Implement actual server test
+        }
+
+        async function runDryTest() {
+            const tool = document.getElementById('test-tool').value;
+            const params = document.getElementById('test-params').value;
+            const resultDiv = document.getElementById('test-result');
+            
+            if (!tool) {
+                alert('Please select a tool');
+                return;
+            }
+            
+            resultDiv.textContent = 'Running dry test...\n';
+            
+            try {
+                // Parse parameters
+                const parsedParams = JSON.parse(params);
+                
+                // TODO: Call actual dry-run endpoint
+                resultDiv.textContent = 'Test Request:\n';
+                resultDiv.textContent += 'Tool: ' + tool + '\n';
+                resultDiv.textContent += 'Parameters: ' + JSON.stringify(parsedParams, null, 2) + '\n\n';
+                resultDiv.textContent += 'Response:\n';
+                resultDiv.textContent += JSON.stringify({
+                    success: true,
+                    tool: tool,
+                    result: {
+                        strategy: 'Holiday promotional campaign',
+                        recommendations: [
+                            'Focus on VIP segment',
+                            'Use urgency messaging',
+                            'Include exclusive offers'
+                        ]
+                    }
+                }, null, 2);
+                
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

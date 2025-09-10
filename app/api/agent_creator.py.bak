@@ -1,0 +1,616 @@
+"""
+Agent Creator API - Create, optimize, and auto-register new AI agents
+
+TESTING GUIDE:
+==============
+
+The /agent/{agent_name}/test endpoint accepts the following request formats:
+
+1. Basic Test (for general agents):
+   POST /api/admin/agent-creator/agent/my_agent/test
+   {
+     "input": "Analyze the Q3 performance metrics for email campaigns",
+     "user_id": "test_user",
+     "brand": "test_brand"
+   }
+
+2. RAG Agent Test:
+   POST /api/admin/agent-creator/agent/rag/test
+   {
+     "input": "What are the best practices for email subject lines?",
+     "user_id": "analyst_123"
+   }
+
+3. Revenue Analyst Test:
+   POST /api/admin/agent-creator/agent/revenue_analyst/test
+   {
+     "input": "Analyze revenue performance for December 2024",
+     "brand": "acme_corp",
+     "user_id": "revenue_team"
+   }
+
+4. Campaign Planner Test:
+   POST /api/admin/agent-creator/agent/campaign_planner/test
+   {
+     "input": "Create a 5-email holiday campaign plan",
+     "brand": "fashion_retailer",
+     "user_id": "marketing_manager"
+   }
+
+Required fields:
+- "input": The task or query for the agent (required)
+
+Optional fields:
+- "user_id": For policy resolution and context
+- "brand": Brand context for specialized agents
+- Additional context fields as needed
+
+Response format:
+{
+  "agent_name": "agent_name",
+  "input": "user_input",
+  "output": "agent_response",
+  "status": "success|failed",
+  "run_id": "uuid",
+  "execution_time": "123ms",
+  "tool_calls": 2,
+  "model": "gemini-1.5-flash",
+  "variables_used": ["brand", "task"],
+  "error": null
+}
+"""
+
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+import logging
+import json
+import os
+from pathlib import Path
+
+# Import LangChain system components
+try:
+    import sys
+    sys.path.insert(0, "multi-agent")
+    from integrations.langchain_core.admin.registry import AgentRegistry
+    from integrations.langchain_core.engine.facade import prepare_run, invoke_agent
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+
+# Import Firestore
+from google.cloud import firestore
+from app.deps.firestore import get_db
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/admin/agent-creator")
+
+
+class AgentVariable(BaseModel):
+    name: str
+    type: str = "string"
+    required: bool = False
+    description: Optional[str] = None
+    default: Optional[Any] = None
+
+
+class AgentPolicy(BaseModel):
+    allowed_tools: List[str] = []
+    max_tool_calls: int = 10
+    timeout_seconds: int = 30
+
+
+class AgentConfig(BaseModel):
+    name: str = Field(..., description="Agent name (lowercase, underscore-separated)")
+    description: str = Field(..., description="Agent description")
+    type: str = Field(default="general", description="Agent type")
+    version: str = Field(default="1.0", description="Agent version")
+    status: str = Field(default="active", description="Agent status")
+    prompt_template: str = Field(..., description="System prompt template")
+    variables: List[AgentVariable] = []
+    policy: AgentPolicy = AgentPolicy()
+
+
+class PromptOptimizationRequest(BaseModel):
+    prompt: str
+    agent_type: str = "general"
+    optimization_goals: List[str] = ["clarity", "specificity", "task_completion", "safety", "efficiency"]
+
+
+class PromptOptimizationResponse(BaseModel):
+    score: int
+    summary: str
+    suggestions: List[Dict[str, str]] = []
+    optimized_prompt: Optional[str] = None
+
+
+@router.post("/agents", response_model=Dict[str, Any])
+async def create_agent(
+    config: AgentConfig,
+    background_tasks: BackgroundTasks,
+    db=Depends(get_db)
+):
+    """Create a new AI agent and register it in the system"""
+    try:
+        # Validate agent name
+        if not config.name.islower() or ' ' in config.name:
+            raise HTTPException(400, "Agent name must be lowercase with underscores only")
+        
+        # Check if agent already exists
+        agents_ref = db.collection('agents')
+        existing = agents_ref.document(config.name).get()
+        if existing.exists:
+            raise HTTPException(400, f"Agent '{config.name}' already exists")
+        
+        # Create agent document
+        agent_data = {
+            "name": config.name,
+            "description": config.description,
+            "type": config.type,
+            "version": config.version,
+            "status": config.status,
+            "prompt_template": config.prompt_template,
+            "variables": [v.dict() for v in config.variables],
+            "policy": config.policy.dict(),
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "created_by": "agent_creator_api"
+        }
+        
+        # Save to Firestore
+        agents_ref.document(config.name).set(agent_data)
+        logger.info(f"Created agent '{config.name}' in Firestore")
+        
+        # Register with agent registry in background
+        if LANGCHAIN_AVAILABLE:
+            background_tasks.add_task(register_agent_with_registry, config.name, agent_data)
+        
+        # Create agent file in multi-agent directory (optional)
+        background_tasks.add_task(create_agent_file, config.name, agent_data)
+        
+        return {
+            "success": True,
+            "agent_id": config.name,
+            "message": f"Agent '{config.name}' created successfully",
+            "data": agent_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create agent: {e}")
+        raise HTTPException(500, f"Failed to create agent: {str(e)}")
+
+
+@router.post("/optimize-prompt", response_model=PromptOptimizationResponse)
+async def optimize_prompt(request: PromptOptimizationRequest):
+    """Use AI to optimize and improve an agent prompt"""
+    try:
+        # Analyze the prompt
+        analysis = analyze_prompt(request.prompt, request.agent_type)
+        
+        # Generate suggestions
+        suggestions = generate_suggestions(request.prompt, request.agent_type, analysis)
+        
+        # Create optimized version
+        optimized = create_optimized_prompt(request.prompt, suggestions, request.agent_type)
+        
+        return PromptOptimizationResponse(
+            score=analysis["score"],
+            summary=analysis["summary"],
+            suggestions=suggestions,
+            optimized_prompt=optimized
+        )
+        
+    except Exception as e:
+        logger.error(f"Prompt optimization failed: {e}")
+        raise HTTPException(500, f"Prompt optimization failed: {str(e)}")
+
+
+@router.post("/registry/update")
+async def update_registry(agent_name: str):
+    """Update the agent registry after creating a new agent"""
+    try:
+        if not LANGCHAIN_AVAILABLE:
+            raise HTTPException(503, "LangChain system not available")
+        
+        registry = AgentRegistry()
+        # Trigger registry refresh
+        registry._initialize_defaults()
+        
+        return {"success": True, "message": f"Registry updated with agent '{agent_name}'"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registry update failed: {e}")
+        raise HTTPException(500, f"Registry update failed: {str(e)}")
+
+
+@router.post("/agent/{agent_name}/test")
+async def test_agent(agent_name: str, request: dict, db=Depends(get_db)):
+    """Test an agent with actual LangChain execution"""
+    try:
+        # Check if agent exists
+        doc = db.collection('agents').document(agent_name).get()
+        if not doc.exists:
+            raise HTTPException(404, f"Agent '{agent_name}' not found")
+        
+        if not LANGCHAIN_AVAILABLE:
+            raise HTTPException(503, "LangChain system not available for testing")
+        
+        input_text = request.get('input', '')
+        if not input_text:
+            raise HTTPException(400, "Input text is required for testing")
+        
+        # Prepare the agent run with defaults for testing
+        try:
+            prepared = prepare_run(
+                agent_name=agent_name,
+                user_id=request.get('user_id', 'test_user'),
+                brand=request.get('brand', 'test_brand'),
+                context={'test_mode': True, 'input': input_text}
+            )
+        except ValueError as e:
+            raise HTTPException(400, f"Agent preparation failed: {str(e)}")
+        except Exception as e:
+            raise HTTPException(500, f"Failed to prepare agent: {str(e)}")
+        
+        # Execute the agent
+        try:
+            result = invoke_agent(
+                prepared=prepared,
+                task=input_text
+            )
+            
+            return {
+                "agent_name": agent_name,
+                "input": input_text,
+                "output": result.get('final_answer', 'No response generated'),
+                "status": "success" if result.get('success') else "failed",
+                "run_id": prepared.run_id,
+                "execution_time": f"{result.get('metadata', {}).get('duration_ms', 0)}ms",
+                "tool_calls": len(result.get('tool_calls', [])),
+                "model": prepared.model_config.get('model', 'unknown'),
+                "variables_used": list(prepared.variables.keys()),
+                "error": result.get('error')
+            }
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Agent execution failed: {e}")
+            
+            # Provide helpful error messages for common issues
+            if "not installed" in error_msg or "Provider" in error_msg:
+                raise HTTPException(503, f"LangChain dependency missing: {error_msg}")
+            elif "not found" in error_msg.lower():
+                raise HTTPException(404, f"Agent or model not found: {error_msg}")
+            else:
+                raise HTTPException(500, f"Agent execution failed: {error_msg}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to test agent: {e}")
+        raise HTTPException(500, f"Failed to test agent: {str(e)}")
+
+
+@router.get("/agents", response_model=List[Dict[str, Any]])
+async def list_agents(db=Depends(get_db)):
+    """List all available agents"""
+    try:
+        agents_ref = db.collection('agents')
+        agents = []
+        
+        for doc in agents_ref.stream():
+            data = doc.to_dict()
+            data['id'] = doc.id
+            agents.append(data)
+        
+        return agents
+    except Exception as e:
+        logger.error(f"Failed to list agents: {e}")
+        raise HTTPException(500, f"Failed to list agents: {str(e)}")
+
+
+@router.get("/agent/{agent_name}")
+async def get_agent(agent_name: str, db=Depends(get_db)):
+    """Get details of a specific agent"""
+    try:
+        doc = db.collection('agents').document(agent_name).get()
+        if not doc.exists:
+            raise HTTPException(404, f"Agent '{agent_name}' not found")
+        
+        data = doc.to_dict()
+        data['id'] = doc.id
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get agent: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.put("/agent/{agent_name}")
+async def update_agent(
+    agent_name: str,
+    config: AgentConfig,
+    background_tasks: BackgroundTasks,
+    db=Depends(get_db)
+):
+    """Update an existing AI agent"""
+    try:
+        # Check if agent exists
+        agents_ref = db.collection('agents')
+        existing = agents_ref.document(agent_name).get()
+        if not existing.exists:
+            raise HTTPException(404, f"Agent '{agent_name}' not found")
+        
+        # Update agent document
+        agent_data = {
+            "name": config.name,
+            "description": config.description,
+            "type": config.type,
+            "version": config.version,
+            "status": config.status,
+            "prompt_template": config.prompt_template,
+            "system_prompt": config.prompt_template,  # Also store as system_prompt for compatibility
+            "variables": [v.dict() for v in config.variables],
+            "policy": config.policy.dict(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "updated_by": "agent_creator_api"
+        }
+        
+        # Preserve creation metadata
+        existing_data = existing.to_dict()
+        agent_data["created_at"] = existing_data.get("created_at", datetime.utcnow().isoformat())
+        agent_data["created_by"] = existing_data.get("created_by", "agent_creator_api")
+        
+        # Update in Firestore
+        agents_ref.document(agent_name).set(agent_data, merge=True)
+        logger.info(f"Updated agent '{agent_name}' in Firestore")
+        
+        # Register with agent registry in background
+        if LANGCHAIN_AVAILABLE:
+            background_tasks.add_task(register_agent_with_registry, agent_name, agent_data)
+        
+        # Update agent file in multi-agent directory
+        background_tasks.add_task(create_agent_file, agent_name, agent_data)
+        
+        return {
+            "success": True,
+            "agent_id": agent_name,
+            "message": f"Agent '{agent_name}' updated successfully",
+            "data": agent_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update agent: {e}")
+        raise HTTPException(500, f"Failed to update agent: {str(e)}")
+
+
+# Helper functions
+
+def analyze_prompt(prompt: str, agent_type: str) -> Dict[str, Any]:
+    """Analyze a prompt for quality and completeness"""
+    score = 60  # Base score
+    issues = []
+    
+    # Check for role definition
+    if any(phrase in prompt.lower() for phrase in ["you are", "act as", "role"]):
+        score += 10
+    else:
+        issues.append("Missing clear role definition")
+    
+    # Check for specificity
+    if len(prompt) > 200:
+        score += 10
+    elif len(prompt) < 50:
+        issues.append("Prompt is too brief")
+    
+    # Check for structure
+    if any(word in prompt.lower() for word in ["step", "process", "procedure", "follow"]):
+        score += 10
+    else:
+        issues.append("Could benefit from step-by-step structure")
+    
+    # Check for guidelines
+    if any(word in prompt.lower() for word in ["guideline", "rule", "must", "should", "always", "never"]):
+        score += 10
+    
+    # Type-specific checks
+    if agent_type == "email" and "email" not in prompt.lower():
+        issues.append("Email agent should mention email-specific tasks")
+        score -= 5
+    
+    if agent_type == "analytics" and not any(word in prompt.lower() for word in ["data", "metric", "analysis"]):
+        issues.append("Analytics agent should mention data analysis")
+        score -= 5
+    
+    # Cap score at 100
+    score = min(100, max(0, score))
+    
+    summary = "Prompt is well-structured" if score >= 80 else "Prompt could be improved"
+    if issues:
+        summary = f"Found {len(issues)} area(s) for improvement"
+    
+    return {
+        "score": score,
+        "summary": summary,
+        "issues": issues
+    }
+
+
+def generate_suggestions(prompt: str, agent_type: str, analysis: Dict) -> List[Dict[str, str]]:
+    """Generate improvement suggestions based on analysis"""
+    suggestions = []
+    
+    for issue in analysis.get("issues", []):
+        if "role definition" in issue:
+            suggestions.append({
+                "type": "Identity",
+                "text": "Start with 'You are a [specific role]' to establish clear identity"
+            })
+        elif "brief" in issue:
+            suggestions.append({
+                "type": "Detail",
+                "text": "Add specific instructions about desired behavior and outputs"
+            })
+        elif "step-by-step" in issue:
+            suggestions.append({
+                "type": "Structure",
+                "text": "Include numbered steps or a clear process flow"
+            })
+    
+    # Type-specific suggestions
+    if agent_type == "email":
+        suggestions.append({
+            "type": "Specialization",
+            "text": "Include email-specific skills like subject line optimization, personalization"
+        })
+    elif agent_type == "analytics":
+        suggestions.append({
+            "type": "Specialization",
+            "text": "Mention specific metrics, KPIs, and analysis methodologies"
+        })
+    
+    return suggestions
+
+
+def create_optimized_prompt(prompt: str, suggestions: List[Dict], agent_type: str) -> str:
+    """Create an optimized version of the prompt"""
+    
+    # Templates for different agent types
+    templates = {
+        "general": """You are a specialized AI assistant for email marketing automation.
+
+Core Responsibilities:
+{responsibilities}
+
+Guidelines:
+- Be concise and actionable
+- Provide data-driven recommendations
+- Maintain consistency with brand guidelines
+
+Process:
+1. Understand the request
+2. Analyze available data
+3. Generate solution
+4. Validate and refine
+
+{original_context}""",
+        
+        "email": """You are an expert email marketing specialist.
+
+Expertise:
+- Copywriting (AIDA, PAS, FOMO frameworks)
+- Subject line optimization
+- Personalization and segmentation
+- A/B testing strategies
+- Compliance (CAN-SPAM, GDPR)
+
+{original_context}
+
+Always prioritize engagement and conversion while maintaining deliverability.""",
+        
+        "analytics": """You are a data analytics specialist for email marketing.
+
+Capabilities:
+- Performance metric analysis
+- Revenue attribution
+- Engagement tracking
+- Predictive analytics
+- Custom reporting
+
+{original_context}
+
+Focus on actionable insights that drive business outcomes."""
+    }
+    
+    # Extract key points from original prompt
+    original_context = prompt.strip()
+    
+    # Get template
+    template = templates.get(agent_type, templates["general"])
+    
+    # Extract responsibilities from original if present
+    responsibilities = "- " + "\n- ".join([
+        "Analyze campaign performance",
+        "Provide optimization recommendations",
+        "Support strategic planning"
+    ])
+    
+    # Build optimized prompt
+    optimized = template.format(
+        responsibilities=responsibilities,
+        original_context=original_context
+    )
+    
+    return optimized
+
+
+async def register_agent_with_registry(agent_name: str, agent_data: Dict):
+    """Register agent with the AgentRegistry"""
+    try:
+        if not LANGCHAIN_AVAILABLE:
+            logger.warning("LangChain registry not available")
+            return
+        
+        registry = AgentRegistry()
+        registry.register_agent(agent_data)
+        logger.info(f"Registered agent '{agent_name}' with registry")
+    except Exception as e:
+        logger.error(f"Failed to register agent with registry: {e}")
+
+
+async def create_agent_file(agent_name: str, agent_data: Dict):
+    """Create a Python file for the agent in the multi-agent directory"""
+    try:
+        agents_dir = Path("multi-agent/integrations/langchain_core/agents")
+        if not agents_dir.exists():
+            logger.warning("Agents directory does not exist")
+            return
+        
+        # Create agent file
+        agent_file = agents_dir / f"{agent_name}.py"
+        
+        # Generate Python code for agent
+        code = f'''"""
+{agent_data['description']}
+Auto-generated by Agent Creator API
+"""
+
+from typing import Dict, Any
+from ..agents.agent_v2 import Agent
+
+class {agent_name.title().replace('_', '')}Agent(Agent):
+    """
+    {agent_data['description']}
+    """
+    
+    def __init__(self):
+        super().__init__(
+            name="{agent_name}",
+            description="""{agent_data['description']}""",
+            system_prompt="""{agent_data['prompt_template']}""",
+            tools={agent_data['policy'].get('allowed_tools', [])},
+            max_iterations={agent_data['policy'].get('max_tool_calls', 10)}
+        )
+    
+    async def run(self, task: str, **kwargs) -> Dict[str, Any]:
+        """Execute the agent task"""
+        return await self.execute(task, **kwargs)
+
+
+# Export agent instance
+{agent_name}_agent = {agent_name.title().replace('_', '')}Agent()
+'''
+        
+        # Write file
+        agent_file.write_text(code)
+        logger.info(f"Created agent file at {agent_file}")
+        
+    except Exception as e:
+        logger.error(f"Failed to create agent file: {e}")

@@ -77,8 +77,8 @@ class LangChainConfig(BaseSettings):
     )
     
     klaviyo_mcp_url: str = Field(
-        default="http://localhost:8090/api/klaviyo",
-        description="Klaviyo MCP endpoint"
+        default="http://localhost:8000/api/mcp/gateway",
+        description="Klaviyo MCP Gateway endpoint (routes to Enhanced MCP)"
     )
     
     mcp_timeout_seconds: int = Field(

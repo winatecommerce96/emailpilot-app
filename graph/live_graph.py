@@ -96,87 +96,150 @@ def load_firestore_node(state: CalendarState) -> CalendarState:
 # NODE 2: Pull Klaviyo Metrics via MCP
 # ============================================
 def pull_klaviyo_node(state: CalendarState) -> CalendarState:
-    """Pull REAL metrics from Klaviyo via MCP - NO MOCK DATA"""
-    logger.info(f"📊 Pulling REAL Klaviyo metrics for {state['client_id']} - {state['month']}")
+    """Pull REAL metrics from Klaviyo via Enhanced MCP Gateway - NO MOCK DATA"""
+    logger.info(f"📊 Pulling REAL Klaviyo metrics via Enhanced MCP for {state['client_id']} - {state['month']}")
     
     try:
-        # Get Klaviyo API key from client info - check multiple field names
+        # Get Klaviyo API key using the centralized resolver
         client_info = state.get('client_info', {})
         
-        # Different clients store keys in different fields
-        klaviyo_key = (
-            client_info.get('klaviyo_api_key') or 
-            client_info.get('klaviyo_private_key') or
-            client_info.get('api_key_secret')
-        )
+        # Import and use the centralized resolver
+        try:
+            from app.services.client_key_resolver import ClientKeyResolver
+            from app.services.secrets import SecretManagerService
+            from google.cloud import firestore
+            
+            # Initialize resolver with dependencies
+            db = firestore.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321"))
+            secret_manager = SecretManagerService(os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321"))
+            resolver = ClientKeyResolver(db=db, secret_manager=secret_manager)
+            
+            # Use async function in sync context
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            klaviyo_key = loop.run_until_complete(resolver.get_client_klaviyo_key(state['client_id']))
+            loop.close()
+            
+            if klaviyo_key:
+                logger.info(f"✅ Retrieved Klaviyo key using resolver for client {state['client_id']}")
+                # Show first and last few chars for debugging (safely)
+                masked = f"{klaviyo_key[:7]}...{klaviyo_key[-4:]}" if len(klaviyo_key) > 20 else "***"
+                logger.info(f"   Key format: {masked}")
+        except Exception as e:
+            logger.error(f"❌ Could not get key using resolver: {e}")
+            klaviyo_key = None
         
-        # Check if we need to fetch from Secret Manager
-        klaviyo_secret_name = (
-            client_info.get('klaviyo_api_key_secret') or
-            client_info.get('klaviyo_secret_name')
-        )
-        
+        # Get account ID
         klaviyo_account_id = client_info.get('klaviyo_account_id')
         
-        # If we have a secret name but no key, fetch from Secret Manager
-        if not klaviyo_key and klaviyo_secret_name:
-            logger.info(f"📝 Found secret reference: {klaviyo_secret_name}")
-            try:
-                from app.services.secrets import SecretManagerService
-                secret_manager = SecretManagerService(os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321"))
-                
-                # The secret name is already formatted correctly
-                secret_name = klaviyo_secret_name
-                
-                try:
-                    klaviyo_key = secret_manager.get_secret(secret_name)
-                    logger.info(f"✅ Retrieved Klaviyo key from Secret Manager: {secret_name}")
-                    # Show first and last few chars for debugging (safely)
-                    if klaviyo_key:
-                        masked = f"{klaviyo_key[:7]}...{klaviyo_key[-4:]}" if len(klaviyo_key) > 20 else "***"
-                        logger.info(f"   Key format: {masked}")
-                except Exception as e:
-                    logger.error(f"❌ Could not fetch from Secret Manager: {e}")
-                    logger.error(f"   Attempted secret name: {secret_name}")
-                    
-            except ImportError as e:
-                logger.error(f"Secret Manager import failed: {e}")
-        
+        # Check if we got a key
         if not klaviyo_key:
-            # Final fallback - try standard secret names
-            try:
-                from app.services.secrets import SecretManagerService
-                secret_manager = SecretManagerService(os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321"))
-                
-                # Try client-specific key
-                client_slug = client_info.get('client_slug', state['client_id'])
-                secret_name = f"klaviyo-api-key-{client_slug}"
-                
-                try:
-                    klaviyo_key = secret_manager.get_secret(secret_name)
-                    logger.info(f"✅ Retrieved Klaviyo key from Secret Manager using slug: {secret_name}")
-                except:
-                    logger.error(f"❌ No Klaviyo API key found for {state['client_id']}")
-                    return {
-                        **state,
-                        'errors': state.get('errors', []) + [f"No Klaviyo API key configured for client"],
-                        'status': 'klaviyo_no_key'
-                    }
-            except:
-                pass
-        
-        # Now fetch REAL data from Klaviyo
-        if klaviyo_key:
-            logger.info(f"🔌 Connecting to Klaviyo with API key (first 7 chars: {klaviyo_key[:7] if len(klaviyo_key) > 7 else '***'})")
-        else:
-            logger.error("❌ No Klaviyo API key available after all attempts")
+            logger.error(f"❌ No Klaviyo API key found for {state['client_id']}")
             return {
                 **state,
-                'errors': state.get('errors', []) + ["No Klaviyo API key found"],
+                'errors': state.get('errors', []) + ["No Klaviyo API key configured for client"],
                 'status': 'klaviyo_no_key'
             }
         
-        # Try direct Klaviyo API first
+        # Use MCP Gateway for Enhanced Klaviyo integration
+        # The gateway handles API key management via Secret Manager
+        try:
+            import httpx
+            import asyncio
+            
+            gateway_url = os.getenv("KLAVIYO_MCP_ENHANCED_URL", "http://localhost:9095")
+            
+            # Use the MCP Gateway which handles Secret Manager automatically
+            async def fetch_via_gateway():
+                async with httpx.AsyncClient() as client:
+                    # Test gateway connection first
+                    gateway_status = await client.get("http://localhost:8000/api/mcp/gateway/status")
+                    if gateway_status.status_code == 200:
+                        logger.info("✅ MCP Gateway is operational")
+                    
+                    # Fetch campaigns via Enhanced MCP
+                    campaigns_response = await client.post(
+                        "http://localhost:8000/api/mcp/gateway/invoke",
+                        json={
+                            "client_id": state['client_id'],
+                            "tool_name": "campaigns.list",
+                            "arguments": {
+                                "filter": "equals(messages.channel,'email')",
+                                "page[size]": 100
+                            },
+                            "use_enhanced": True
+                        }
+                    )
+                    
+                    # Fetch metrics via Enhanced MCP  
+                    metrics_response = await client.post(
+                        "http://localhost:8000/api/mcp/gateway/invoke",
+                        json={
+                            "client_id": state['client_id'],
+                            "tool_name": "metrics.list",
+                            "arguments": {
+                                "page[size]": 100
+                            },
+                            "use_enhanced": True
+                        }
+                    )
+                    
+                    # Fetch segments via Enhanced MCP
+                    segments_response = await client.post(
+                        "http://localhost:8000/api/mcp/gateway/invoke",
+                        json={
+                            "client_id": state['client_id'],
+                            "tool_name": "segments.list",
+                            "arguments": {
+                                "page[size]": 50
+                            },
+                            "use_enhanced": True
+                        }
+                    )
+                    
+                    return {
+                        "campaigns": campaigns_response.json() if campaigns_response.status_code == 200 else None,
+                        "metrics": metrics_response.json() if metrics_response.status_code == 200 else None,
+                        "segments": segments_response.json() if segments_response.status_code == 200 else None
+                    }
+            
+            # Run async function
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            gateway_data = loop.run_until_complete(fetch_via_gateway())
+            
+            if gateway_data.get("campaigns"):
+                logger.info(f"✅ Retrieved data via Enhanced MCP Gateway")
+                campaigns_data = gateway_data["campaigns"].get("data", {})
+                metrics_data = gateway_data["metrics"].get("data", {})
+                segments_data = gateway_data["segments"].get("data", {})
+                
+                klaviyo_metrics = {
+                    "campaigns": campaigns_data.get("data", []) if isinstance(campaigns_data, dict) else [],
+                    "metrics": metrics_data.get("data", []) if isinstance(metrics_data, dict) else [],
+                    "segments": segments_data.get("data", []) if isinstance(segments_data, dict) else [],
+                    "source": "enhanced_mcp_gateway",
+                    "fetched_at": datetime.now().isoformat()
+                }
+                
+                logger.info(f"📊 Enhanced MCP Gateway Results:")
+                logger.info(f"   - Campaigns: {len(klaviyo_metrics.get('campaigns', []))}")
+                logger.info(f"   - Metrics: {len(klaviyo_metrics.get('metrics', []))}")
+                logger.info(f"   - Segments: {len(klaviyo_metrics.get('segments', []))}")
+                
+                return {
+                    **state,
+                    'klaviyo_metrics': klaviyo_metrics,
+                    'status': 'klaviyo_loaded_enhanced'
+                }
+            else:
+                logger.warning("⚠️ Enhanced MCP Gateway returned no data, trying fallback")
+                
+        except Exception as e:
+            logger.error(f"Enhanced MCP Gateway error: {e}, falling back to direct API")
+        
+        # Fallback to direct Klaviyo API if gateway fails
         import httpx
         
         klaviyo_data = {}
@@ -627,6 +690,9 @@ def run_live_calendar(client_id: str, month: str):
 
 # Export for LangGraph Studio
 live_calendar_graph = create_live_calendar_graph()
+
+# Export as 'app' for LangGraph Studio
+app = live_calendar_graph
 
 if __name__ == "__main__":
     # Test with a sample client

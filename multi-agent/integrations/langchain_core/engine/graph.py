@@ -5,7 +5,7 @@ LangGraph implementation for agent orchestration with checkpointing and retries.
 import uuid
 import logging
 from typing import Dict, Any, List, Optional, TypedDict, Annotated, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -39,7 +39,7 @@ class AgentState(TypedDict):
     metadata: Dict[str, Any]
     budget_remaining: int
     timeout_at: datetime
-    checkpoint_id: Optional[str]
+    resume_checkpoint: Optional[str]
     run_id: str
     user_id: Optional[str]
     brand: Optional[str]
@@ -271,7 +271,7 @@ INPUT: <tool_input_json>
 
 If no more tools are needed, output:
 TOOL: none
-INPUT: {}"""),
+INPUT: {{}}"""),
             MessagesPlaceholder(variable_name="messages"),
             ("human", "What's the next action?")
         ])
@@ -521,8 +521,8 @@ Include relevant details from tool executions."""),
                 "provider": self.config.lc_provider
             },
             "budget_remaining": self.policy.max_tool_calls,
-            "timeout_at": datetime.utcnow() + self.policy.timeout_seconds,
-            "checkpoint_id": checkpoint_id,
+            "timeout_at": datetime.utcnow() + timedelta(seconds=self.policy.timeout_seconds),
+            "resume_checkpoint": checkpoint_id,
             "run_id": run_id,
             "user_id": user_id,
             "brand": brand
@@ -560,7 +560,7 @@ Include relevant details from tool executions."""),
                     **final_state.get("metadata", {}),
                     "duration_ms": duration_ms,
                     "tool_calls_made": len(final_state.get("tool_calls", [])),
-                    "checkpoint_id": final_state.get("checkpoint_id")
+                    "resume_checkpoint": final_state.get("resume_checkpoint")
                 }
             }
             

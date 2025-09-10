@@ -1,0 +1,161 @@
+<!-- Reusable LLM Selector Component -->
+<!-- Include this in your HTML files where you need LLM selection -->
+
+<template id="llm-selector-template">
+    <select class="llm-selector px-3 py-2 border border-gray-300 rounded-lg text-sm">
+        <!-- OpenAI Models (Good → Better → Best) -->
+        <optgroup label="OpenAI">
+            <option value="gpt-4o-mini">GPT-4o Mini (Good - Fast & Cheap)</option>
+            <option value="gpt-4o" selected>GPT-4o (Better - Balanced)</option>
+            <option value="o1-preview">O1 Preview (Best - Advanced Reasoning)</option>
+        </optgroup>
+        
+        <!-- Anthropic Models (Good → Better → Best) -->
+        <optgroup label="Anthropic">
+            <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Good - Fast)</option>
+            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Better - Balanced)</option>
+            <option value="claude-3-opus-20240229">Claude 3 Opus (Best - Most Capable)</option>
+        </optgroup>
+        
+        <!-- Google Models (Good → Better → Best) -->
+        <optgroup label="Google">
+            <option value="gemini-1.5-flash-002">Gemini 1.5 Flash (Good - Fast)</option>
+            <option value="gemini-1.5-pro-002">Gemini 1.5 Pro (Better - Balanced)</option>
+            <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Exp (Best - Latest)</option>
+        </optgroup>
+    </select>
+</template>
+
+<script>
+// LLM Model Configuration
+const LLM_MODELS = {
+    // OpenAI Models
+    'gpt-4o-mini': {
+        provider: 'openai',
+        name: 'GPT-4o Mini',
+        tier: 'good',
+        description: 'Fast and cost-effective for simple tasks',
+        contextWindow: 128000,
+        costTier: '$',
+        speed: 'fast'
+    },
+    'gpt-4o': {
+        provider: 'openai',
+        name: 'GPT-4o',
+        tier: 'better',
+        description: 'Balanced performance for most tasks',
+        contextWindow: 128000,
+        costTier: '$$',
+        speed: 'medium'
+    },
+    'o1-preview': {
+        provider: 'openai',
+        name: 'O1 Preview',
+        tier: 'best',
+        description: 'Advanced reasoning and complex problem solving',
+        contextWindow: 128000,
+        costTier: '$$$',
+        speed: 'slow'
+    },
+    
+    // Anthropic Models
+    'claude-3-5-haiku-20241022': {
+        provider: 'anthropic',
+        name: 'Claude 3.5 Haiku',
+        tier: 'good',
+        description: 'Lightning-fast responses',
+        contextWindow: 200000,
+        costTier: '$',
+        speed: 'fast'
+    },
+    'claude-3-5-sonnet-20241022': {
+        provider: 'anthropic',
+        name: 'Claude 3.5 Sonnet',
+        tier: 'better',
+        description: 'Excellent balance of speed and intelligence',
+        contextWindow: 200000,
+        costTier: '$$',
+        speed: 'medium'
+    },
+    'claude-3-opus-20240229': {
+        provider: 'anthropic',
+        name: 'Claude 3 Opus',
+        tier: 'best',
+        description: 'Most capable for complex analysis',
+        contextWindow: 200000,
+        costTier: '$$$',
+        speed: 'slow'
+    },
+    
+    // Google Models
+    'gemini-1.5-flash-002': {
+        provider: 'gemini',
+        name: 'Gemini 1.5 Flash',
+        tier: 'good',
+        description: 'Optimized for speed',
+        contextWindow: 1000000,
+        costTier: '$',
+        speed: 'fast'
+    },
+    'gemini-1.5-pro-002': {
+        provider: 'gemini',
+        name: 'Gemini 1.5 Pro',
+        tier: 'better',
+        description: 'Advanced capabilities with huge context',
+        contextWindow: 2000000,
+        costTier: '$$',
+        speed: 'medium'
+    },
+    'gemini-2.0-flash-exp': {
+        provider: 'gemini',
+        name: 'Gemini 2.0 Flash (Experimental)',
+        tier: 'best',
+        description: 'Latest experimental model with cutting-edge features',
+        contextWindow: 1000000,
+        costTier: '$$',
+        speed: 'fast'
+    }
+};
+
+// Helper function to create LLM selector
+function createLLMSelector(defaultModel = 'gpt-4o') {
+    const template = document.getElementById('llm-selector-template');
+    if (!template) {
+        console.error('LLM selector template not found');
+        return null;
+    }
+    
+    const selector = template.content.querySelector('.llm-selector').cloneNode(true);
+    selector.value = defaultModel;
+    
+    // Add change listener
+    selector.addEventListener('change', (e) => {
+        const model = LLM_MODELS[e.target.value];
+        if (model) {
+            console.log(`Selected: ${model.name} (${model.tier}) - ${model.description}`);
+            // You can dispatch a custom event here if needed
+            selector.dispatchEvent(new CustomEvent('llm-changed', { 
+                detail: { model: e.target.value, config: model }
+            }));
+        }
+    });
+    
+    return selector;
+}
+
+// Function to get recommended model based on use case
+function getRecommendedModel(useCase) {
+    const recommendations = {
+        'simple': 'gpt-4o-mini',
+        'balanced': 'gpt-4o',
+        'complex': 'o1-preview',
+        'creative': 'claude-3-5-sonnet-20241022',
+        'analytical': 'claude-3-opus-20240229',
+        'fast': 'gemini-1.5-flash-002',
+        'large-context': 'gemini-1.5-pro-002',
+        'experimental': 'gemini-2.0-flash-exp'
+    };
+    
+    return recommendations[useCase] || 'gpt-4o';
+}
+</script>

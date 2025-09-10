@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar Hub - EmailPilot AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .hover-scale {
+            transition: transform 0.3s ease;
+        }
+        
+        .hover-scale:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="gradient-bg">
+    <div class="container mx-auto px-4 py-12">
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-white mb-4">📅 Calendar Hub</h1>
+            <p class="text-white/80 text-xl">AI-Powered Campaign Planning for E-commerce Brands</p>
+        </div>
+        
+        <!-- Calendar Tools Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            
+            <!-- Calendar Master -->
+            <a href="/static/calendar_master.html" class="glass-card rounded-xl p-6 hover-scale cursor-pointer">
+                <div class="text-center">
+                    <div class="text-4xl mb-4">🎨</div>
+                    <h2 class="text-xl font-bold text-white mb-2">Calendar Master</h2>
+                    <p class="text-white/70 text-sm mb-4">Premium UI with glass morphism effects, drag-and-drop, and multiple views</p>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="text-xs bg-purple-500/30 text-white px-2 py-1 rounded">Quick Clear</span>
+                        <span class="text-xs bg-blue-500/30 text-white px-2 py-1 rounded">Cmd+K</span>
+                        <span class="text-xs bg-green-500/30 text-white px-2 py-1 rounded">4 Views</span>
+                    </div>
+                </div>
+            </a>
+            
+            <!-- Calendar Creator -->
+            <a href="/static/calendar_creator.html" class="glass-card rounded-xl p-6 hover-scale cursor-pointer">
+                <div class="text-center">
+                    <div class="text-4xl mb-4">🚀</div>
+                    <h2 class="text-xl font-bold text-white mb-2">Calendar Creator</h2>
+                    <p class="text-white/70 text-sm mb-4">Enhanced creator with session management, undo system, and test scenarios</p>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="text-xs bg-purple-500/30 text-white px-2 py-1 rounded">10s Undo</span>
+                        <span class="text-xs bg-blue-500/30 text-white px-2 py-1 rounded">Sessions</span>
+                        <span class="text-xs bg-green-500/30 text-white px-2 py-1 rounded">Export</span>
+                    </div>
+                </div>
+            </a>
+            
+            <!-- Agent Creator -->
+            <a href="/static/agent_creator_enhanced.html" class="glass-card rounded-xl p-6 hover-scale cursor-pointer">
+                <div class="text-center">
+                    <div class="text-4xl mb-4">🤖</div>
+                    <h2 class="text-xl font-bold text-white mb-2">Agent Creator</h2>
+                    <p class="text-white/70 text-sm mb-4">Create and configure AI agents with variable integration</p>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="text-xs bg-purple-500/30 text-white px-2 py-1 rounded">Variables</span>
+                        <span class="text-xs bg-blue-500/30 text-white px-2 py-1 rounded">Templates</span>
+                        <span class="text-xs bg-green-500/30 text-white px-2 py-1 rounded">Test</span>
+                    </div>
+                </div>
+            </a>
+            
+            <!-- LangChain Debug -->
+            <a href="/static/langchain_debug.html" class="glass-card rounded-xl p-6 hover-scale cursor-pointer">
+                <div class="text-center">
+                    <div class="text-4xl mb-4">🔍</div>
+                    <h2 class="text-xl font-bold text-white mb-2">LangChain Debug</h2>
+                    <p class="text-white/70 text-sm mb-4">Test and debug LangChain agents and endpoints</p>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="text-xs bg-purple-500/30 text-white px-2 py-1 rounded">Console</span>
+                        <span class="text-xs bg-blue-500/30 text-white px-2 py-1 rounded">Status</span>
+                        <span class="text-xs bg-green-500/30 text-white px-2 py-1 rounded">Test</span>
+                    </div>
+                </div>
+            </a>
+            
+            <!-- Test All Agents -->
+            <a href="/static/test_all_agents.html" class="glass-card rounded-xl p-6 hover-scale cursor-pointer">
+                <div class="text-center">
+                    <div class="text-4xl mb-4">🧪</div>
+                    <h2 class="text-xl font-bold text-white mb-2">Test All Agents</h2>
+                    <p class="text-white/70 text-sm mb-4">Comprehensive testing interface for all agents</p>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="text-xs bg-purple-500/30 text-white px-2 py-1 rounded">11 Agents</span>
+                        <span class="text-xs bg-blue-500/30 text-white px-2 py-1 rounded">Batch Test</span>
+                        <span class="text-xs bg-green-500/30 text-white px-2 py-1 rounded">Metrics</span>
+                    </div>
+                </div>
+            </a>
+            
+            <!-- Admin Dashboard -->
+            <a href="/static/index.html" class="glass-card rounded-xl p-6 hover-scale cursor-pointer">
+                <div class="text-center">
+                    <div class="text-4xl mb-4">⚙️</div>
+                    <h2 class="text-xl font-bold text-white mb-2">Admin Dashboard</h2>
+                    <p class="text-white/70 text-sm mb-4">Main admin control panel with all system features</p>
+                    <div class="flex flex-wrap gap-2 justify-center">
+                        <span class="text-xs bg-purple-500/30 text-white px-2 py-1 rounded">Full Control</span>
+                        <span class="text-xs bg-blue-500/30 text-white px-2 py-1 rounded">Settings</span>
+                        <span class="text-xs bg-green-500/30 text-white px-2 py-1 rounded">Monitoring</span>
+                    </div>
+                </div>
+            </a>
+            
+        </div>
+        
+        <!-- System Status -->
+        <div class="mt-12 glass-card rounded-xl p-6 max-w-4xl mx-auto">
+            <h3 class="text-white text-lg font-semibold mb-4">🔄 System Status</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-white/60 text-sm mb-1">Backend API</div>
+                    <div class="text-white font-semibold" id="api-status">Checking...</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-white/60 text-sm mb-1">Klaviyo MCP</div>
+                    <div class="text-white font-semibold" id="mcp-status">Checking...</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-white/60 text-sm mb-1">LangChain</div>
+                    <div class="text-white font-semibold" id="langchain-status">Checking...</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-white/60 text-sm mb-1">LangGraph</div>
+                    <div class="text-white font-semibold" id="langgraph-status">Checking...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Tips -->
+        <div class="mt-8 text-center text-white/60 text-sm">
+            <p class="mb-2">💡 Tip: Use <kbd class="bg-white/20 px-2 py-1 rounded">Cmd+Shift+C</kbd> to quickly clear calendars for testing</p>
+            <p>🚀 All calendars support 10-second undo with <kbd class="bg-white/20 px-2 py-1 rounded">Cmd+Z</kbd></p>
+        </div>
+    </div>
+    
+    <script>
+        // Check system status
+        async function checkStatus() {
+            // API Status
+            try {
+                const apiResponse = await fetch('/api/health');
+                if (apiResponse.ok) {
+                    document.getElementById('api-status').innerHTML = '✅ Online';
+                    document.getElementById('api-status').className = 'text-green-400 font-semibold';
+                }
+            } catch {
+                document.getElementById('api-status').innerHTML = '❌ Offline';
+                document.getElementById('api-status').className = 'text-red-400 font-semibold';
+            }
+            
+            // MCP Status (port 9090)
+            try {
+                const mcpResponse = await fetch('http://localhost:9090/healthz');
+                if (mcpResponse.ok) {
+                    document.getElementById('mcp-status').innerHTML = '✅ Running';
+                    document.getElementById('mcp-status').className = 'text-green-400 font-semibold';
+                } else {
+                    throw new Error();
+                }
+            } catch {
+                // Try enhanced MCP on 9095
+                try {
+                    const enhancedResponse = await fetch('http://localhost:9095/health');
+                    document.getElementById('mcp-status').innerHTML = '✅ Enhanced';
+                    document.getElementById('mcp-status').className = 'text-green-400 font-semibold';
+                } catch {
+                    document.getElementById('mcp-status').innerHTML = '⚠️ Not Running';
+                    document.getElementById('mcp-status').className = 'text-yellow-400 font-semibold';
+                }
+            }
+            
+            // LangChain Status
+            try {
+                const langchainResponse = await fetch('/api/admin/langchain/agents');
+                if (langchainResponse.ok) {
+                    document.getElementById('langchain-status').innerHTML = '✅ Active';
+                    document.getElementById('langchain-status').className = 'text-green-400 font-semibold';
+                }
+            } catch {
+                document.getElementById('langchain-status').innerHTML = '❌ Error';
+                document.getElementById('langchain-status').className = 'text-red-400 font-semibold';
+            }
+            
+            // LangGraph Status (port 2024)
+            try {
+                const lgResponse = await fetch('http://localhost:2024');
+                document.getElementById('langgraph-status').innerHTML = '✅ Studio';
+                document.getElementById('langgraph-status').className = 'text-green-400 font-semibold';
+            } catch {
+                document.getElementById('langgraph-status').innerHTML = '❌ Not Running';
+                document.getElementById('langgraph-status').className = 'text-red-400 font-semibold';
+            }
+        }
+        
+        // Check status on load
+        window.addEventListener('load', checkStatus);
+        
+        // Refresh status every 30 seconds
+        setInterval(checkStatus, 30000);
+    </script>
+</body>
+</html>

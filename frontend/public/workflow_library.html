@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Library - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/static/workflow_hub.html" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to Hub
+                    </a>
+                    <h1 class="ml-8 text-2xl font-bold text-gray-900">Workflow Template Library</h1>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <!-- Filter Bar -->
+        <div class="mb-8 bg-white rounded-lg shadow p-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <select id="category-filter" class="w-full rounded-md border-gray-300 shadow-sm">
+                        <option value="">All Categories</option>
+                        <option value="Planning">Planning</option>
+                        <option value="Analysis">Analysis</option>
+                        <option value="Automation">Automation</option>
+                        <option value="Optimization">Optimization</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Client</label>
+                    <select id="client-selector" class="w-full rounded-md border-gray-300 shadow-sm">
+                        <option value="">Loading clients...</option>
+                        <option value="the-phoenix">The Phoenix - Recovery community platform</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <input type="text" id="search-input" placeholder="Search templates..." 
+                           class="w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="refreshTemplates()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-sync mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Template Grid -->
+        <div id="template-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Templates will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Template Instance Modal -->
+    <div id="instance-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 id="modal-title" class="text-lg leading-6 font-medium text-gray-900 mb-4">
+                    Configure Workflow Instance
+                </h3>
+                <div id="modal-content" class="mt-2">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
+                <div class="flex justify-end mt-4 space-x-2">
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400">
+                        Cancel
+                    </button>
+                    <button onclick="createInstance()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        <i class="fas fa-play mr-2"></i>Create Instance
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTemplate = null;
+        let templates = [];
+        let availableClients = [];
+
+        // Mock templates until backend is ready
+        const mockTemplates = [
+            {
+                id: "calendar_planner",
+                name: "AI Calendar Planning Workflow",
+                description: "Plan monthly email campaign calendars with AI recommendations based on historical performance",
+                category: "Planning",
+                author: "EmailPilot Team",
+                version: "2.0.0",
+                required_tools: ["klaviyo_campaigns", "klaviyo_campaign_metrics"],
+                parameters: {
+                    month_offset: { type: "int", default: 1, description: "How many months ahead to plan" },
+                    campaign_count: { type: "int", default: 8, description: "Target number of campaigns" },
+                    include_holidays: { type: "bool", default: true, description: "Include holiday campaigns" },
+                    optimization_goal: { type: "str", default: "balanced", description: "revenue, engagement, or balanced" }
+                }
+            },
+            {
+                id: "revenue_goals",
+                name: "Revenue Goals Tracker",
+                description: "Track and analyze revenue goals vs actual performance with AI insights",
+                category: "Analysis",
+                author: "EmailPilot Team",
+                version: "1.5.0",
+                required_tools: ["klaviyo_metrics_aggregate", "klaviyo_events"],
+                parameters: {
+                    period: { type: "str", default: "monthly", description: "Tracking period: daily, weekly, monthly" },
+                    goal_type: { type: "str", default: "total", description: "Goal type: total, per_campaign, per_segment" }
+                }
+            },
+            {
+                id: "campaign_analyzer",
+                name: "Campaign Performance Analyzer",
+                description: "Deep dive analysis of campaign performance with recommendations",
+                category: "Analysis",
+                author: "EmailPilot Team",
+                version: "1.2.0",
+                required_tools: ["klaviyo_campaigns", "klaviyo_campaign_metrics"],
+                parameters: {
+                    lookback_days: { type: "int", default: 30, description: "Days to analyze" },
+                    min_sends: { type: "int", default: 100, description: "Minimum sends to include" }
+                }
+            },
+            {
+                id: "segment_optimizer",
+                name: "Segment Performance Optimizer",
+                description: "Optimize email segments based on engagement and revenue metrics",
+                category: "Optimization",
+                author: "EmailPilot Team",
+                version: "1.0.0",
+                required_tools: ["klaviyo_segments", "klaviyo_segment_metrics"],
+                parameters: {
+                    optimization_metric: { type: "str", default: "revenue", description: "Metric to optimize: revenue, engagement, growth" }
+                }
+            },
+            {
+                id: "flow_automator",
+                name: "Flow Automation Builder",
+                description: "Build and optimize email flows based on customer journey",
+                category: "Automation",
+                author: "EmailPilot Team",
+                version: "1.3.0",
+                required_tools: ["klaviyo_flows", "klaviyo_flow_metrics"],
+                parameters: {
+                    flow_type: { type: "str", default: "welcome", description: "Flow type: welcome, abandoned_cart, post_purchase" },
+                    test_percentage: { type: "int", default: 10, description: "Percentage for A/B testing" }
+                }
+            },
+            {
+                id: "content_personalization",
+                name: "Content Personalization Engine",
+                description: "Personalize email content based on customer data and behavior",
+                category: "Optimization",
+                author: "EmailPilot Team",
+                version: "2.1.0",
+                required_tools: ["klaviyo_profiles", "klaviyo_events", "klaviyo_templates"],
+                parameters: {
+                    personalization_level: { type: "str", default: "moderate", description: "Level: basic, moderate, advanced" },
+                    use_ai: { type: "bool", default: true, description: "Use AI for content generation" }
+                }
+            }
+        ];
+
+        async function loadTemplates() {
+            try {
+                // Try to load from backend
+                const response = await fetch('/api/workflow/templates');
+                if (response.ok) {
+                    templates = await response.json();
+                } else {
+                    // Fall back to mock templates
+                    templates = mockTemplates;
+                }
+            } catch (error) {
+                console.log('Using mock templates:', error);
+                templates = mockTemplates;
+            }
+            
+            renderTemplates();
+        }
+
+        function renderTemplates() {
+            const grid = document.getElementById('template-grid');
+            const category = document.getElementById('category-filter').value;
+            const search = document.getElementById('search-input').value.toLowerCase();
+            
+            // Filter templates
+            let filtered = templates;
+            if (category) {
+                filtered = filtered.filter(t => t.category === category);
+            }
+            if (search) {
+                filtered = filtered.filter(t => 
+                    t.name.toLowerCase().includes(search) || 
+                    t.description.toLowerCase().includes(search)
+                );
+            }
+            
+            // Render template cards
+            grid.innerHTML = filtered.map(template => `
+                <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full 
+                                     ${getCategoryColor(template.category)}">
+                            ${template.category}
+                        </span>
+                        <span class="text-xs text-gray-500">v${template.version}</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">${template.name}</h3>
+                    <p class="text-sm text-gray-600 mb-4">${template.description}</p>
+                    
+                    <div class="mb-4">
+                        <div class="text-xs text-gray-500 mb-1">Required Tools:</div>
+                        <div class="flex flex-wrap gap-1">
+                            ${template.required_tools.slice(0, 3).map(tool => 
+                                `<span class="text-xs px-2 py-1 bg-gray-100 rounded">${tool}</span>`
+                            ).join('')}
+                            ${template.required_tools.length > 3 ? 
+                                `<span class="text-xs px-2 py-1 text-gray-500">+${template.required_tools.length - 3} more</span>` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-gray-500">by ${template.author}</span>
+                        <button onclick="showInstanceModal('${template.id}')" 
+                                class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
+                            <i class="fas fa-play mr-1"></i>Use Template
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getCategoryColor(category) {
+            const colors = {
+                'Planning': 'bg-purple-100 text-purple-800',
+                'Analysis': 'bg-blue-100 text-blue-800',
+                'Automation': 'bg-green-100 text-green-800',
+                'Optimization': 'bg-orange-100 text-orange-800'
+            };
+            return colors[category] || 'bg-gray-100 text-gray-800';
+        }
+
+        function showInstanceModal(templateId) {
+            currentTemplate = templates.find(t => t.id === templateId);
+            const clientId = document.getElementById('client-selector').value;
+            
+            if (!clientId) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            const modal = document.getElementById('instance-modal');
+            document.getElementById('modal-title').textContent = `Configure: ${currentTemplate.name}`;
+            
+            // Build parameter form
+            let paramsHtml = `
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600 mb-3">${currentTemplate.description}</p>
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4">
+                        <p class="text-sm">
+                            <strong>Client:</strong> ${clientId}
+                        </p>
+                    </div>
+                </div>
+                <div class="space-y-4">
+            `;
+            
+            for (const [paramName, paramConfig] of Object.entries(currentTemplate.parameters || {})) {
+                paramsHtml += `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            ${paramName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </label>
+                        <p class="text-xs text-gray-500 mb-2">${paramConfig.description}</p>
+                        ${renderParamInput(paramName, paramConfig)}
+                    </div>
+                `;
+            }
+            
+            paramsHtml += '</div>';
+            document.getElementById('modal-content').innerHTML = paramsHtml;
+            modal.classList.remove('hidden');
+        }
+
+        function renderParamInput(paramName, paramConfig) {
+            const type = paramConfig.type;
+            const defaultValue = paramConfig.default;
+            
+            if (type === 'bool') {
+                return `
+                    <select id="param-${paramName}" class="w-full rounded-md border-gray-300 shadow-sm">
+                        <option value="true" ${defaultValue === true ? 'selected' : ''}>Yes</option>
+                        <option value="false" ${defaultValue === false ? 'selected' : ''}>No</option>
+                    </select>
+                `;
+            } else if (type === 'int' || type === 'float') {
+                return `
+                    <input type="number" id="param-${paramName}" 
+                           value="${defaultValue}" 
+                           class="w-full rounded-md border-gray-300 shadow-sm">
+                `;
+            } else if (paramConfig.description && paramConfig.description.includes(':')) {
+                // Extract options from description
+                const options = paramConfig.description.split(':')[1].split(',').map(o => o.trim());
+                return `
+                    <select id="param-${paramName}" class="w-full rounded-md border-gray-300 shadow-sm">
+                        ${options.map(opt => 
+                            `<option value="${opt}" ${defaultValue === opt ? 'selected' : ''}>${opt}</option>`
+                        ).join('')}
+                    </select>
+                `;
+            } else {
+                return `
+                    <input type="text" id="param-${paramName}" 
+                           value="${defaultValue || ''}" 
+                           class="w-full rounded-md border-gray-300 shadow-sm">
+                `;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('instance-modal').classList.add('hidden');
+            currentTemplate = null;
+        }
+
+        async function createInstance() {
+            if (!currentTemplate) return;
+            
+            const clientId = document.getElementById('client-selector').value;
+            const params = {};
+            
+            // Collect parameter values
+            for (const paramName of Object.keys(currentTemplate.parameters || {})) {
+                const element = document.getElementById(`param-${paramName}`);
+                if (element) {
+                    let value = element.value;
+                    const paramConfig = currentTemplate.parameters[paramName];
+                    
+                    // Type conversion
+                    if (paramConfig.type === 'int') {
+                        value = parseInt(value);
+                    } else if (paramConfig.type === 'float') {
+                        value = parseFloat(value);
+                    } else if (paramConfig.type === 'bool') {
+                        value = value === 'true';
+                    }
+                    
+                    params[paramName] = value;
+                }
+            }
+            
+            try {
+                // Create instance via API
+                const response = await fetch('/api/workflow/instances', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        template_id: currentTemplate.id,
+                        client_id: clientId,
+                        parameters: params
+                    })
+                });
+                
+                if (response.ok) {
+                    const instance = await response.json();
+                    alert(`Workflow instance created successfully!\n\nInstance ID: ${instance.id}\n\nYou can now run this workflow.`);
+                    closeModal();
+                    
+                    // Optionally redirect to workflow runner
+                    if (confirm('Would you like to run this workflow now?')) {
+                        window.location.href = `/static/workflow_runner.html?instance=${instance.id}`;
+                    }
+                } else {
+                    // For now, just show success since backend isn't ready
+                    alert(`Workflow instance configuration:\n\nTemplate: ${currentTemplate.name}\nClient: ${clientId}\nParameters: ${JSON.stringify(params, null, 2)}`);
+                    closeModal();
+                }
+            } catch (error) {
+                console.error('Error creating instance:', error);
+                // Show configuration for now
+                alert(`Workflow instance configuration:\n\nTemplate: ${currentTemplate.name}\nClient: ${clientId}\nParameters: ${JSON.stringify(params, null, 2)}`);
+                closeModal();
+            }
+        }
+
+        function refreshTemplates() {
+            loadTemplates();
+        }
+
+        // Event listeners
+        document.getElementById('category-filter').addEventListener('change', renderTemplates);
+        document.getElementById('search-input').addEventListener('input', renderTemplates);
+
+        // Load clients from API
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/admin/clients');
+                if (!response.ok) {
+                    throw new Error('Failed to load clients');
+                }
+                const data = await response.json();
+                availableClients = data.clients || [];
+                
+                // Sort clients by name
+                availableClients.sort((a, b) => a.name.localeCompare(b.name));
+                
+                // Update client dropdown
+                updateClientDropdown();
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                availableClients = [];
+                updateClientDropdown();
+            }
+        }
+
+        // Update client dropdown with loaded clients
+        function updateClientDropdown() {
+            const clientSelect = document.getElementById('client-selector');
+            if (!clientSelect) return;
+            
+            clientSelect.innerHTML = '';
+            
+            if (availableClients.length === 0) {
+                clientSelect.innerHTML = '<option value="">No clients available</option>';
+                return;
+            }
+            
+            // Add default option
+            clientSelect.innerHTML = '<option value="">Select Client...</option>';
+            
+            // Add client options with descriptions
+            availableClients.forEach(client => {
+                if (client.is_active !== false) {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    const description = client.description ? ` - ${client.description.substring(0, 50)}` : '';
+                    option.textContent = `${client.name}${description}`;
+                    clientSelect.appendChild(option);
+                }
+            });
+        }
+        
+        // Load templates and clients on page load
+        loadTemplates();
+        loadClients();
+    </script>
+</body>
+</html>

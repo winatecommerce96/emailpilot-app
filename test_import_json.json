@@ -1,0 +1,71 @@
+[
+  {
+    "title": "Black Friday Preview - VIP Access",
+    "date": "2024-11-20",
+    "event_type": "promotional",
+    "content": "Exclusive 48-hour early access for VIP customers with 60% off everything",
+    "segment": "vip_customers",
+    "color": "bg-red-300 text-red-800",
+    "send_time": "9:00 AM EST",
+    "subject_a": "🔥 VIP Early Access: 60% Off Everything Starts NOW",
+    "subject_b": "⏰ Your VIP 60% Off Sale is Live - Shop First!",
+    "offer": "60% off sitewide with code VIP60"
+  },
+  {
+    "title": "Black Friday Main Sale Launch",
+    "date": "2024-11-22",
+    "event_type": "flash sale",
+    "content": "Main Black Friday sale goes live to all customers",
+    "segment": "all_subscribers",
+    "color": "bg-red-500 text-white",
+    "send_time": "6:00 AM EST",
+    "subject_a": "🚨 BLACK FRIDAY IS HERE: 50% Off Everything!",
+    "subject_b": "The Wait is Over - Black Friday Sale LIVE Now!",
+    "offer": "50% off sitewide with code BF50"
+  },
+  {
+    "title": "Black Friday SMS Reminder",
+    "date": "2024-11-22",
+    "event_type": "sms",
+    "content": "SMS blast to mobile subscribers about Black Friday sale",
+    "segment": "sms_subscribers",
+    "color": "bg-orange-200 text-orange-800",
+    "send_time": "11:00 AM EST",
+    "offer": "50% off everything - don't miss out!"
+  },
+  {
+    "title": "Cyber Monday Email",
+    "date": "2024-11-25",
+    "event_type": "email",
+    "content": "Extended Cyber Monday deals for online shoppers",
+    "segment": "engaged_shoppers",
+    "color": "bg-blue-200 text-blue-800",
+    "send_time": "8:00 AM EST",
+    "subject_a": "💻 Cyber Monday: Extra 20% Off Online Orders",
+    "subject_b": "Last Chance: Cyber Monday Deals End Tonight",
+    "offer": "Extra 20% off online orders with code CYBER20"
+  },
+  {
+    "title": "Holiday Gift Guide Newsletter",
+    "date": "2024-12-05",
+    "event_type": "email",
+    "content": "Curated holiday gift guide for different customer segments",
+    "segment": "all_subscribers",
+    "color": "bg-green-200 text-green-800",
+    "send_time": "2:00 PM EST",
+    "subject_a": "🎁 Holiday Gift Guide: Perfect Presents for Everyone",
+    "subject_b": "Still Need Gifts? Our Guide Has You Covered"
+  },
+  {
+    "title": "Last-Minute Shoppers Campaign",
+    "date": "2024-12-20",
+    "event_type": "nurturing",
+    "content": "Target procrastinators with express shipping and digital gifts",
+    "segment": "last_minute_shoppers",
+    "color": "bg-yellow-200 text-yellow-800",
+    "send_time": "10:00 AM EST",
+    "subject_a": "⚡ Last-Minute Gifts: Express Delivery Available",
+    "subject_b": "Don't Panic - We Have Express Shipping!",
+    "offer": "Free express shipping on orders over $75"
+  }
+]

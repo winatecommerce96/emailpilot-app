@@ -1,0 +1,60 @@
+[
+  {
+    "title": "Event with Minimal Data",
+    "date": "2024-03-01"
+  },
+  {
+    "title": "Event with Different Date Format",
+    "date": "03/15/2024",
+    "event_type": "email",
+    "content": "Testing US date format parsing"
+  },
+  {
+    "title": "Event with Special Characters & Emojis 🎉",
+    "date": "2024-03-20",
+    "event_type": "promotional",
+    "content": "Testing special chars: @#$%^&*(){}[]|\\:;\"'<>,.?/~`",
+    "subject_a": "Special chars test: 50% OFF! Don't miss out 🔥",
+    "segment": "test-segment_123"
+  },
+  {
+    "title": "Event with Very Long Title That Exceeds Normal Length Expectations For Testing Truncation And Display Handling",
+    "date": "2024-03-25",
+    "event_type": "email", 
+    "content": "This is a very long description that contains multiple sentences to test how the system handles lengthy content. It includes various punctuation marks, numbers like 123 and 456, and should test the content field's capacity for storing detailed campaign information that marketing teams might want to include for comprehensive campaign planning and tracking purposes.",
+    "segment": "long_content_test_segment",
+    "offer": "This is also a very long offer description that might include multiple terms and conditions, discount percentages, minimum purchase requirements, expiration dates, and other detailed promotional information that needs to be preserved."
+  },
+  {
+    "title": "Event with Empty Optional Fields",
+    "date": "2024-03-30",
+    "event_type": "",
+    "content": "",
+    "segment": "",
+    "color": "",
+    "send_time": "",
+    "subject_a": "",
+    "subject_b": "",
+    "offer": ""
+  },
+  {
+    "title": "Event with Null Values",
+    "date": "2024-04-05",
+    "event_type": null,
+    "content": null,
+    "segment": null,
+    "color": null
+  },
+  {
+    "title": "Future Date Event",
+    "date": "2025-12-31",
+    "event_type": "seasonal",
+    "content": "New Year's Eve campaign for next year"
+  },
+  {
+    "title": "Past Date Event",
+    "date": "2023-01-01", 
+    "event_type": "historical",
+    "content": "Historical event from last year"
+  }
+]

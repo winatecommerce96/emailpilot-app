@@ -1,0 +1,172 @@
+{
+  "client": "Rogue Creamery",
+  "month": "2025-02",
+  "campaigns": [
+    {
+      "id": "camp_2025-02_01",
+      "date": "2025-02-02",
+      "time": "10:00",
+      "name": "Seasonal Sale",
+      "type": "promotion",
+      "segment": "VIP Customers",
+      "subject_line_a": "Seasonal Sale: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Seasonal Sale Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Seasonal Sale",
+      "cta": "Shop Now",
+      "expected_metrics": {
+        "open_rate": 0.294,
+        "click_rate": 0.051,
+        "revenue": 14062.5
+      },
+      "priority": "high"
+    },
+    {
+      "id": "camp_2025-02_02",
+      "date": "2025-02-05",
+      "time": "10:00",
+      "name": "Expert Tips",
+      "type": "educational",
+      "segment": "Regular Buyers",
+      "subject_line_a": "Expert Tips: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Expert Tips Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Expert Tips",
+      "cta": "Learn More",
+      "expected_metrics": {
+        "open_rate": 0.294,
+        "click_rate": 0.051,
+        "revenue": 14062.5
+      },
+      "priority": "high"
+    },
+    {
+      "id": "camp_2025-02_03",
+      "date": "2025-02-08",
+      "time": "10:00",
+      "name": "Featured Product",
+      "type": "product_highlight",
+      "segment": "New Subscribers",
+      "subject_line_a": "Featured Product: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Featured Product Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Featured Product",
+      "cta": "Learn More",
+      "expected_metrics": {
+        "open_rate": 0.294,
+        "click_rate": 0.051,
+        "revenue": 14062.5
+      },
+      "priority": "high"
+    },
+    {
+      "id": "camp_2025-02_04",
+      "date": "2025-02-11",
+      "time": "10:00",
+      "name": "Community Update",
+      "type": "community",
+      "segment": "VIP Customers",
+      "subject_line_a": "Community Update: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Community Update Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Community Update",
+      "cta": "Learn More",
+      "expected_metrics": {
+        "open_rate": 0.245,
+        "click_rate": 0.039,
+        "revenue": 9375.0
+      },
+      "priority": "medium"
+    },
+    {
+      "id": "camp_2025-02_05",
+      "date": "2025-02-14",
+      "time": "10:00",
+      "name": "Seasonal Sale",
+      "type": "promotion",
+      "segment": "Regular Buyers",
+      "subject_line_a": "Seasonal Sale: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Seasonal Sale Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Seasonal Sale",
+      "cta": "Shop Now",
+      "expected_metrics": {
+        "open_rate": 0.245,
+        "click_rate": 0.039,
+        "revenue": 9375.0
+      },
+      "priority": "medium"
+    },
+    {
+      "id": "camp_2025-02_06",
+      "date": "2025-02-17",
+      "time": "10:00",
+      "name": "Expert Tips",
+      "type": "educational",
+      "segment": "New Subscribers",
+      "subject_line_a": "Expert Tips: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Expert Tips Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Expert Tips",
+      "cta": "Learn More",
+      "expected_metrics": {
+        "open_rate": 0.245,
+        "click_rate": 0.039,
+        "revenue": 9375.0
+      },
+      "priority": "medium"
+    },
+    {
+      "id": "camp_2025-02_07",
+      "date": "2025-02-20",
+      "time": "10:00",
+      "name": "Featured Product",
+      "type": "product_highlight",
+      "segment": "VIP Customers",
+      "subject_line_a": "Featured Product: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Featured Product Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Featured Product",
+      "cta": "Learn More",
+      "expected_metrics": {
+        "open_rate": 0.245,
+        "click_rate": 0.039,
+        "revenue": 9375.0
+      },
+      "priority": "low"
+    },
+    {
+      "id": "camp_2025-02_08",
+      "date": "2025-02-23",
+      "time": "10:00",
+      "name": "Community Update",
+      "type": "community",
+      "segment": "Regular Buyers",
+      "subject_line_a": "Community Update: Special for Rogue Creamery Customers",
+      "subject_line_b": "Don't Miss Out - Community Update Inside",
+      "preview_text": "Exclusive offer for our valued customers...",
+      "content_theme": "Community Update",
+      "cta": "Learn More",
+      "expected_metrics": {
+        "open_rate": 0.245,
+        "click_rate": 0.039,
+        "revenue": 9375.0
+      },
+      "priority": "low"
+    }
+  ],
+  "summary": {
+    "total_campaigns": 8,
+    "expected_revenue": 89062.5,
+    "revenue_goal": 75000,
+    "goal_achievement": 118.8,
+    "avg_days_between": 3,
+    "segments_covered": 3
+  },
+  "validation": {
+    "meets_revenue_goal": true,
+    "proper_spacing": true,
+    "all_content_assigned": true
+  },
+  "created_at": "2025-08-27T16:22:01.721750"
+}

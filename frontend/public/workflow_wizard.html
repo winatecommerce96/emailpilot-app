@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Wizard - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .step-circle {
+            transition: all 0.3s ease;
+        }
+        .step-circle.active {
+            background-color: #4f46e5;
+            color: white;
+            transform: scale(1.1);
+        }
+        .step-circle.completed {
+            background-color: #10b981;
+            color: white;
+        }
+        .template-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .template-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .template-card.selected {
+            border-color: #4f46e5;
+            background-color: #f0f9ff;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <a href="/static/workflow_hub.html" class="text-gray-600 hover:text-gray-800 mr-4">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <h1 class="text-xl font-semibold text-gray-800">Workflow Creation Wizard</h1>
+                </div>
+                <button onclick="skipToAdvanced()" class="text-sm text-indigo-600 hover:text-indigo-800">
+                    Skip to Advanced <i class="fas fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Progress Bar -->
+    <div class="bg-white shadow-sm">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div id="step-1" class="step-circle active w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold">
+                        1
+                    </div>
+                    <div class="w-24 h-1 bg-gray-200 mx-2"></div>
+                    <div id="step-2" class="step-circle w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold">
+                        2
+                    </div>
+                    <div class="w-24 h-1 bg-gray-200 mx-2"></div>
+                    <div id="step-3" class="step-circle w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold">
+                        3
+                    </div>
+                    <div class="w-24 h-1 bg-gray-200 mx-2"></div>
+                    <div id="step-4" class="step-circle w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold">
+                        4
+                    </div>
+                    <div class="w-24 h-1 bg-gray-200 mx-2"></div>
+                    <div id="step-5" class="step-circle w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold">
+                        5
+                    </div>
+                </div>
+                <div class="text-sm text-gray-600">
+                    Step <span id="current-step">1</span> of 5
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-6 py-8">
+        <!-- Step 1: Choose Template -->
+        <div id="step-1-content" class="fade-in">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <h2 class="text-2xl font-bold mb-2">What would you like to automate?</h2>
+                <p class="text-gray-600 mb-6">Choose a template to get started quickly, or create a custom workflow.</p>
+                
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Campaign Planning -->
+                    <div class="template-card border-2 border-gray-200 rounded-lg p-6" onclick="selectTemplate('campaign_planning')">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-calendar-alt text-4xl text-indigo-500"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Campaign Planning</h3>
+                        <p class="text-sm text-gray-600 mb-4">Plan monthly email campaigns with AI recommendations</p>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">Calendar</span>
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">AI Planning</span>
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">Scheduling</span>
+                        </div>
+                    </div>
+
+                    <!-- Revenue Goals -->
+                    <div class="template-card border-2 border-gray-200 rounded-lg p-6" onclick="selectTemplate('revenue_goals')">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-chart-line text-4xl text-green-500"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Revenue Goals</h3>
+                        <p class="text-sm text-gray-600 mb-4">Generate monthly revenue targets based on historical data</p>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Analytics</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Forecasting</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Goals</span>
+                        </div>
+                    </div>
+
+                    <!-- A/B Testing -->
+                    <div class="template-card border-2 border-gray-200 rounded-lg p-6" onclick="selectTemplate('ab_testing')">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-vial text-4xl text-purple-500"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">A/B Testing</h3>
+                        <p class="text-sm text-gray-600 mb-4">Set up and analyze email campaign A/B tests</p>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Testing</span>
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Analysis</span>
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Optimization</span>
+                        </div>
+                    </div>
+
+                    <!-- Customer Journey -->
+                    <div class="template-card border-2 border-gray-200 rounded-lg p-6" onclick="selectTemplate('customer_journey')">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-route text-4xl text-blue-500"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Customer Journey</h3>
+                        <p class="text-sm text-gray-600 mb-4">Create automated customer lifecycle campaigns</p>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Automation</span>
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Lifecycle</span>
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Triggers</span>
+                        </div>
+                    </div>
+
+                    <!-- Performance Analysis -->
+                    <div class="template-card border-2 border-gray-200 rounded-lg p-6" onclick="selectTemplate('performance_analysis')">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-chart-pie text-4xl text-yellow-500"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Performance Analysis</h3>
+                        <p class="text-sm text-gray-600 mb-4">Analyze campaign performance and generate insights</p>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">Metrics</span>
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">Reports</span>
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">Insights</span>
+                        </div>
+                    </div>
+
+                    <!-- Custom Workflow -->
+                    <div class="template-card border-2 border-gray-200 rounded-lg p-6" onclick="selectTemplate('custom')">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-magic text-4xl text-gray-500"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold mb-2">Custom Workflow</h3>
+                        <p class="text-sm text-gray-600 mb-4">Build your own workflow from scratch</p>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Flexible</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Custom</span>
+                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Advanced</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Select Client -->
+        <div id="step-2-content" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <h2 class="text-2xl font-bold mb-2">Which client is this for?</h2>
+                <p class="text-gray-600 mb-6">Select the Klaviyo client account to use for this workflow.</p>
+                
+                <div id="client-list" class="space-y-3">
+                    <p class="text-gray-500">Loading clients...</p>
+                </div>
+                
+                <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        The client account determines which Klaviyo data the workflow can access.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Configure Tools -->
+        <div id="step-3-content" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <h2 class="text-2xl font-bold mb-2">What data do you need?</h2>
+                <p class="text-gray-600 mb-6">Select the Enhanced MCP tools your workflow will use to access Klaviyo data.</p>
+                
+                <div id="recommended-tools" class="mb-6 p-4 bg-green-50 rounded-lg">
+                    <p class="text-sm font-semibold text-green-800 mb-2">
+                        <i class="fas fa-lightbulb mr-2"></i>Recommended for Campaign Planning:
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-white text-green-700 rounded-full text-sm">Campaigns List</span>
+                        <span class="px-3 py-1 bg-white text-green-700 rounded-full text-sm">Campaign Metrics</span>
+                        <span class="px-3 py-1 bg-white text-green-700 rounded-full text-sm">Segments</span>
+                    </div>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="font-semibold mb-3">Campaign Tools</h3>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_campaigns" checked>
+                            <span>List Campaigns</span>
+                        </label>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_campaign_metrics" checked>
+                            <span>Campaign Metrics</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold mb-3">Analytics Tools</h3>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_metrics_aggregate">
+                            <span>Aggregate Metrics</span>
+                        </label>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_reporting_revenue">
+                            <span>Revenue Reports</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold mb-3">Audience Tools</h3>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_segments" checked>
+                            <span>Customer Segments</span>
+                        </label>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_profiles">
+                            <span>Profile Data</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-semibold mb-3">Event Tools</h3>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_events">
+                            <span>Event Tracking</span>
+                        </label>
+                        <label class="flex items-center mb-2 cursor-pointer">
+                            <input type="checkbox" class="mr-3" value="klaviyo_flows">
+                            <span>Flow Data</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Schedule -->
+        <div id="step-4-content" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <h2 class="text-2xl font-bold mb-2">When should this run?</h2>
+                <p class="text-gray-600 mb-6">Configure when and how often your workflow should execute.</p>
+                
+                <div class="space-y-4">
+                    <label class="block p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="radio" name="schedule" value="manual" class="mr-3" checked>
+                        <span class="font-medium">Manual</span>
+                        <p class="text-sm text-gray-500 ml-6">Run workflow manually when needed</p>
+                    </label>
+                    
+                    <label class="block p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="radio" name="schedule" value="daily" class="mr-3">
+                        <span class="font-medium">Daily</span>
+                        <p class="text-sm text-gray-500 ml-6">Run every day at a specified time</p>
+                    </label>
+                    
+                    <label class="block p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="radio" name="schedule" value="weekly" class="mr-3">
+                        <span class="font-medium">Weekly</span>
+                        <p class="text-sm text-gray-500 ml-6">Run once a week on selected days</p>
+                    </label>
+                    
+                    <label class="block p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="radio" name="schedule" value="monthly" class="mr-3">
+                        <span class="font-medium">Monthly</span>
+                        <p class="text-sm text-gray-500 ml-6">Run once a month on a specific date</p>
+                    </label>
+                    
+                    <label class="block p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="radio" name="schedule" value="trigger" class="mr-3">
+                        <span class="font-medium">Event Triggered</span>
+                        <p class="text-sm text-gray-500 ml-6">Run when specific events occur</p>
+                    </label>
+                </div>
+                
+                <div id="time-selector" class="mt-6 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Time</label>
+                    <input type="time" class="px-3 py-2 border rounded-lg" value="09:00">
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Review & Create -->
+        <div id="step-5-content" class="hidden fade-in">
+            <div class="bg-white rounded-lg shadow-md p-8">
+                <h2 class="text-2xl font-bold mb-2">Review Your Workflow</h2>
+                <p class="text-gray-600 mb-6">Review your configuration and create the workflow.</p>
+                
+                <div class="space-y-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-semibold mb-2">Workflow Details</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Template:</span>
+                                <span id="review-template" class="font-medium">Campaign Planning</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Client:</span>
+                                <span id="review-client" class="font-medium">Loading...</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Schedule:</span>
+                                <span id="review-schedule" class="font-medium">Manual</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-semibold mb-2">Selected Tools</h3>
+                        <div id="review-tools" class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-sm">Campaigns List</span>
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-sm">Campaign Metrics</span>
+                            <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-sm">Segments</span>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-semibold mb-2">Workflow Name</h3>
+                        <input type="text" id="workflow-name" placeholder="Enter workflow name..." 
+                               class="w-full px-3 py-2 border rounded-lg"
+                               value="February Campaign Planning">
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="test-before-create" class="mr-2" checked>
+                        <label for="test-before-create" class="text-sm">Test workflow before creating</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="deploy-immediately" class="mr-2">
+                        <label for="deploy-immediately" class="text-sm">Deploy immediately</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex justify-between mt-8">
+            <button id="prev-btn" onclick="previousStep()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 hidden">
+                <i class="fas fa-arrow-left mr-2"></i>Previous
+            </button>
+            <button id="next-btn" onclick="nextStep()" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 ml-auto">
+                Next<i class="fas fa-arrow-right ml-2"></i>
+            </button>
+            <button id="create-btn" onclick="createWorkflow()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 ml-auto hidden">
+                <i class="fas fa-check mr-2"></i>Create Workflow
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let availableClients = [];
+        let workflowConfig = {
+            template: null,
+            client: '',
+            tools: [],
+            schedule: 'manual',
+            name: ''
+        };
+
+        function selectTemplate(template) {
+            // Clear previous selection
+            document.querySelectorAll('.template-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Select new template
+            event.currentTarget.classList.add('selected');
+            workflowConfig.template = template;
+            
+            // Update recommended tools based on template
+            updateRecommendedTools(template);
+        }
+
+        function updateRecommendedTools(template) {
+            const recommendations = {
+                'campaign_planning': ['klaviyo_campaigns', 'klaviyo_campaign_metrics', 'klaviyo_segments'],
+                'revenue_goals': ['klaviyo_metrics_aggregate', 'klaviyo_reporting_revenue', 'klaviyo_campaigns'],
+                'ab_testing': ['klaviyo_campaigns', 'klaviyo_campaign_metrics', 'klaviyo_events'],
+                'customer_journey': ['klaviyo_segments', 'klaviyo_profiles', 'klaviyo_flows'],
+                'performance_analysis': ['klaviyo_metrics_aggregate', 'klaviyo_campaign_metrics', 'klaviyo_reporting_revenue']
+            };
+            
+            workflowConfig.recommendedTools = recommendations[template] || [];
+        }
+
+        function nextStep() {
+            if (currentStep === 1 && !workflowConfig.template) {
+                alert('Please select a template first');
+                return;
+            }
+            
+            if (currentStep < 5) {
+                // Mark current step as completed
+                document.getElementById(`step-${currentStep}`).classList.add('completed');
+                document.getElementById(`step-${currentStep}`).classList.remove('active');
+                document.getElementById(`step-${currentStep}-content`).classList.add('hidden');
+                
+                // Move to next step
+                currentStep++;
+                document.getElementById(`step-${currentStep}`).classList.add('active');
+                document.getElementById(`step-${currentStep}-content`).classList.remove('hidden');
+                document.getElementById('current-step').textContent = currentStep;
+                
+                // Show/hide buttons
+                document.getElementById('prev-btn').classList.remove('hidden');
+                if (currentStep === 5) {
+                    document.getElementById('next-btn').classList.add('hidden');
+                    document.getElementById('create-btn').classList.remove('hidden');
+                    updateReview();
+                }
+                
+                // Special handling for step 3
+                if (currentStep === 3) {
+                    preselectRecommendedTools();
+                }
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                document.getElementById(`step-${currentStep}`).classList.remove('active');
+                document.getElementById(`step-${currentStep}-content`).classList.add('hidden');
+                
+                currentStep--;
+                document.getElementById(`step-${currentStep}`).classList.add('active');
+                document.getElementById(`step-${currentStep}`).classList.remove('completed');
+                document.getElementById(`step-${currentStep}-content`).classList.remove('hidden');
+                document.getElementById('current-step').textContent = currentStep;
+                
+                // Show/hide buttons
+                if (currentStep === 1) {
+                    document.getElementById('prev-btn').classList.add('hidden');
+                }
+                if (currentStep < 5) {
+                    document.getElementById('next-btn').classList.remove('hidden');
+                    document.getElementById('create-btn').classList.add('hidden');
+                }
+            }
+        }
+
+        function preselectRecommendedTools() {
+            // Clear all checkboxes first
+            document.querySelectorAll('#step-3-content input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+            });
+            
+            // Check recommended tools
+            if (workflowConfig.recommendedTools) {
+                workflowConfig.recommendedTools.forEach(tool => {
+                    const checkbox = document.querySelector(`#step-3-content input[value="${tool}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+            }
+        }
+
+        function updateReview() {
+            // Update template
+            document.getElementById('review-template').textContent = 
+                workflowConfig.template ? workflowConfig.template.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Custom';
+            
+            // Update client
+            const selectedClient = document.querySelector('input[name="client"]:checked');
+            document.getElementById('review-client').textContent = 
+                selectedClient ? selectedClient.parentElement.querySelector('.font-medium').textContent : 'Not selected';
+            
+            // Update schedule
+            const selectedSchedule = document.querySelector('input[name="schedule"]:checked');
+            document.getElementById('review-schedule').textContent = 
+                selectedSchedule ? selectedSchedule.parentElement.querySelector('.font-medium').textContent : 'Not selected';
+            
+            // Update tools
+            const selectedTools = Array.from(document.querySelectorAll('#step-3-content input[type="checkbox"]:checked'));
+            const toolsHtml = selectedTools.map(cb => 
+                `<span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-sm">${cb.parentElement.querySelector('span').textContent}</span>`
+            ).join('');
+            document.getElementById('review-tools').innerHTML = toolsHtml || '<span class="text-gray-500">No tools selected</span>';
+            
+            // Update workflow name
+            const templateNames = {
+                'campaign_planning': 'Campaign Planning Workflow',
+                'revenue_goals': 'Revenue Goals Generator',
+                'ab_testing': 'A/B Test Coordinator',
+                'customer_journey': 'Customer Journey Automation',
+                'performance_analysis': 'Performance Analysis Workflow',
+                'custom': 'Custom Workflow'
+            };
+            document.getElementById('workflow-name').value = templateNames[workflowConfig.template] || 'New Workflow';
+        }
+
+        function createWorkflow() {
+            const name = document.getElementById('workflow-name').value;
+            if (!name) {
+                alert('Please enter a workflow name');
+                return;
+            }
+            
+            workflowConfig.name = name;
+            workflowConfig.client = document.querySelector('input[name="client"]:checked').value;
+            workflowConfig.schedule = document.querySelector('input[name="schedule"]:checked').value;
+            workflowConfig.tools = Array.from(document.querySelectorAll('#step-3-content input[type="checkbox"]:checked')).map(cb => cb.value);
+            
+            const testFirst = document.getElementById('test-before-create').checked;
+            const deployNow = document.getElementById('deploy-immediately').checked;
+            
+            // Show success message
+            showNotification('Creating workflow...', 'info');
+            
+            // Simulate API call
+            setTimeout(() => {
+                if (testFirst) {
+                    // Redirect to testing lab
+                    window.location.href = `/static/workflow_test_lab.html?workflow=${encodeURIComponent(JSON.stringify(workflowConfig))}`;
+                } else {
+                    showNotification('Workflow created successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/static/workflow_hub.html';
+                    }, 2000);
+                }
+            }, 1500);
+        }
+
+        function skipToAdvanced() {
+            window.location.href = '/static/workflow_builder.html';
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Handle schedule radio changes
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('input[name="schedule"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const timeSelector = document.getElementById('time-selector');
+                    if (['daily', 'weekly', 'monthly'].includes(e.target.value)) {
+                        timeSelector.classList.remove('hidden');
+                    } else {
+                        timeSelector.classList.add('hidden');
+                    }
+                });
+            });
+        });
+
+        // Load clients from API
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/admin/clients');
+                if (!response.ok) {
+                    throw new Error('Failed to load clients');
+                }
+                const data = await response.json();
+                availableClients = data.clients || [];
+                
+                // Sort clients by name
+                availableClients.sort((a, b) => a.name.localeCompare(b.name));
+                
+                // Update client radio buttons
+                updateClientList();
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                availableClients = [];
+                updateClientList();
+            }
+        }
+
+        // Update client list with radio buttons  
+        function updateClientList() {
+            const clientList = document.getElementById('client-list');
+            if (!clientList) return;
+            
+            clientList.innerHTML = '';
+            
+            if (availableClients.length === 0) {
+                clientList.innerHTML = '<p class="text-red-500">No clients available</p>';
+                return;
+            }
+            
+            // Add client radio buttons
+            availableClients.forEach((client, index) => {
+                if (client.is_active !== false) {
+                    const label = document.createElement('label');
+                    label.className = 'block p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50';
+                    
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.name = 'client';
+                    input.value = client.id;
+                    input.className = 'mr-3';
+                    if (index === 0) {
+                        input.checked = true; // Check first client by default
+                        workflowConfig.client = client.id; // Set default client
+                    }
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'font-medium';
+                    nameSpan.textContent = client.name;
+                    
+                    const descSpan = document.createElement('span');
+                    descSpan.className = 'text-sm text-gray-500 ml-2';
+                    if (client.has_klaviyo_key) {
+                        descSpan.textContent = '(API key configured)';
+                    } else if (client.description) {
+                        descSpan.textContent = `(${client.description.substring(0, 50)})`;
+                    }
+                    
+                    label.appendChild(input);
+                    label.appendChild(nameSpan);
+                    if (descSpan.textContent) label.appendChild(descSpan);
+                    
+                    clientList.appendChild(label);
+                }
+            });
+        }
+        
+        // Initialize - Load clients when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadClients();
+        });
+    </script>
+</body>
+</html>

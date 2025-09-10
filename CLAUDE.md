@@ -244,3 +244,34 @@ requests>=2.31.0
 ```
 
 Your EmailPilot development team is ready to enhance the package upload functionality and resolve any admin dashboard issues\!
+
+# 🚨 CRITICAL MCP INTEGRATION RULE 🚨
+**MANDATORY**: ALL new MCP (Model Context Protocol) tools MUST be registered through the Universal MCP Registry.
+- **DO NOT** create new files like `mcp_*.py` for new integrations
+- **DO NOT** implement direct MCP handlers or bypass the registry
+- **ALWAYS** use the Universal MCP Registry: `POST /api/mcp/register`
+- **See** `DEVELOPER_MCP_GUIDE.md` for the ONLY approved method
+- **Enforcement**: The system at `app/core/mcp_enforcement.py` will BLOCK bypass attempts
+
+To add a new MCP service (e.g., Stripe, Salesforce, Shopify):
+1. **UI Method**: Navigate to `/static/mcp_tools.html` → Universal MCP Registry tab
+2. **API Method**: POST to `/api/mcp/register` with service configuration
+3. **Automatic**: System creates AI wrappers, LangChain agents, and enables natural language
+
+Example registration:
+```json
+{
+  "name": "Stripe Payments",
+  "base_url": "https://api.stripe.com/v1",
+  "service_type": "financial",
+  "auth_type": "bearer",
+  "example_queries": ["List transactions", "Show revenue"]
+}
+```
+
+The Universal MCP Registry provides:
+- Automatic AI enhancement with retry logic
+- Self-learning from successful patterns
+- Optimal LLM selection per task
+- Natural language query interface
+- No code maintenance required

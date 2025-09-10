@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain Debug Console - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .terminal-bg {
+            background: linear-gradient(180deg, #0a0a0a 0%, #1a1a2e 100%);
+            font-family: 'Courier New', monospace;
+        }
+        
+        .console-glow {
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        .cursor::after {
+            content: '_';
+            animation: blink 1s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-green-400">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-gray-800 rounded-lg p-6 border border-green-500 console-glow">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold text-green-400">🔍 LangChain Debug Console</h1>
+                <div class="flex items-center space-x-2 text-xs">
+                    <span class="text-gray-500">Session:</span>
+                    <span class="text-green-400" id="session-id"></span>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Test Agents Panel -->
+                <div class="bg-gray-900 rounded p-4 border border-gray-700">
+                    <h2 class="font-semibold mb-3 text-yellow-400">📤 Test Agent Endpoints</h2>
+                    
+                    <!-- Agent Selector -->
+                    <div class="mb-3">
+                        <select id="agent-select" class="w-full bg-gray-800 text-green-400 border border-gray-600 rounded px-2 py-1 text-sm">
+                            <option value="">Loading agents...</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Test Input -->
+                    <div class="mb-3">
+                        <textarea id="test-input" placeholder="Enter test input..." 
+                                class="w-full bg-gray-800 text-green-400 border border-gray-600 rounded px-2 py-2 text-sm h-20 font-mono"
+                                >Analyze email performance for last week</textarea>
+                    </div>
+                    
+                    <!-- Test Buttons -->
+                    <div class="space-y-2">
+                        <button onclick="testSelectedAgent()" class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm font-semibold">
+                            🚀 Test Selected Agent
+                        </button>
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="testAllAgents()" class="px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded text-white text-xs">
+                                Test All
+                            </button>
+                            <button onclick="benchmarkAgents()" class="px-2 py-1 bg-orange-600 hover:bg-orange-700 rounded text-white text-xs">
+                                Benchmark
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Tests -->
+                    <div class="mt-4 pt-3 border-t border-gray-700">
+                        <p class="text-xs text-gray-500 mb-2">Quick Tests:</p>
+                        <div class="space-y-1">
+                            <button onclick="quickTest('rag', 'What is EmailPilot?')" class="w-full px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-left text-xs">
+                                RAG → "What is EmailPilot?"
+                            </button>
+                            <button onclick="quickTest('revenue_analyst', 'Show revenue metrics')" class="w-full px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-left text-xs">
+                                Revenue → "Show metrics"
+                            </button>
+                            <button onclick="quickTest('campaign_planner', 'Plan next month')" class="w-full px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-left text-xs">
+                                Planner → "Plan next month"
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Status Panel -->
+                <div class="bg-gray-900 rounded p-4 border border-gray-700">
+                    <h2 class="font-semibold mb-3 text-yellow-400">📊 System Status</h2>
+                    
+                    <div class="space-y-3">
+                        <!-- Service Status -->
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between items-center">
+                                <span>API Server:</span>
+                                <span id="api-status" class="text-gray-500">Checking...</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span>LangChain:</span>
+                                <span id="langchain-status" class="text-gray-500">Checking...</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span>Agents:</span>
+                                <span id="agents-status" class="text-gray-500">Checking...</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span>LangGraph:</span>
+                                <span id="langgraph-status" class="text-gray-500">Checking...</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span>MCP Gateway:</span>
+                                <span id="mcp-status" class="text-gray-500">Checking...</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Refresh Button -->
+                        <button onclick="checkAllStatus()" class="w-full mt-3 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm">
+                            🔄 Refresh Status
+                        </button>
+                        
+                        <!-- Performance Metrics -->
+                        <div class="mt-4 pt-3 border-t border-gray-700">
+                            <p class="text-xs text-gray-500 mb-2">Performance:</p>
+                            <div class="text-xs space-y-1">
+                                <div>Avg Response: <span id="avg-response" class="text-green-400">--</span></div>
+                                <div>Success Rate: <span id="success-rate" class="text-green-400">--</span></div>
+                                <div>Total Tests: <span id="total-tests" class="text-green-400">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Available Endpoints Panel -->
+                <div class="bg-gray-900 rounded p-4 border border-gray-700">
+                    <h2 class="font-semibold mb-3 text-yellow-400">📡 Available Endpoints</h2>
+                    
+                    <div class="space-y-2 text-xs font-mono overflow-y-auto max-h-96">
+                        <!-- Core Endpoints -->
+                        <div class="mb-3">
+                            <p class="text-gray-500 mb-1">Core Agents:</p>
+                            <div class="space-y-1" id="core-endpoints">
+                                <div class="text-green-400">Loading...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Email/SMS Endpoints -->
+                        <div class="mb-3">
+                            <p class="text-gray-500 mb-1">Email/SMS Agents:</p>
+                            <div class="space-y-1" id="email-endpoints">
+                                <div class="text-green-400">Loading...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Admin Endpoints -->
+                        <div>
+                            <p class="text-gray-500 mb-1">Admin Endpoints:</p>
+                            <div class="space-y-1">
+                                <div>GET /api/admin/langchain/agents</div>
+                                <div>GET /api/admin/langchain/agent/{id}/prompt</div>
+                                <div>POST /api/admin/langchain/agent/{id}/invoke</div>
+                                <div>POST /api/admin/langchain/reload</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Debug Output -->
+            <div class="mt-6">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-semibold text-yellow-400">📝 Debug Output</h3>
+                    <div class="space-x-2">
+                        <button onclick="clearOutput()" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs">Clear</button>
+                        <button onclick="exportLogs()" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs">Export</button>
+                    </div>
+                </div>
+                <pre id="debug-output" class="terminal-bg text-green-400 p-4 rounded font-mono text-xs overflow-x-auto h-64 overflow-y-auto border border-gray-700"></pre>
+            </div>
+            
+            <!-- Quick Links -->
+            <div class="mt-4 flex gap-3 flex-wrap">
+                <a href="/static/agent_creator_enhanced.html" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-white text-sm">
+                    🎨 Agent Creator (Advanced)
+                </a>
+                <a href="/static/langchain_debug_editor.html" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-white text-sm">
+                    ✏️ Simple Prompt Editor
+                </a>
+                <a href="/static/workflow_editor.html" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm">
+                    🔄 Workflow Editor
+                </a>
+                <a href="/static/calendar_hub.html" class="px-4 py-2 bg-pink-600 hover:bg-pink-700 rounded text-white text-sm">
+                    📅 Calendar Hub
+                </a>
+                <a href="/static/index.html" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-white text-sm">
+                    🏠 Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let availableAgents = [];
+        let testMetrics = {
+            totalTests: 0,
+            successCount: 0,
+            totalTime: 0
+        };
+        
+        // Initialize session ID
+        document.getElementById('session-id').textContent = Date.now().toString(36).toUpperCase();
+        
+        // Logging function
+        const log = (msg, type = 'info') => {
+            const output = document.getElementById('debug-output');
+            const time = new Date().toLocaleTimeString();
+            const colors = {
+                error: '🔴 ERROR',
+                success: '🟢 SUCCESS',
+                warning: '🟡 WARNING',
+                info: '🔵 INFO',
+                test: '🧪 TEST',
+                result: '📊 RESULT'
+            };
+            const prefix = colors[type] || '📝';
+            output.textContent += `${prefix} [${time}] ${msg}\n`;
+            output.scrollTop = output.scrollHeight;
+        };
+        
+        // Load available agents
+        async function loadAgents() {
+            try {
+                log('Loading available agents...', 'info');
+                const response = await fetch('/api/admin/langchain/agents');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    availableAgents = data.agents || data || [];
+                    
+                    // Update agent selector
+                    const select = document.getElementById('agent-select');
+                    select.innerHTML = '<option value="">-- Select Agent --</option>';
+                    
+                    // Categorize agents
+                    const coreAgents = [];
+                    const emailAgents = [];
+                    
+                    availableAgents.forEach(agent => {
+                        const agentId = agent.id || agent.name || agent;
+                        const option = document.createElement('option');
+                        option.value = agentId;
+                        option.textContent = `${agentId} ${agent.description ? '- ' + agent.description : ''}`;
+                        select.appendChild(option);
+                        
+                        // Categorize for display
+                        if (['rag', 'default', 'revenue_analyst', 'campaign_planner'].includes(agentId)) {
+                            coreAgents.push(agentId);
+                        } else {
+                            emailAgents.push(agentId);
+                        }
+                    });
+                    
+                    // Update endpoint displays
+                    document.getElementById('core-endpoints').innerHTML = coreAgents.map(a => 
+                        `<div class="text-green-400">POST /api/admin/langchain/agents/${a}/runs</div>`
+                    ).join('');
+                    
+                    document.getElementById('email-endpoints').innerHTML = emailAgents.map(a => 
+                        `<div class="text-green-400">POST /api/admin/langchain/agents/${a}/runs</div>`
+                    ).join('');
+                    
+                    log(`Loaded ${availableAgents.length} agents successfully`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log(`Failed to load agents: ${error.message}`, 'error');
+                document.getElementById('agent-select').innerHTML = '<option value="">Error loading agents</option>';
+            }
+        }
+        
+        // Test selected agent
+        async function testSelectedAgent() {
+            const agentId = document.getElementById('agent-select').value;
+            const input = document.getElementById('test-input').value;
+            
+            if (!agentId) {
+                log('Please select an agent to test', 'warning');
+                return;
+            }
+            
+            await testAgent(agentId, input);
+        }
+        
+        // Poll for agent run result
+        async function pollForResult(runId, agentName, maxAttempts = 30) {
+            let attempts = 0;
+            
+            while (attempts < maxAttempts) {
+                try {
+                    // Try to get run result
+                    const response = await fetch(`/api/admin/langchain/runs/${runId}`);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.status === 'completed') {
+                            log('Agent completed!', 'success');
+                            if (data.output || data.result) {
+                                log('Final output:', 'result');
+                                log(JSON.stringify(data.output || data.result, null, 2), 'result');
+                            }
+                            if (data.events && data.events.length > 0) {
+                                log('Events:', 'info');
+                                data.events.forEach(event => {
+                                    log(`  ${event.type}: ${event.message}`, 'info');
+                                });
+                            }
+                            return data;
+                        } else if (data.status === 'failed') {
+                            log('Agent failed!', 'error');
+                            if (data.error) {
+                                log(`Error: ${data.error}`, 'error');
+                            }
+                            return data;
+                        } else {
+                            // Still running, show progress
+                            if (attempts % 5 === 0) {
+                                log(`Still running... (${attempts + 1}/${maxAttempts})`, 'info');
+                            }
+                        }
+                    } else if (response.status === 404) {
+                        // Run not found, might not have polling endpoint
+                        log('Run polling not available, checking alternative endpoints...', 'warning');
+                        
+                        // Try the direct agent invoke endpoint as fallback
+                        const invokeResponse = await fetch(`/api/admin/agents/${agentName}/invoke`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({input: document.getElementById('test-input').value})
+                        });
+                        
+                        if (invokeResponse.ok) {
+                            const invokeData = await invokeResponse.json();
+                            log('Direct invoke response:', 'success');
+                            log(JSON.stringify(invokeData, null, 2), 'result');
+                            return invokeData;
+                        }
+                        
+                        return null;
+                    }
+                } catch (error) {
+                    log(`Polling error: ${error.message}`, 'warning');
+                }
+                
+                // Wait before next poll
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                attempts++;
+            }
+            
+            log('Polling timeout - agent may still be running', 'warning');
+            return null;
+        }
+        
+        // Test specific agent
+        async function testAgent(agentName, input = null) {
+            const testInput = input || document.getElementById('test-input').value || 'test';
+            const startTime = Date.now();
+            
+            log(`Testing agent: ${agentName}`, 'test');
+            log(`Input: "${testInput}"`, 'info');
+            
+            try {
+                const response = await fetch(`/api/admin/langchain/agents/${agentName}/runs?task=${encodeURIComponent(testInput)}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({input: testInput})
+                });
+                
+                const elapsed = Date.now() - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Response (${elapsed}ms):`, 'success');
+                    log(JSON.stringify(data, null, 2), 'result');
+                    
+                    // If we got a run_id, try the synchronous execute endpoint instead
+                    if (data.run_id && !data.output) {
+                        log('Getting actual agent response...', 'info');
+                        
+                        try {
+                            // Use synchronous execute endpoint
+                            const execResponse = await fetch(`/api/langchain/execute/${agentName}`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({input: testInput})
+                            });
+                            
+                            if (execResponse.ok) {
+                                const execData = await execResponse.json();
+                                log('Agent response received:', 'success');
+                                log(execData.output || JSON.stringify(execData), 'result');
+                                
+                                if (execData.sources) {
+                                    log('Sources:', 'info');
+                                    execData.sources.forEach(src => {
+                                        log(`  - ${src.content.substring(0, 100)}...`, 'info');
+                                    });
+                                }
+                            } else {
+                                // Fall back to polling if execute endpoint not available
+                                await pollForResult(data.run_id, agentName);
+                            }
+                        } catch (error) {
+                            log(`Execute error, trying poll: ${error.message}`, 'warning');
+                            await pollForResult(data.run_id, agentName);
+                        }
+                    }
+                    
+                    // Update metrics
+                    testMetrics.totalTests++;
+                    testMetrics.successCount++;
+                    testMetrics.totalTime += elapsed;
+                    updateMetrics();
+                } else {
+                    const error = await response.text();
+                    log(`Failed (${elapsed}ms): ${error}`, 'error');
+                    testMetrics.totalTests++;
+                    updateMetrics();
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                testMetrics.totalTests++;
+                updateMetrics();
+            }
+        }
+        
+        // Quick test helper
+        function quickTest(agent, input) {
+            document.getElementById('test-input').value = input;
+            testAgent(agent, input);
+        }
+        
+        // Test all agents
+        async function testAllAgents() {
+            const input = document.getElementById('test-input').value || 'test';
+            log('Starting batch test of all agents...', 'info');
+            
+            for (const agent of availableAgents) {
+                const agentId = agent.id || agent.name || agent;
+                await testAgent(agentId, input);
+                // Small delay between tests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            log('Batch test complete!', 'success');
+        }
+        
+        // Benchmark agents
+        async function benchmarkAgents() {
+            log('Starting benchmark test...', 'info');
+            const benchmarkInput = 'Analyze performance and suggest improvements';
+            
+            const results = [];
+            for (const agent of availableAgents) {
+                const agentId = agent.id || agent.name || agent;
+                const startTime = Date.now();
+                
+                try {
+                    const response = await fetch(`/api/admin/langchain/agents/${agentId}/runs?task=${encodeURIComponent(benchmarkInput)}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({input: benchmarkInput})
+                    });
+                    
+                    const elapsed = Date.now() - startTime;
+                    results.push({
+                        agent: agentId,
+                        time: elapsed,
+                        success: response.ok
+                    });
+                } catch (error) {
+                    results.push({
+                        agent: agentId,
+                        time: Date.now() - startTime,
+                        success: false
+                    });
+                }
+            }
+            
+            // Sort by speed
+            results.sort((a, b) => a.time - b.time);
+            
+            log('Benchmark Results:', 'result');
+            results.forEach((r, i) => {
+                const emoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '  ';
+                log(`${emoji} ${r.agent}: ${r.time}ms ${r.success ? '✅' : '❌'}`, 'result');
+            });
+        }
+        
+        // Update metrics display
+        function updateMetrics() {
+            document.getElementById('total-tests').textContent = testMetrics.totalTests;
+            
+            if (testMetrics.totalTests > 0) {
+                const successRate = (testMetrics.successCount / testMetrics.totalTests * 100).toFixed(1);
+                const avgTime = Math.round(testMetrics.totalTime / testMetrics.totalTests);
+                
+                document.getElementById('success-rate').textContent = `${successRate}%`;
+                document.getElementById('avg-response').textContent = `${avgTime}ms`;
+            }
+        }
+        
+        // Check all service status
+        async function checkAllStatus() {
+            log('Checking system status...', 'info');
+            
+            // API Server
+            try {
+                const apiResponse = await fetch('/api/health');
+                if (apiResponse.ok) {
+                    document.getElementById('api-status').innerHTML = '<span class="text-green-400">✅ Online</span>';
+                } else {
+                    throw new Error('Not OK');
+                }
+            } catch {
+                document.getElementById('api-status').innerHTML = '<span class="text-red-400">❌ Offline</span>';
+            }
+            
+            // LangChain Agents
+            try {
+                const agentsResponse = await fetch('/api/admin/langchain/agents');
+                if (agentsResponse.ok) {
+                    const data = await agentsResponse.json();
+                    const count = (data.agents || data || []).length;
+                    document.getElementById('langchain-status').innerHTML = '<span class="text-green-400">✅ Active</span>';
+                    document.getElementById('agents-status').innerHTML = `<span class="text-green-400">✅ ${count} agents</span>`;
+                } else {
+                    throw new Error('Not OK');
+                }
+            } catch {
+                document.getElementById('langchain-status').innerHTML = '<span class="text-red-400">❌ Error</span>';
+                document.getElementById('agents-status').innerHTML = '<span class="text-red-400">❌ Error</span>';
+            }
+            
+            // LangGraph Studio
+            try {
+                const lgResponse = await fetch('http://localhost:2024/health');
+                document.getElementById('langgraph-status').innerHTML = '<span class="text-green-400">✅ Running</span>';
+            } catch {
+                document.getElementById('langgraph-status').innerHTML = '<span class="text-yellow-400">⚠️ Not running</span>';
+            }
+            
+            // MCP Gateway
+            try {
+                const mcpResponse = await fetch('/api/mcp/gateway/health');
+                if (mcpResponse.ok) {
+                    document.getElementById('mcp-status').innerHTML = '<span class="text-green-400">✅ Active</span>';
+                } else {
+                    // Try alternative endpoint
+                    const altResponse = await fetch('http://localhost:9090/healthz');
+                    if (altResponse.ok) {
+                        document.getElementById('mcp-status').innerHTML = '<span class="text-green-400">✅ Running</span>';
+                    } else {
+                        throw new Error('Not OK');
+                    }
+                }
+            } catch {
+                document.getElementById('mcp-status').innerHTML = '<span class="text-yellow-400">⚠️ Not active</span>';
+            }
+            
+            log('Status check complete', 'success');
+        }
+        
+        // Clear output
+        function clearOutput() {
+            document.getElementById('debug-output').textContent = '';
+            log('Console cleared', 'info');
+        }
+        
+        // Export logs
+        function exportLogs() {
+            const logs = document.getElementById('debug-output').textContent;
+            const blob = new Blob([logs], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `langchain_debug_${Date.now()}.log`;
+            a.click();
+            URL.revokeObjectURL(url);
+            log('Logs exported', 'success');
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', async () => {
+            log('LangChain Debug Console initialized', 'info');
+            log('Loading system components...', 'info');
+            
+            // Load agents first
+            await loadAgents();
+            
+            // Then check status
+            await checkAllStatus();
+            
+            log('Ready for testing!', 'success');
+            log('Select an agent and click "Test Selected Agent" to begin', 'info');
+        });
+    </script>
+</body>
+</html>

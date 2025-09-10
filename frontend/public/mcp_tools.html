@@ -1,0 +1,2196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Tools Dashboard - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .tab-active {
+            background-color: rgb(59, 130, 246);
+            color: white;
+        }
+        .json-output {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">🛠️ MCP Tools Dashboard</h1>
+                    <p class="text-gray-600">Enhanced Klaviyo MCP with Natural Language Testing</p>
+                </div>
+                <div id="connection-status" class="flex items-center">
+                    <span class="w-3 h-3 bg-gray-400 rounded-full mr-2" id="status-dot"></span>
+                    <span class="text-sm text-gray-600" id="status-text">Checking connection...</span>
+                </div>
+            </div>
+
+            <!-- MCP Service Selector -->
+            <div class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-server mr-2"></i>MCP Service
+                        </label>
+                        <select id="mcp-service-selector" class="w-full px-3 py-2 border border-gray-300 rounded-lg" onchange="switchMCPService()">
+                            <option value="enhanced" selected>Enhanced Klaviyo MCP (Port 9095)</option>
+                            <option value="gateway">MCP Gateway (Smart Routing)</option>
+                            <option value="python">Python Klaviyo MCP (Port 9090)</option>
+                            <option value="local">Local MCP Management</option>
+                        </select>
+                        <div class="mt-2 text-xs text-gray-500">
+                            <span id="mcp-service-status">Using Enhanced MCP on port 9095</span>
+                        </div>
+                    </div>
+                    <div id="service-info" class="bg-white p-3 rounded-lg border border-purple-100">
+                        <h4 class="font-semibold text-sm mb-1">Service Details</h4>
+                        <div id="service-details" class="text-xs text-gray-600">
+                            <p><strong>Type:</strong> Node.js HTTP Wrapper</p>
+                            <p><strong>Port:</strong> 9095</p>
+                            <p><strong>Tools:</strong> 20+ Klaviyo operations</p>
+                            <p><strong>Status:</strong> <span id="service-health">Checking...</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client Selector -->
+            <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-user-circle mr-2"></i>Select Client (for API Key)
+                </label>
+                <select id="client-selector" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Loading clients...</option>
+                </select>
+                <div class="mt-2 text-xs text-gray-500">
+                    <span id="api-key-status">No client selected</span>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="border-b mb-6">
+                <div class="flex space-x-1">
+                    <button onclick="switchTab('natural')" id="tab-natural" class="px-4 py-2 rounded-t-lg font-medium tab-active">
+                        💬 Natural Language Query
+                    </button>
+                    <button onclick="switchTab('direct')" id="tab-direct" class="px-4 py-2 rounded-t-lg font-medium hover:bg-gray-100">
+                        🔧 Direct Tool Testing
+                    </button>
+                    <button onclick="switchTab('workflow')" id="tab-workflow" class="px-4 py-2 rounded-t-lg font-medium hover:bg-gray-100">
+                        🔄 Workflow Integration
+                    </button>
+                    <button onclick="switchTab('status')" id="tab-status" class="px-4 py-2 rounded-t-lg font-medium hover:bg-gray-100">
+                        📊 Tool Status
+                    </button>
+                    <button onclick="switchTab('registry')" id="tab-registry" class="px-4 py-2 rounded-t-lg font-medium hover:bg-gray-100">
+                        🎛️ Universal MCP Registry
+                    </button>
+                </div>
+            </div>
+
+            <!-- Natural Language Tab -->
+            <div id="natural-tab" class="tab-content">
+                <div class="mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-3">Natural Language Query Testing</h2>
+                    
+                    <!-- Example Queries -->
+                    <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <p class="text-sm font-medium text-gray-700 mb-2">Try queries like:</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            <button onclick="setNaturalQuery('Show me all campaigns')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                📧 "Show me all campaigns"
+                            </button>
+                            <button onclick="setNaturalQuery('Show email performance metrics for the last 30 days')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                📊 "Show email performance metrics for the last 30 days"
+                            </button>
+                            <button onclick="setNaturalQuery('List all segments')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                👥 "List all segments"
+                            </button>
+                            <button onclick="setNaturalQuery('Show campaign performance for the last 7 days')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                📈 "Show campaign performance for the last 7 days"
+                            </button>
+                            <button onclick="setNaturalQuery('Get all email templates')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                📝 "Get all email templates"
+                            </button>
+                            <button onclick="setNaturalQuery('List active flows')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                🔄 "List active flows"
+                            </button>
+                            <button onclick="setNaturalQuery('Show metrics for opened emails last week')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                👁️ "Show metrics for opened emails last week"
+                            </button>
+                            <button onclick="setNaturalQuery('List customer profiles')" class="text-left px-3 py-2 bg-white border rounded hover:bg-blue-50 transition">
+                                👤 "List customer profiles"
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Query Input -->
+                    <div class="mb-4">
+                        <textarea id="natural-query" 
+                                  placeholder="Enter your query in plain English..." 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg h-20 font-mono text-sm"
+                                  >Show me all campaigns</textarea>
+                    </div>
+                    
+                    <button onclick="executeNaturalQuery()" 
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                        <i class="fas fa-play mr-2"></i>Execute Query
+                    </button>
+                </div>
+
+                <!-- Interpretation Display -->
+                <div id="interpretation" class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg hidden">
+                    <h3 class="font-semibold text-gray-800 mb-2">Interpreted as:</h3>
+                    <div class="font-mono text-sm">
+                        <div>Tool: <span id="interpreted-tool" class="text-blue-600"></span></div>
+                        <div>Parameters: <span id="interpreted-params" class="text-green-600"></span></div>
+                    </div>
+                </div>
+
+                <!-- Natural Query Results -->
+                <div id="natural-results" class="mt-6 hidden">
+                    <h3 class="font-semibold text-gray-800 mb-2">Results:</h3>
+                    <pre id="natural-output" class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm json-output overflow-auto max-h-96"></pre>
+                </div>
+            </div>
+
+            <!-- Direct Tool Tab -->
+            <div id="direct-tab" class="tab-content hidden">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Direct MCP Tool Testing</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Tool</label>
+                        <select id="tool-selector" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <optgroup label="Campaigns">
+                                <option value="campaigns.list">List Campaigns</option>
+                                <option value="campaigns.get">Get Campaign</option>
+                            </optgroup>
+                            <optgroup label="Metrics">
+                                <option value="metrics.list">List Metrics</option>
+                                <option value="metrics.get">Get Metric</option>
+                                <option value="metrics.aggregate">Aggregate Metrics</option>
+                            </optgroup>
+                            <optgroup label="Segments">
+                                <option value="segments.list">List Segments</option>
+                                <option value="segments.get">Get Segment</option>
+                            </optgroup>
+                            <optgroup label="Profiles">
+                                <option value="profiles.get">Get Profile</option>
+                                <option value="profiles.create">Create Profile</option>
+                                <option value="profiles.update">Update Profile</option>
+                            </optgroup>
+                            <optgroup label="Lists">
+                                <option value="lists.list">List Lists</option>
+                                <option value="lists.get">Get List</option>
+                            </optgroup>
+                            <optgroup label="Flows">
+                                <option value="flows.list">List Flows</option>
+                                <option value="flows.get">Get Flow</option>
+                            </optgroup>
+                            <optgroup label="Templates">
+                                <option value="templates.list">List Templates</option>
+                                <option value="templates.get">Get Template</option>
+                            </optgroup>
+                            <optgroup label="Events">
+                                <option value="events.list">List Events</option>
+                                <option value="events.create">Create Event</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Parameters (JSON)</label>
+                        <input type="text" id="tool-params" 
+                               placeholder='{"limit": 10}' 
+                               value='{"limit": 10}'
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm">
+                    </div>
+                </div>
+                
+                <button onclick="executeTool()" 
+                        class="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    <i class="fas fa-cog mr-2"></i>Execute Tool
+                </button>
+                
+                <!-- Direct Tool Results -->
+                <div class="mt-6">
+                    <h3 class="font-semibold text-gray-800 mb-2">Output</h3>
+                    <pre id="tool-output" class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm json-output h-48 overflow-y-auto">Ready to execute MCP tools...</pre>
+                </div>
+            </div>
+
+            <!-- Workflow Integration Tab -->
+            <div id="workflow-tab" class="tab-content hidden">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Workflow MCP Integration</h2>
+                
+                <!-- Workflow Selection -->
+                <div class="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-project-diagram mr-2"></i>Select Workflow
+                            </label>
+                            <select id="workflow-selector" class="w-full px-3 py-2 border border-gray-300 rounded-lg" onchange="loadWorkflowConfig()">
+                                <option value="">Select a workflow...</option>
+                                <option value="calendar_workflow">Calendar Planning Workflow</option>
+                                <option value="revenue_analysis">Revenue Analysis Workflow</option>
+                                <option value="campaign_optimizer">Campaign Optimizer Workflow</option>
+                                <option value="custom">Create Custom Workflow</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-cogs mr-2"></i>Configuration Status
+                            </label>
+                            <div id="workflow-status" class="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600">
+                                No workflow selected
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MCP Server Registry -->
+                <div class="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-semibold text-gray-800">
+                            <i class="fas fa-server mr-2"></i>Available MCP Servers
+                        </h3>
+                        <button onclick="refreshMCPRegistry()" class="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition">
+                            <i class="fas fa-sync mr-1"></i>Refresh
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="mcp-registry">
+                        <div class="border border-purple-200 rounded-lg p-3 bg-white">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium text-sm">Klaviyo Enhanced</span>
+                                <span class="w-2 h-2 bg-green-500 rounded-full" title="Online"></span>
+                            </div>
+                            <div class="text-xs text-gray-600">
+                                <div>Port: 9095</div>
+                                <div>Tools: 20+ operations</div>
+                                <div>Type: Marketing Data</div>
+                            </div>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium text-sm text-gray-500">Salesforce MCP</span>
+                                <span class="w-2 h-2 bg-gray-400 rounded-full" title="Not Available"></span>
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                <div>Port: 9096</div>
+                                <div>Tools: CRM operations</div>
+                                <div>Type: Coming Soon</div>
+                            </div>
+                        </div>
+                        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium text-sm text-gray-500">Analytics MCP</span>
+                                <span class="w-2 h-2 bg-gray-400 rounded-full" title="Not Available"></span>
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                <div>Port: 9097</div>
+                                <div>Tools: GA4, Adobe</div>
+                                <div>Type: Coming Soon</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workflow Stage Configuration -->
+                <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg" id="stage-config" style="display: none;">
+                    <h3 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-layer-group mr-2"></i>Workflow Stage Configuration
+                    </h3>
+                    <div id="workflow-stages">
+                        <!-- Dynamic stage content will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Forward-Looking Analysis Preview -->
+                <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg" id="analysis-preview" style="display: none;">
+                    <h3 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-brain mr-2"></i>Forward-Looking Data Analysis
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-medium text-sm mb-2">Required Data Sources</h4>
+                            <div id="required-sources" class="text-sm space-y-1">
+                                <!-- Will be populated dynamically -->
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-sm mb-2">Prefetch Queries</h4>
+                            <div id="prefetch-queries" class="text-sm space-y-1 font-mono text-xs">
+                                <!-- Will be populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="executePrefetch()" class="mt-3 px-4 py-2 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition">
+                        <i class="fas fa-download mr-2"></i>Execute Prefetch
+                    </button>
+                </div>
+
+                <!-- Workflow Configuration Actions -->
+                <div class="flex gap-3">
+                    <button onclick="saveWorkflowConfig()" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                        <i class="fas fa-save mr-2"></i>Save Configuration
+                    </button>
+                    <button onclick="testWorkflowMCP()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                        <i class="fas fa-play mr-2"></i>Test Workflow
+                    </button>
+                    <button onclick="analyzeWorkflowRequirements()" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                        <i class="fas fa-search mr-2"></i>Analyze Requirements
+                    </button>
+                </div>
+
+                <!-- Configuration Results -->
+                <div id="workflow-results" class="mt-6 hidden">
+                    <h3 class="font-semibold text-gray-800 mb-2">Configuration Results</h3>
+                    <pre id="workflow-output" class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm json-output overflow-auto max-h-96"></pre>
+                </div>
+            </div>
+
+            <!-- Status Tab -->
+            <div id="status-tab" class="tab-content hidden">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">MCP Tool Status</h2>
+                
+                <!-- Service Status -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="border rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">🚀 Enhanced MCP Server</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>HTTP Server (Port 9095)</span>
+                                <span id="mcp-status" class="text-gray-600">Checking...</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>API Version</span>
+                                <span class="text-green-600">2024-06-15</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">🔌 FastAPI Backend</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>Main Server (Port 8000)</span>
+                                <span id="fastapi-status" class="text-green-600">✓ Active</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>MCP Routes</span>
+                                <span class="text-green-600">✓ Loaded</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">📊 Klaviyo API</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span>API Keys</span>
+                                <span id="api-keys-count" class="text-gray-600">0 loaded</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Selected Client</span>
+                                <span id="selected-client-status" class="text-gray-600">None</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Available Tools List -->
+                <div class="border rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-3">Available Tools (17 Categories)</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div><i class="fas fa-envelope text-blue-500 mr-1"></i> Campaigns</div>
+                        <div><i class="fas fa-chart-bar text-green-500 mr-1"></i> Metrics</div>
+                        <div><i class="fas fa-users text-purple-500 mr-1"></i> Segments</div>
+                        <div><i class="fas fa-user text-orange-500 mr-1"></i> Profiles</div>
+                        <div><i class="fas fa-list text-indigo-500 mr-1"></i> Lists</div>
+                        <div><i class="fas fa-stream text-pink-500 mr-1"></i> Flows</div>
+                        <div><i class="fas fa-file-alt text-teal-500 mr-1"></i> Templates</div>
+                        <div><i class="fas fa-calendar text-red-500 mr-1"></i> Events</div>
+                        <div><i class="fas fa-tag text-yellow-500 mr-1"></i> Tags</div>
+                        <div><i class="fas fa-image text-blue-400 mr-1"></i> Images</div>
+                        <div><i class="fas fa-ticket-alt text-green-400 mr-1"></i> Coupons</div>
+                        <div><i class="fas fa-book text-purple-400 mr-1"></i> Catalogs</div>
+                        <div><i class="fas fa-link text-orange-400 mr-1"></i> Webhooks</div>
+                        <div><i class="fas fa-star text-indigo-400 mr-1"></i> Reviews</div>
+                        <div><i class="fas fa-wpforms text-pink-400 mr-1"></i> Forms</div>
+                        <div><i class="fas fa-shield-alt text-teal-400 mr-1"></i> Data Privacy</div>
+                        <div><i class="fas fa-chart-line text-red-400 mr-1"></i> Reporting</div>
+                    </div>
+                </div>
+
+                <!-- Test Connection Button -->
+                <div class="mt-6">
+                    <button onclick="testConnections()" 
+                            class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                        <i class="fas fa-plug mr-2"></i>Test All Connections
+                    </button>
+                </div>
+            </div>
+
+            <!-- Universal MCP Registry Tab -->
+            <div id="registry-tab" class="tab-content hidden">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">🎛️ Universal MCP Registry</h2>
+                <p class="text-gray-600 mb-6">Register and manage any MCP tool with automatic AI enhancement</p>
+                
+                <!-- Registration Form -->
+                <div class="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-plus-circle mr-2"></i>Register New MCP Tool
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tool Name</label>
+                            <input type="text" id="new-mcp-name" placeholder="e.g., Stripe Analytics" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Base URL</label>
+                            <input type="text" id="new-mcp-url" placeholder="e.g., https://api.stripe.com/v1" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
+                            <select id="new-mcp-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="">Select type...</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="financial">Financial</option>
+                                <option value="ecommerce">E-commerce</option>
+                                <option value="analytics">Analytics</option>
+                                <option value="crm">CRM</option>
+                                <option value="communication">Communication</option>
+                                <option value="general">General</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Authentication Type</label>
+                            <select id="new-mcp-auth" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="api_key">API Key</option>
+                                <option value="oauth2">OAuth 2.0</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="basic">Basic Auth</option>
+                                <option value="none">No Auth</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <input type="text" id="new-mcp-description" placeholder="Brief description of the tool" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Example Queries (one per line)</label>
+                            <textarea id="new-mcp-examples" rows="3" 
+                                      placeholder="List all transactions&#10;Get customer profile&#10;Show revenue for last month"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-3">
+                        <button onclick="registerNewMCP()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
+                            <i class="fas fa-plus mr-2"></i>Register MCP
+                        </button>
+                        <button onclick="discoverMCPEndpoints()" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                            <i class="fas fa-search mr-2"></i>Auto-Discover Endpoints
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Registered MCPs List -->
+                <div class="mb-6">
+                    <h3 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-list mr-2"></i>Registered MCP Tools
+                    </h3>
+                    <div id="registered-mcps" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Will be populated dynamically -->
+                        <div class="text-gray-500">Loading registered MCPs...</div>
+                    </div>
+                </div>
+                
+                <!-- AI Configuration -->
+                <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-brain mr-2"></i>AI Configuration
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Optimization Mode</label>
+                            <select id="ai-optimization" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="balanced" selected>Balanced</option>
+                                <option value="speed">Speed Priority</option>
+                                <option value="quality">Quality Priority</option>
+                                <option value="cost">Cost Optimized</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Learning</label>
+                            <div class="flex items-center mt-2">
+                                <input type="checkbox" id="ai-learning" checked class="mr-2">
+                                <label for="ai-learning" class="text-sm">Enable pattern learning</label>
+                            </div>
+                        </div>
+                        <div>
+                            <button onclick="viewLLMRecommendations()" class="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
+                                <i class="fas fa-robot mr-2"></i>View LLM Recommendations
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Test Query Section -->
+                <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-vial mr-2"></i>Test MCP Query
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Select MCP</label>
+                            <select id="test-mcp-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="">Select an MCP...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Test Query</label>
+                            <input type="text" id="test-mcp-query" placeholder="e.g., List all customers" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        </div>
+                    </div>
+                    <button onclick="testMCPQuery()" class="mt-3 px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition">
+                        <i class="fas fa-play mr-2"></i>Execute Test
+                    </button>
+                </div>
+                
+                <!-- Universal Query Results -->
+                <div id="universal-results" class="hidden">
+                    <h3 class="font-semibold text-gray-800 mb-2">Query Results</h3>
+                    <pre id="universal-output" class="p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-sm json-output overflow-auto max-h-96"></pre>
+                </div>
+            </div>
+
+            <!-- Links -->
+            <div class="mt-6 pt-6 border-t flex gap-4">
+                <a href="/static/mcp_chat.html" class="text-blue-600 hover:underline">💬 MCP Chat</a>
+                <a href="/static/workflow_editor.html" class="text-blue-600 hover:underline">🔄 Workflow Editor</a>
+                <a href="/static/langchain_dashboard.html" class="text-blue-600 hover:underline">🤖 LangChain Dashboard</a>
+                <a href="/static/index.html" class="text-blue-600 hover:underline">🏠 Main Dashboard</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let selectedClient = null;
+        let apiKey = null;
+        let mcpServerReady = false;
+        let clientsData = {}; // Store client data including metric IDs
+        let currentMCPService = 'enhanced';
+        
+        // MCP Server Configuration
+        let MCP_SERVER_URL = 'http://localhost:9095';
+        const FASTAPI_URL = 'http://localhost:8000';
+        
+        // MCP Service Configurations
+        const MCP_SERVICES = {
+            'enhanced': {
+                name: 'Enhanced Klaviyo MCP',
+                url: 'http://localhost:9095',
+                type: 'Node.js HTTP Wrapper',
+                port: '9095',
+                tools: '20+ Klaviyo operations',
+                healthEndpoint: '/health',
+                invokeEndpoint: '/mcp/invoke',
+                toolsEndpoint: '/mcp/tools'
+            },
+            'gateway': {
+                name: 'MCP Gateway',
+                url: `${FASTAPI_URL}/api/mcp/gateway`,
+                type: 'FastAPI Smart Router',
+                port: '8000',
+                tools: 'Routes to best MCP',
+                healthEndpoint: '/health',
+                invokeEndpoint: '/invoke',
+                toolsEndpoint: '/tools'
+            },
+            'python': {
+                name: 'Python Klaviyo MCP',
+                url: 'http://localhost:9090',
+                type: 'Python FastAPI',
+                port: '9090',
+                tools: 'Klaviyo operations',
+                healthEndpoint: '/health',
+                invokeEndpoint: '/tools/invoke',
+                toolsEndpoint: '/tools'
+            },
+            'local': {
+                name: 'Local MCP Management',
+                url: `${FASTAPI_URL}/api/mcp`,
+                type: 'FastAPI Local',
+                port: '8000',
+                tools: 'MCP client management',
+                healthEndpoint: '/clients',
+                invokeEndpoint: '/invoke',
+                toolsEndpoint: '/tools'
+            }
+        };
+        
+        // Natural Language Query Mapping
+        const QUERY_MAPPINGS = {
+            'campaigns': ['campaign', 'email', 'emails'],
+            'metrics': ['metric', 'performance', 'stats', 'statistics', 'analytics'],
+            'segments': ['segment', 'audience', 'group'],
+            'profiles': ['profile', 'user', 'subscriber', 'contact'],
+            'lists': ['list', 'mailing list'],
+            'flows': ['flow', 'automation', 'workflow'],
+            'templates': ['template', 'design'],
+            'events': ['event', 'activity', 'action']
+        };
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            loadClients();
+            checkMCPStatus();
+            loadMCPRegistry();
+            loadRegisteredMCPs(); // Load Universal MCP Registry
+            setInterval(checkMCPStatus, 30000); // Check every 30 seconds
+        });
+        
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('hover:bg-gray-100');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add('tab-active');
+            document.getElementById(`tab-${tabName}`).classList.remove('hover:bg-gray-100');
+        }
+
+        // Load available clients
+        async function loadClients() {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/klaviyo/keys`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const selector = document.getElementById('client-selector');
+                    
+                    // Clear existing options
+                    selector.innerHTML = '<option value="">Select a client...</option>';
+                    
+                    // Add clients with API keys
+                    data.clients.forEach(client => {
+                        if (client.has_key && client.is_active) {
+                            // Store client data for later use
+                            clientsData[client.id] = client;
+                            
+                            const option = document.createElement('option');
+                            option.value = client.id;
+                            option.textContent = `${client.name} (${client.key_preview})`;
+                            option.dataset.name = client.name;
+                            selector.appendChild(option);
+                        }
+                    });
+                    
+                    // Update status
+                    document.getElementById('api-keys-count').textContent = `${data.clients_with_keys} loaded`;
+                    
+                    // Add change listener
+                    selector.addEventListener('change', selectClient);
+                } else {
+                    console.error('Failed to load clients');
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                document.getElementById('client-selector').innerHTML = 
+                    '<option value="">Error loading clients</option>';
+            }
+        }
+
+        // Select a client
+        async function selectClient(event) {
+            const clientId = event.target.value;
+            if (!clientId) {
+                selectedClient = null;
+                apiKey = null;
+                document.getElementById('api-key-status').textContent = 'No client selected';
+                document.getElementById('selected-client-status').textContent = 'None';
+                return;
+            }
+            
+            try {
+                // First get client info
+                const infoResponse = await fetch(`${FASTAPI_URL}/api/mcp/klaviyo/keys/${clientId}`);
+                if (!infoResponse.ok) {
+                    throw new Error('Failed to get client info');
+                }
+                const infoData = await infoResponse.json();
+                
+                // Then get the actual API key from Secret Manager
+                const keyResponse = await fetch(`${FASTAPI_URL}/api/mcp/klaviyo/keys/${clientId}/actual`);
+                if (keyResponse.ok) {
+                    const keyData = await keyResponse.json();
+                    selectedClient = clientId;
+                    apiKey = keyData.api_key;
+                    
+                    const clientName = keyData.client_name;
+                    document.getElementById('api-key-status').textContent = 
+                        `Selected: ${clientName} (Key: ${infoData.key_preview}) - ${keyData.source === 'secret_manager' ? '🔐 Secret Manager' : '📝 Legacy'}`;
+                    document.getElementById('selected-client-status').textContent = clientName;
+                    
+                    // Log the selected client's placed_order_metric_id
+                    const clientData = clientsData[clientId];
+                    if (clientData && clientData.placed_order_metric_id) {
+                        console.log(`Client ${clientId} has placed_order_metric_id: ${clientData.placed_order_metric_id}`);
+                    } else {
+                        console.warn(`Client ${clientId} is missing placed_order_metric_id in Firestore`);
+                    }
+                } else {
+                    // Fallback to just showing info without actual key
+                    selectedClient = clientId;
+                    apiKey = null;
+                    const clientName = event.target.options[event.target.selectedIndex].dataset.name;
+                    document.getElementById('api-key-status').textContent = 
+                        `Selected: ${clientName} (Key retrieval failed)`;
+                    document.getElementById('selected-client-status').textContent = clientName;
+                    console.warn('Could not retrieve actual API key, some features may not work');
+                }
+            } catch (error) {
+                console.error('Error selecting client:', error);
+                document.getElementById('api-key-status').textContent = 'Error loading API key';
+            }
+        }
+
+        // Switch MCP Service
+        function switchMCPService() {
+            const selector = document.getElementById('mcp-service-selector');
+            currentMCPService = selector.value;
+            const service = MCP_SERVICES[currentMCPService];
+            
+            // Update URL
+            MCP_SERVER_URL = service.url;
+            
+            // Update UI
+            document.getElementById('mcp-service-status').textContent = `Using ${service.name} on port ${service.port}`;
+            document.getElementById('service-details').innerHTML = `
+                <p><strong>Type:</strong> ${service.type}</p>
+                <p><strong>Port:</strong> ${service.port}</p>
+                <p><strong>Tools:</strong> ${service.tools}</p>
+                <p><strong>Status:</strong> <span id="service-health">Checking...</span></p>
+            `;
+            
+            // Check status of new service
+            checkMCPStatus();
+            
+            // Reload tools list for the new service
+            refreshToolsList();
+        }
+
+        // Check MCP Server Status
+        async function checkMCPStatus() {
+            const service = MCP_SERVICES[currentMCPService];
+            try {
+                const response = await fetch(`${service.url}${service.healthEndpoint}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    mcpServerReady = true;
+                    updateConnectionStatus(true, data.status || 'operational');
+                    document.getElementById('mcp-status').innerHTML = 
+                        '<span class="text-green-600">✓ Connected</span>';
+                    document.getElementById('service-health').innerHTML = 
+                        '<span class="text-green-600">✓ Online</span>';
+                } else {
+                    throw new Error('MCP server not responding');
+                }
+            } catch (error) {
+                mcpServerReady = false;
+                updateConnectionStatus(false, `${service.name} offline`);
+                document.getElementById('mcp-status').innerHTML = 
+                    '<span class="text-red-600">✗ Offline</span>';
+                document.getElementById('service-health').innerHTML = 
+                    '<span class="text-red-600">✗ Offline</span>';
+            }
+        }
+
+        // Update connection status indicator
+        function updateConnectionStatus(connected, message) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            
+            if (connected) {
+                dot.className = 'w-3 h-3 bg-green-500 rounded-full mr-2';
+                text.textContent = message || 'Connected';
+                text.className = 'text-sm text-green-600';
+            } else {
+                dot.className = 'w-3 h-3 bg-red-500 rounded-full mr-2';
+                text.textContent = message || 'Disconnected';
+                text.className = 'text-sm text-red-600';
+            }
+        }
+
+        // Natural Language Query Functions
+        function setNaturalQuery(query) {
+            document.getElementById('natural-query').value = query;
+        }
+
+        // Helper function to get client metric ID
+        async function getClientMetricId(clientId) {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/klaviyo/keys/${clientId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data;
+                }
+            } catch (error) {
+                console.error('Error fetching client data:', error);
+            }
+            return { placed_order_metric_id: 'UVBrHm' }; // Default fallback
+        }
+        
+        // Simple function to send query to AI backend
+        async function parseNaturalQuery(query) {
+            // Let the AI backend handle all the complexity
+            return {
+                query: query,
+                client_id: selectedClient
+            };
+            
+            // Strategy 0: Revenue queries - HIGH PRIORITY
+            if (lowerQuery.includes('revenue') || lowerQuery.includes('sales') || 
+                lowerQuery.includes('money') || lowerQuery.includes('earnings') ||
+                lowerQuery.includes('income')) {
+                
+                if (clientInfo && clientInfo.placed_order_metric_id) {
+                    const aggregateParams = {
+                        metric_id: clientInfo.placed_order_metric_id,
+                        measurements: ['sum_value', 'count', 'unique'],
+                        interval: 'day'
+                    };
+                    
+                    // Add date filter
+                    if (dateRange) {
+                        aggregateParams.filter = [
+                            `greater-or-equal(datetime,${dateRange.start})`,
+                            `less-than(datetime,${dateRange.end})`
+                        ];
+                    }
+                    
+                    // Group by campaign if mentioned
+                    if (lowerQuery.includes('per campaign') || lowerQuery.includes('by campaign')) {
+                        aggregateParams.by = ['$attributed_message'];
+                        aggregateParams.description = 'Revenue per campaign';
+                    }
+                    // Group by segment if mentioned
+                    else if (lowerQuery.includes('by segment')) {
+                        aggregateParams.by = ['$segment'];
+                        aggregateParams.description = 'Revenue by segment';
+                    }
+                    // Group by flow if mentioned
+                    else if (lowerQuery.includes('by flow')) {
+                        aggregateParams.by = ['$flow'];
+                        aggregateParams.description = 'Revenue by flow';
+                    }
+                    
+                    strategies.push({
+                        tool: 'metrics.aggregate',
+                        params: aggregateParams,
+                        description: `Get revenue metrics${dateRange ? ' for ' + getDateRangeDescription(dateRange) : ''}`
+                    });
+                } else {
+                    strategies.push({
+                        tool: 'error',
+                        params: { message: `ERROR: Client ${selectedClient} is missing placed_order_metric_id in Firestore.` },
+                        description: 'Revenue query failed - missing metric ID'
+                    });
+                }
+            }
+            
+            // Strategy 1: Campaign Performance Metrics
+            if (lowerQuery.includes('campaign performance') || 
+                (lowerQuery.includes('campaign') && lowerQuery.includes('metric'))) {
+                
+                // First get campaigns list
+                strategies.push({
+                    tool: 'campaigns.list',
+                    params: {
+                        filter: dateRange ? `greater-or-equal(created,${dateRange.start})` : undefined,
+                        limit: 50
+                    },
+                    description: 'List campaigns'
+                });
+                
+                // Add aggregations for key metrics
+                const metricsToAggregate = [];
+                
+                if (lowerQuery.includes('open_rate') || lowerQuery.includes('open rate') || !lowerQuery.includes('specific')) {
+                    metricsToAggregate.push({ name: 'Opened Email', type: 'engagement' });
+                }
+                if (lowerQuery.includes('click_rate') || lowerQuery.includes('click rate') || !lowerQuery.includes('specific')) {
+                    metricsToAggregate.push({ name: 'Clicked Email', type: 'engagement' });
+                }
+                if (lowerQuery.includes('conversion_rate') || lowerQuery.includes('conversion rate')) {
+                    metricsToAggregate.push({ name: 'Placed Order', type: 'conversion' });
+                }
+                
+                // Use standard metric IDs for common metrics
+                const standardMetrics = {
+                    'Opened Email': 'TPpPhm',
+                    'Clicked Email': 'TPpPho',
+                    'Received Email': 'TPpPhk',
+                    'Placed Order': clientInfo?.placed_order_metric_id
+                };
+                
+                metricsToAggregate.forEach(metric => {
+                    if (standardMetrics[metric.name]) {
+                        const params = {
+                            metric_id: standardMetrics[metric.name],
+                            measurements: ['sum_value', 'count', 'unique'],
+                            interval: 'day',
+                            by: ['$attributed_message']
+                        };
+                        
+                        if (dateRange) {
+                            params.filter = [
+                                `greater-or-equal(datetime,${dateRange.start})`,
+                                `less-than(datetime,${dateRange.end})`
+                            ];
+                        }
+                        
+                        strategies.push({
+                            tool: 'metrics.aggregate',
+                            params: params,
+                            description: `Get ${metric.name} metrics by campaign`
+                        });
+                    }
+                });
+            }
+            
+            // Strategy 1: Performance/metrics queries with time ranges
+            if (lowerQuery.includes('performance') || lowerQuery.includes('metric') || 
+                lowerQuery.includes('statistic') || lowerQuery.includes('analytics')) {
+                
+                // First try listing available metrics
+                strategies.push({
+                    tool: 'metrics.list',
+                    params: { limit: 100 },
+                    description: 'Get available metrics',
+                    processNext: (result) => {
+                        // Find campaign-related metrics from the result
+                        if (result.data && result.data.data) {
+                            const metrics = result.data.data;
+                            
+                            // Look for specific metric types
+                            const campaignMetrics = metrics.filter(m => {
+                                const name = m.attributes.name.toLowerCase();
+                                return name.includes('campaign') || name.includes('email') || 
+                                       name.includes('clicked') || name.includes('opened') ||
+                                       name.includes('received') || name.includes('sent');
+                            });
+                            
+                            // Generate aggregate queries for found metrics
+                            const aggregateQueries = [];
+                            const dateRange = getDateRangeFromQuery(lowerQuery);
+                            
+                            // Prioritize key metrics
+                            const priorityMetrics = ['Opened Email', 'Clicked Email', 'Received Email'];
+                            for (const metric of metrics) {
+                                if (priorityMetrics.includes(metric.attributes.name)) {
+                                    aggregateQueries.push({
+                                        tool: 'metrics.aggregate',
+                                        params: {
+                                            metric_id: metric.id,
+                                            by: ['day'],
+                                            measurements: ['sum_value', 'count'],
+                                            filter: `greater-or-equal(datetime,${dateRange.start}),less-than(datetime,${dateRange.end})`
+                                        },
+                                        description: `Aggregate ${metric.attributes.name}`
+                                    });
+                                }
+                            }
+                            
+                            return aggregateQueries;
+                        }
+                        return [];
+                    }
+                });
+            }
+            
+            // Strategy 2: Campaign queries
+            if (lowerQuery.includes('campaign')) {
+                const dateRange = getDateRangeFromQuery(lowerQuery);
+                
+                strategies.push({
+                    tool: 'campaigns.list',
+                    params: {
+                        limit: 20,
+                        filter: dateRange ? `greater-or-equal(created,${dateRange.start})` : undefined
+                    },
+                    description: 'List campaigns'
+                });
+                
+                // Get campaign metrics if we have metrics IDs
+                const clientInfo = clientsData[selectedClient];
+                if (clientInfo) {
+                    // Try to aggregate campaign performance metrics
+                    const metricsToAggregate = [
+                        { id: clientInfo.opened_email_metric_id, name: 'Opened Email' },
+                        { id: clientInfo.clicked_email_metric_id, name: 'Clicked Email' },
+                        { id: clientInfo.received_email_metric_id, name: 'Received Email' },
+                        { id: clientInfo.placed_order_metric_id, name: 'Placed Order' }
+                    ].filter(m => m.id);
+                    
+                    for (const metric of metricsToAggregate) {
+                        const aggregateParams = {
+                            metric_id: metric.id,
+                            measurements: ['sum_value', 'count', 'unique'],
+                            interval: 'day',
+                            by: ['$attributed_campaign']
+                        };
+                        
+                        if (dateRange) {
+                            aggregateParams.filter = [
+                                `greater-or-equal(datetime,${dateRange.start})`,
+                                `less-than(datetime,${dateRange.end})`
+                            ];
+                        }
+                        
+                        strategies.push({
+                            tool: 'metrics.aggregate',
+                            params: aggregateParams,
+                            description: `Get ${metric.name} metrics for campaigns`
+                        });
+                    }
+                }
+            }
+            
+            // Strategy 3: Flow queries
+            if (lowerQuery.includes('flow') || lowerQuery.includes('automation')) {
+                strategies.push({
+                    tool: 'flows.list',
+                    params: { limit: 20 },
+                    description: 'List flows'
+                });
+                
+                // Get flow performance metrics
+                const clientInfo = clientsData[selectedClient];
+                if (clientInfo && clientInfo.placed_order_metric_id) {
+                    const dateRange = getDateRangeFromQuery(lowerQuery) || {
+                        start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+                        end: new Date().toISOString()
+                    };
+                    
+                    strategies.push({
+                        tool: 'metrics.aggregate',
+                        params: {
+                            metric_id: clientInfo.placed_order_metric_id,
+                            measurements: ['sum_value', 'count'],
+                            interval: 'day',
+                            by: ['$flow'],
+                            filter: [
+                                `greater-or-equal(datetime,${dateRange.start})`,
+                                `less-than(datetime,${dateRange.end})`
+                            ]
+                        },
+                        description: 'Get flow revenue performance'
+                    });
+                }
+            }
+            
+            // Strategy 4: Segment queries
+            if (lowerQuery.includes('segment') || lowerQuery.includes('audience')) {
+                strategies.push({
+                    tool: 'segments.list',
+                    params: { limit: 20 },
+                    description: 'List segments'
+                });
+            }
+            
+            // Strategy 5: Profile/customer queries
+            if (lowerQuery.includes('customer') || lowerQuery.includes('profile') || lowerQuery.includes('subscriber')) {
+                strategies.push({
+                    tool: 'profiles.list',
+                    params: { limit: 20 },
+                    description: 'List profiles'
+                });
+            }
+            
+            // Default fallback - try campaigns
+            if (strategies.length === 0) {
+                const dateRange = getDateRangeFromQuery(lowerQuery);
+                strategies.push({
+                    tool: 'campaigns.list',
+                    params: { limit: 10 },
+                    description: 'List recent campaigns (fallback)'
+                });
+                
+                if (dateRange) {
+                    strategies.push({
+                        tool: 'metrics.list',
+                        params: { limit: 50 },
+                        description: 'List available metrics (fallback)'
+                    });
+                }
+            }
+            
+            return strategies;
+        }
+        
+        // Helper function to extract date range from query
+        function getDateRangeFromQuery(query) {
+            const now = new Date();
+            let start, end = now.toISOString();
+            
+            if (query.includes('last 30 days') || query.includes('past month') || query.includes('last month')) {
+                start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (query.includes('last 7 days') || query.includes('past week') || query.includes('last week')) {
+                start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (query.includes('last 90 days') || query.includes('last 3 months')) {
+                start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (query.includes('last year') || query.includes('past year')) {
+                start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (query.includes('today')) {
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+            } else if (query.includes('yesterday')) {
+                const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).toISOString();
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+            } else {
+                // Default to last 30 days for time-based queries
+                start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            }
+            
+            return { start, end };
+        }
+
+        // Refresh Tools List
+        async function refreshToolsList() {
+            const service = MCP_SERVICES[currentMCPService];
+            try {
+                const response = await fetch(`${service.url}${service.toolsEndpoint}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    // Update tools status display
+                    const toolsCount = data.tools ? data.tools.length : 0;
+                    console.log(`Loaded ${toolsCount} tools from ${service.name}`);
+                }
+            } catch (error) {
+                console.error('Error loading tools:', error);
+            }
+        }
+
+        async function executeNaturalQuery() {
+            const query = document.getElementById('natural-query').value.trim();
+            if (!query) {
+                alert('Please enter a query');
+                return;
+            }
+            
+            if (!selectedClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('natural-results').classList.remove('hidden');
+            const output = document.getElementById('natural-output');
+            output.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Processing query with AI-enhanced understanding...';
+            
+            try {
+                // Prepare the payload
+                const payload = {
+                    query: query,
+                    client_id: selectedClient,
+                    mode: 'intelligent',  // Use intelligent mode for natural language understanding
+                    fallback_tool: null,
+                    fallback_params: null
+                };
+
+                // Log the outgoing request for debugging
+                console.log('🔧 Natural Language Query Request:', {
+                    url: `${FASTAPI_URL}/api/query/natural`,
+                    method: 'POST',
+                    payload: payload
+                });
+
+                // Use the intelligent natural language query endpoint
+                const response = await fetch(`${FASTAPI_URL}/api/query/natural`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                // Log the HTTP response details
+                console.log('📡 HTTP Response Status:', response.status, response.statusText);
+                console.log('📡 HTTP Response Headers:', Object.fromEntries(response.headers.entries()));
+                
+                const result = await response.json();
+                console.log('📋 Full API Response:', result);
+                
+                // Hide interpretation box for now - we'll update it if we get strategy info
+                document.getElementById('interpretation').classList.add('hidden');
+                
+                if (result.success) {
+                    output.className = 'mt-2 p-3 bg-gray-900 text-green-400 rounded text-sm font-mono overflow-auto max-h-96';
+                    
+                    let displayText = `✓ Query processed successfully\n`;
+                    displayText += `Mode: ${result.mode}\n`;
+                    displayText += `HTTP Status: ${response.status} ${response.statusText}\n`;
+                    
+                    if (result.processing_time_ms) {
+                        displayText += `Processing time: ${result.processing_time_ms.toFixed(2)}ms\n`;
+                    }
+                    
+                    if (result.total_strategies) {
+                        displayText += `Strategies executed: ${result.successful_strategies}/${result.total_strategies}\n`;
+                    }
+                    
+                    // Display insights if available
+                    if (result.insights) {
+                        displayText += '\n--- INSIGHTS ---\n';
+                        if (result.insights.data_summary) {
+                            displayText += 'Data Summary:\n';
+                            Object.entries(result.insights.data_summary).forEach(([key, value]) => {
+                                displayText += `  ${key}: ${JSON.stringify(value, null, 2)}\n`;
+                            });
+                        }
+                        if (result.insights.recommendations && result.insights.recommendations.length > 0) {
+                            displayText += '\nRecommendations:\n';
+                            result.insights.recommendations.forEach(rec => {
+                                displayText += `  • ${rec}\n`;
+                            });
+                        }
+                    }
+                    
+                    displayText += '\n--- REQUEST PAYLOAD ---\n';
+                    displayText += JSON.stringify(payload, null, 2) + '\n\n';
+                    
+                    displayText += '--- API RESPONSE ---\n';
+                    
+                    // Handle results from the intelligent query service
+                    if (result.results) {
+                        // Check if results is an array (from intelligent mode)
+                        if (Array.isArray(result.results)) {
+                            displayText += `Strategies executed: ${result.results.length}\n\n`;
+                            
+                            result.results.forEach((strategyResult, index) => {
+                                displayText += `Strategy ${index + 1}: ${strategyResult.strategy || strategyResult.tool}\n`;
+                                displayText += '─'.repeat(50) + '\n';
+                                
+                                // Display the actual data
+                                if (strategyResult.data) {
+                                    // Try to format the data nicely
+                                    const data = strategyResult.data;
+                                    
+                                    // Check for nested data structures from MCP
+                                    if (data.data) {
+                                        // Handle Klaviyo API response format
+                                        if (data.data.data && Array.isArray(data.data.data)) {
+                                            displayText += `Found ${data.data.data.length} items:\n\n`;
+                                            data.data.data.forEach((item, idx) => {
+                                                if (idx < 10) { // Limit to first 10 items
+                                                    const attrs = item.attributes || {};
+                                                    const name = attrs.name || attrs.subject || attrs.email || item.id;
+                                                    displayText += `  • ${name}\n`;
+                                                    if (attrs.send_time) {
+                                                        displayText += `    Send time: ${new Date(attrs.send_time).toLocaleString()}\n`;
+                                                    }
+                                                    if (attrs.status) {
+                                                        displayText += `    Status: ${attrs.status}\n`;
+                                                    }
+                                                }
+                                            });
+                                            if (data.data.data.length > 10) {
+                                                displayText += `  ... and ${data.data.data.length - 10} more\n`;
+                                            }
+                                        } else {
+                                            // Other data format
+                                            displayText += JSON.stringify(data.data, null, 2).substring(0, 1000);
+                                        }
+                                    } else {
+                                        // Direct data
+                                        displayText += JSON.stringify(data, null, 2).substring(0, 1000);
+                                    }
+                                } else {
+                                    displayText += 'No data returned\n';
+                                }
+                                displayText += '\n';
+                            });
+                        } else {
+                            // Single result or different format
+                            displayText += JSON.stringify(result.results, null, 2);
+                        }
+                    } else if (result.data) {
+                        // Direct mode result
+                        displayText += JSON.stringify(result.data, null, 2);
+                    } else {
+                        displayText += 'No results returned\n';
+                    }
+                    
+                    output.textContent = displayText;
+                } else {
+                    output.className = 'mt-2 p-3 bg-gray-900 text-red-400 rounded text-sm font-mono overflow-auto max-h-96';
+                    let errorText = `✗ Query processing failed\n`;
+                    errorText += `HTTP Status: ${response.status} ${response.statusText}\n`;
+                    errorText += `Error: ${result.error || result.detail || 'Unknown error'}\n`;
+                    
+                    if (result.strategies_used) {
+                        errorText += `\nStrategies attempted: ${result.strategies_used}\n`;
+                    }
+                    
+                    if (result.processing_time_ms) {
+                        errorText += `Processing time: ${result.processing_time_ms.toFixed(2)}ms\n`;
+                    }
+                    
+                    errorText += '\n--- REQUEST PAYLOAD ---\n';
+                    errorText += JSON.stringify(payload, null, 2) + '\n\n';
+                    
+                    errorText += '--- API RESPONSE ---\n';
+                    errorText += JSON.stringify(result, null, 2) + '\n';
+                    
+                    output.textContent = errorText;
+                }
+                
+            } catch (error) {
+                output.className = 'mt-2 p-3 bg-gray-900 text-red-400 rounded text-sm font-mono overflow-auto max-h-96';
+                let networkErrorText = `✗ Network/JavaScript Error\n`;
+                networkErrorText += `Error: ${error.message}\n`;
+                networkErrorText += `Stack: ${error.stack || 'No stack trace'}\n`;
+                
+                if (typeof payload !== 'undefined') {
+                    networkErrorText += '\n--- REQUEST PAYLOAD ---\n';
+                    networkErrorText += JSON.stringify(payload, null, 2) + '\n';
+                }
+                
+                output.textContent = networkErrorText;
+                console.error('🚨 Query execution error:', error);
+            }
+        }
+        
+        // Helper function to execute tool without showing in UI
+        async function executeToolSilently(tool, params) {
+            try {
+                // Handle error tool type (for displaying configuration errors)
+                if (tool === 'error') {
+                    return { 
+                        success: false, 
+                        error: {
+                            message: params.message || 'Configuration error',
+                            type: 'configuration_error'
+                        }
+                    };
+                }
+                
+                const service = MCP_SERVICES[currentMCPService];
+                const response = await fetch(`${service.url}${service.invokeEndpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Klaviyo-API-Key': apiKey || 'demo-key'
+                    },
+                    body: JSON.stringify({
+                        method: tool,
+                        params: params || {}
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    return { success: true, data };
+                } else {
+                    const error = await response.json();
+                    return { success: false, error };
+                }
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // Helper function to check if data has useful information
+        function hasUsefulData(data) {
+            if (!data) return false;
+            
+            // Check for actual data content
+            if (data.data) {
+                if (Array.isArray(data.data) && data.data.length > 0) return true;
+                if (data.data.data && Array.isArray(data.data.data) && data.data.data.length > 0) return true;
+                if (data.data.attributes && Object.keys(data.data.attributes).length > 0) return true;
+            }
+            
+            return false;
+        }
+
+        async function executeTool() {
+            const tool = document.getElementById('tool-selector').value;
+            const paramsStr = document.getElementById('tool-params').value;
+            
+            if (!selectedClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            let params = {};
+            try {
+                params = paramsStr ? JSON.parse(paramsStr) : {};
+            } catch (error) {
+                alert('Invalid JSON parameters: ' + error.message);
+                return;
+            }
+            
+            await executeToolWithParams(tool, params, null, 'tool-output');
+        }
+
+        async function executeToolWithParams(tool, params, resultsContainerId, outputId) {
+            const output = document.getElementById(outputId);
+            
+            // Show loading
+            output.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Executing ' + tool + '...';
+            if (resultsContainerId) {
+                document.getElementById(resultsContainerId).classList.remove('hidden');
+            }
+            
+            try {
+                // Check if MCP server is ready
+                if (!mcpServerReady) {
+                    throw new Error('MCP server is not connected. Please check the connection status.');
+                }
+                
+                // Make the request to MCP server
+                const service = MCP_SERVICES[currentMCPService];
+                const response = await fetch(`${service.url}${service.invokeEndpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Klaviyo-API-Key': apiKey || 'demo-key' // Use actual key when available
+                    },
+                    body: JSON.stringify({
+                        method: tool,
+                        params: params
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output.textContent = JSON.stringify(data, null, 2);
+                    output.className = output.className.replace('text-red-400', 'text-green-400');
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}\n\nTroubleshooting:\n`;
+                output.textContent += '1. Ensure MCP server is running (port 9095)\n';
+                output.textContent += '2. Select a client with valid API key\n';
+                output.textContent += '3. Check the tool parameters\n\n';
+                output.textContent += 'Full error: ' + JSON.stringify(error, null, 2);
+                output.className = output.className.replace('text-green-400', 'text-red-400');
+            }
+        }
+
+        async function testConnections() {
+            const output = document.createElement('div');
+            output.className = 'mt-4 p-4 bg-gray-100 rounded text-sm';
+            output.innerHTML = '<h4 class="font-semibold mb-2">Connection Test Results:</h4>';
+            
+            // Test currently selected MCP Service
+            const service = MCP_SERVICES[currentMCPService];
+            try {
+                const mcpResponse = await fetch(`${service.url}${service.healthEndpoint}`);
+                const mcpData = await mcpResponse.json();
+                output.innerHTML += `<div class="text-green-600">✓ ${service.name}: ${mcpData.status || 'connected'}</div>`;
+            } catch (error) {
+                output.innerHTML += `<div class="text-red-600">✗ ${service.name}: ${error.message}</div>`;
+            }
+            
+            // Test FastAPI
+            try {
+                const apiResponse = await fetch(`${FASTAPI_URL}/health`);
+                const apiData = await apiResponse.json();
+                output.innerHTML += `<div class="text-green-600">✓ FastAPI: ${apiData.status}</div>`;
+            } catch (error) {
+                output.innerHTML += `<div class="text-red-600">✗ FastAPI: ${error.message}</div>`;
+            }
+            
+            // Test Klaviyo API (if client selected)
+            if (selectedClient && apiKey) {
+                output.innerHTML += `<div class="text-blue-600">ℹ Client: ${selectedClient} selected</div>`;
+            } else {
+                output.innerHTML += `<div class="text-yellow-600">⚠ No client selected for API testing</div>`;
+            }
+            
+            // Append results
+            const statusTab = document.getElementById('status-tab');
+            const existingResults = statusTab.querySelector('.connection-test-results');
+            if (existingResults) {
+                existingResults.remove();
+            }
+            output.className += ' connection-test-results';
+            statusTab.appendChild(output);
+        }
+
+        // MCP Registry Functions
+        async function loadMCPRegistry() {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/registry/servers`);
+                if (response.ok) {
+                    const data = await response.json();
+                    updateMCPRegistryDisplay(data.servers);
+                } else {
+                    console.error('Failed to load MCP registry');
+                }
+            } catch (error) {
+                console.error('Error loading MCP registry:', error);
+            }
+        }
+        
+        function updateMCPRegistryDisplay(servers) {
+            const registryDiv = document.getElementById('mcp-registry');
+            
+            if (!servers || servers.length === 0) {
+                registryDiv.innerHTML = '<div class="col-span-3 text-gray-500">No MCP servers found</div>';
+                return;
+            }
+            
+            let registryHTML = '';
+            servers.forEach(server => {
+                const statusColor = {
+                    'online': 'bg-green-500',
+                    'offline': 'bg-red-500',
+                    'error': 'bg-red-500',
+                    'planned': 'bg-gray-400',
+                    'unknown': 'bg-yellow-500'
+                }[server.status] || 'bg-gray-400';
+                
+                const bgColor = server.status === 'online' ? 'bg-white' : 'bg-gray-50';
+                const textColor = server.status === 'online' ? 'text-gray-900' : 'text-gray-500';
+                
+                registryHTML += `
+                    <div class="border border-purple-200 rounded-lg p-3 ${bgColor}">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-medium text-sm ${textColor}">${server.name}</span>
+                            <span class="w-2 h-2 ${statusColor} rounded-full" title="${server.status}"></span>
+                        </div>
+                        <div class="text-xs ${textColor}">
+                            <div>Port: ${server.port}</div>
+                            <div>Type: ${server.type}</div>
+                            <div>Capabilities: ${server.capabilities.length}</div>
+                            ${server.error_message ? `<div class="text-red-500 mt-1">${server.error_message}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            registryDiv.innerHTML = registryHTML;
+        }
+        
+        async function refreshMCPRegistry() {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/registry/health/check-all`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('MCP Registry health check:', result);
+                    // Reload the registry to show updated status
+                    await loadMCPRegistry();
+                } else {
+                    console.error('Failed to refresh MCP registry');
+                }
+            } catch (error) {
+                console.error('Error refreshing MCP registry:', error);
+            }
+        }
+
+        // Workflow Integration Functions
+        async function loadWorkflowConfig() {
+            const workflowSelect = document.getElementById('workflow-selector');
+            const selectedWorkflow = workflowSelect.value;
+            const statusDiv = document.getElementById('workflow-status');
+            
+            if (!selectedWorkflow) {
+                statusDiv.textContent = 'No workflow selected';
+                document.getElementById('stage-config').style.display = 'none';
+                document.getElementById('analysis-preview').style.display = 'none';
+                return;
+            }
+            
+            statusDiv.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Loading workflow configuration...';
+            
+            try {
+                // Load workflow configuration from backend
+                const response = await fetch(`${FASTAPI_URL}/api/calendar/agents/requirements/${selectedWorkflow}`);
+                if (response.ok) {
+                    const config = await response.json();
+                    displayWorkflowStages(config);
+                    displayAnalysisPreview(config);
+                    statusDiv.innerHTML = `<span class="text-green-600">✓ Loaded ${config.agents?.length || 0} agents, ${config.total_queries || 0} queries</span>`;
+                    
+                    document.getElementById('stage-config').style.display = 'block';
+                    document.getElementById('analysis-preview').style.display = 'block';
+                } else {
+                    throw new Error('Failed to load workflow configuration');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="text-red-600">✗ Error: ${error.message}</span>`;
+                console.error('Error loading workflow config:', error);
+            }
+        }
+        
+        function displayWorkflowStages(config) {
+            const stagesDiv = document.getElementById('workflow-stages');
+            
+            if (!config.agents || config.agents.length === 0) {
+                stagesDiv.innerHTML = '<div class="text-gray-500">No agents configured for this workflow</div>';
+                return;
+            }
+            
+            let stagesHTML = '';
+            config.agents.forEach((agent, index) => {
+                const mcpServerClass = agent.has_mcp_queries ? 'bg-green-100 border-green-300' : 'bg-gray-100 border-gray-300';
+                const mcpStatus = agent.has_mcp_queries ? '🟢 MCP Enabled' : '🔴 No MCP';
+                
+                stagesHTML += `
+                    <div class="mb-3 p-3 border ${mcpServerClass} rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="font-medium text-sm">${index + 1}. ${agent.name}</div>
+                            <div class="text-xs ${agent.has_mcp_queries ? 'text-green-700' : 'text-gray-600'}">${mcpStatus}</div>
+                        </div>
+                        <div class="text-xs text-gray-600 mb-2">${agent.queries?.length || 0} queries • ${agent.data_requirements?.length || 0} data sources</div>
+                        ${agent.has_mcp_queries ? `
+                            <div class="mt-2">
+                                <select class="text-xs px-2 py-1 border rounded" onchange="assignMCPServer('${agent.name}', this.value)">
+                                    <option value="enhanced" ${agent.mcp_server === 'enhanced' ? 'selected' : ''}>Klaviyo Enhanced</option>
+                                    <option value="salesforce" disabled>Salesforce (Coming Soon)</option>
+                                    <option value="analytics" disabled>Analytics (Coming Soon)</option>
+                                </select>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            stagesDiv.innerHTML = stagesHTML;
+        }
+        
+        function displayAnalysisPreview(config) {
+            const sourcesDiv = document.getElementById('required-sources');
+            const queriesDiv = document.getElementById('prefetch-queries');
+            
+            // Display required data sources
+            const allSources = new Set();
+            config.agents?.forEach(agent => {
+                agent.data_requirements?.forEach(req => allSources.add(req));
+            });
+            
+            if (allSources.size > 0) {
+                sourcesDiv.innerHTML = Array.from(allSources).map(source => 
+                    `<div class="flex items-center"><i class="fas fa-database w-4 mr-2 text-blue-500"></i>${source}</div>`
+                ).join('');
+            } else {
+                sourcesDiv.innerHTML = '<div class="text-gray-500">No data sources identified</div>';
+            }
+            
+            // Display prefetch queries
+            const allQueries = [];
+            config.agents?.forEach(agent => {
+                agent.queries?.forEach(query => allQueries.push(query));
+            });
+            
+            if (allQueries.length > 0) {
+                queriesDiv.innerHTML = allQueries.slice(0, 5).map(query => 
+                    `<div class="p-2 bg-yellow-100 rounded text-xs">${query}</div>`
+                ).join('') + (allQueries.length > 5 ? `<div class="text-gray-500">...and ${allQueries.length - 5} more</div>` : '');
+            } else {
+                queriesDiv.innerHTML = '<div class="text-gray-500">No prefetch queries available</div>';
+            }
+        }
+        
+        async function assignMCPServer(agentName, serverType) {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/workflow/assign-mcp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_name: agentName,
+                        mcp_server: serverType,
+                        workflow_name: document.getElementById('workflow-selector').value
+                    })
+                });
+                
+                if (response.ok) {
+                    console.log(`Assigned ${serverType} to ${agentName}`);
+                } else {
+                    throw new Error('Failed to assign MCP server');
+                }
+            } catch (error) {
+                console.error('Error assigning MCP server:', error);
+                alert('Failed to assign MCP server: ' + error.message);
+            }
+        }
+        
+        async function saveWorkflowConfig() {
+            const workflow = document.getElementById('workflow-selector').value;
+            if (!workflow) {
+                alert('Please select a workflow first');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/workflow/save-config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workflow_name: workflow,
+                        mcp_enabled: true,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    document.getElementById('workflow-results').classList.remove('hidden');
+                    document.getElementById('workflow-output').textContent = JSON.stringify(result, null, 2);
+                    document.getElementById('workflow-output').className = 
+                        document.getElementById('workflow-output').className.replace('text-red-400', 'text-green-400');
+                } else {
+                    throw new Error('Failed to save configuration');
+                }
+            } catch (error) {
+                alert('Error saving workflow configuration: ' + error.message);
+            }
+        }
+        
+        async function testWorkflowMCP() {
+            const workflow = document.getElementById('workflow-selector').value;
+            if (!workflow) {
+                alert('Please select a workflow first');
+                return;
+            }
+            
+            if (!selectedClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            const output = document.getElementById('workflow-output');
+            document.getElementById('workflow-results').classList.remove('hidden');
+            output.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Testing workflow MCP integration...';
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/calendar/test-workflow`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workflow_name: workflow,
+                        client_id: selectedClient,
+                        test_mcp: true
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    output.textContent = JSON.stringify(result, null, 2);
+                    output.className = output.className.replace('text-red-400', 'text-green-400');
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Workflow test failed');
+                }
+            } catch (error) {
+                output.textContent = `Error testing workflow: ${error.message}`;
+                output.className = output.className.replace('text-green-400', 'text-red-400');
+            }
+        }
+        
+        async function analyzeWorkflowRequirements() {
+            const workflow = document.getElementById('workflow-selector').value;
+            if (!workflow) {
+                alert('Please select a workflow first');
+                return;
+            }
+            
+            const output = document.getElementById('workflow-output');
+            document.getElementById('workflow-results').classList.remove('hidden');
+            output.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Analyzing workflow requirements...';
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/calendar/agents/reanalyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workflow_name: workflow })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    output.textContent = JSON.stringify(result, null, 2);
+                    output.className = output.className.replace('text-red-400', 'text-green-400');
+                    
+                    // Reload the workflow config to show updated requirements
+                    await loadWorkflowConfig();
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Analysis failed');
+                }
+            } catch (error) {
+                output.textContent = `Error analyzing requirements: ${error.message}`;
+                output.className = output.className.replace('text-green-400', 'text-red-400');
+            }
+        }
+        
+        async function executePrefetch() {
+            const workflow = document.getElementById('workflow-selector').value;
+            if (!workflow) {
+                alert('Please select a workflow first');
+                return;
+            }
+            
+            if (!selectedClient) {
+                alert('Please select a client first');
+                return;
+            }
+            
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Prefetching...';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/calendar/prefetch-data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workflow_name: workflow,
+                        client_id: selectedClient
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    document.getElementById('workflow-results').classList.remove('hidden');
+                    document.getElementById('workflow-output').textContent = JSON.stringify(result, null, 2);
+                    document.getElementById('workflow-output').className = 
+                        document.getElementById('workflow-output').className.replace('text-red-400', 'text-green-400');
+                    
+                    button.innerHTML = '<i class="fas fa-check mr-2"></i>Prefetch Complete';
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                    }, 3000);
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Prefetch failed');
+                }
+            } catch (error) {
+                button.innerHTML = originalText;
+                button.disabled = false;
+                alert('Error executing prefetch: ' + error.message);
+            }
+        }
+        
+        // ========== Universal MCP Registry Functions ==========
+        
+        // Load registered MCPs
+        async function loadRegisteredMCPs() {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/list`);
+                if (response.ok) {
+                    const mcps = await response.json();
+                    displayRegisteredMCPs(mcps);
+                    updateTestMCPSelect(mcps);
+                } else {
+                    console.error('Failed to load registered MCPs');
+                }
+            } catch (error) {
+                console.error('Error loading registered MCPs:', error);
+                document.getElementById('registered-mcps').innerHTML = 
+                    '<div class="text-red-500">Error loading MCPs</div>';
+            }
+        }
+        
+        // Display registered MCPs
+        function displayRegisteredMCPs(mcps) {
+            const container = document.getElementById('registered-mcps');
+            
+            if (!mcps || mcps.length === 0) {
+                container.innerHTML = '<div class="col-span-2 text-gray-500">No MCPs registered yet. Register your first MCP above!</div>';
+                return;
+            }
+            
+            let html = '';
+            mcps.forEach(mcp => {
+                const statusColor = mcp.status === 'active' ? 'bg-green-100' : 'bg-gray-100';
+                const statusText = mcp.status === 'active' ? '✓ Active' : '⚫ Inactive';
+                
+                html += `
+                    <div class="border rounded-lg p-4 ${statusColor}">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <div class="font-semibold text-gray-900">${mcp.name}</div>
+                                <div class="text-xs text-gray-600">${mcp.id}</div>
+                            </div>
+                            <span class="text-xs ${mcp.status === 'active' ? 'text-green-600' : 'text-gray-500'}">${statusText}</span>
+                        </div>
+                        <div class="text-sm text-gray-700 mb-2">${mcp.description || 'No description'}</div>
+                        <div class="text-xs text-gray-600">
+                            <div>Type: ${mcp.config?.service_type || 'general'}</div>
+                            <div>Auth: ${mcp.config?.auth_type || 'api_key'}</div>
+                            <div>LLM: ${mcp.agent?.llm_model || 'default'}</div>
+                            <div>Queries: ${mcp.metrics?.total_queries || 0}</div>
+                        </div>
+                        <div class="mt-3 flex gap-2">
+                            <button onclick="testMCPDirect('${mcp.id}')" class="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">
+                                <i class="fas fa-play mr-1"></i>Test
+                            </button>
+                            <button onclick="viewMCPDetails('${mcp.id}')" class="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600">
+                                <i class="fas fa-info-circle mr-1"></i>Details
+                            </button>
+                            ${mcp.status === 'active' ? `
+                                <button onclick="deactivateMCP('${mcp.id}')" class="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600">
+                                    <i class="fas fa-pause mr-1"></i>Deactivate
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // Update test MCP select
+        function updateTestMCPSelect(mcps) {
+            const select = document.getElementById('test-mcp-select');
+            select.innerHTML = '<option value="">Select an MCP...</option>';
+            
+            mcps.forEach(mcp => {
+                if (mcp.status === 'active') {
+                    const option = document.createElement('option');
+                    option.value = mcp.id;
+                    option.textContent = mcp.name;
+                    select.appendChild(option);
+                }
+            });
+        }
+        
+        // Register new MCP
+        async function registerNewMCP() {
+            const name = document.getElementById('new-mcp-name').value.trim();
+            const base_url = document.getElementById('new-mcp-url').value.trim();
+            const service_type = document.getElementById('new-mcp-type').value;
+            const auth_type = document.getElementById('new-mcp-auth').value;
+            const description = document.getElementById('new-mcp-description').value.trim();
+            const examples = document.getElementById('new-mcp-examples').value.trim();
+            
+            if (!name) {
+                alert('Please enter a tool name');
+                return;
+            }
+            
+            const example_queries = examples ? examples.split('\n').filter(q => q.trim()) : [];
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        base_url,
+                        service_type,
+                        auth_type,
+                        description,
+                        example_queries
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`✓ MCP "${name}" registered successfully!\n\nWrapper endpoint: ${result.wrapper_endpoint}\nAgent: ${result.agent_name}`);
+                    
+                    // Clear form
+                    document.getElementById('new-mcp-name').value = '';
+                    document.getElementById('new-mcp-url').value = '';
+                    document.getElementById('new-mcp-type').value = '';
+                    document.getElementById('new-mcp-auth').value = 'api_key';
+                    document.getElementById('new-mcp-description').value = '';
+                    document.getElementById('new-mcp-examples').value = '';
+                    
+                    // Reload MCPs list
+                    loadRegisteredMCPs();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to register MCP: ' + (error.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error registering MCP: ' + error.message);
+            }
+        }
+        
+        // Auto-discover endpoints
+        async function discoverMCPEndpoints() {
+            const base_url = document.getElementById('new-mcp-url').value.trim();
+            const service_type = document.getElementById('new-mcp-type').value;
+            
+            if (!base_url) {
+                alert('Please enter a base URL first');
+                return;
+            }
+            
+            alert('Endpoint discovery coming soon!\n\nFor now, the system will automatically generate common endpoints based on the service type.');
+        }
+        
+        // Test MCP Query
+        async function testMCPQuery() {
+            const mcp_id = document.getElementById('test-mcp-select').value;
+            const query = document.getElementById('test-mcp-query').value.trim();
+            const optimization = document.getElementById('ai-optimization').value;
+            
+            if (!mcp_id) {
+                alert('Please select an MCP');
+                return;
+            }
+            
+            if (!query) {
+                alert('Please enter a test query');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('universal-results');
+            const output = document.getElementById('universal-output');
+            
+            resultsDiv.classList.remove('hidden');
+            output.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Processing query with AI...';
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/${mcp_id}/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query,
+                        optimization,
+                        context: {
+                            client_id: selectedClient,
+                            learning_enabled: document.getElementById('ai-learning').checked
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    output.className = output.className.replace('text-red-400', 'text-green-400');
+                    output.textContent = JSON.stringify(result, null, 2);
+                } else {
+                    const error = await response.json();
+                    output.className = output.className.replace('text-green-400', 'text-red-400');
+                    output.textContent = 'Error: ' + (error.detail || 'Query failed');
+                }
+            } catch (error) {
+                output.className = output.className.replace('text-green-400', 'text-red-400');
+                output.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Test MCP directly
+        async function testMCPDirect(mcp_id) {
+            const query = prompt('Enter a test query:');
+            if (!query) return;
+            
+            document.getElementById('test-mcp-select').value = mcp_id;
+            document.getElementById('test-mcp-query').value = query;
+            await testMCPQuery();
+        }
+        
+        // View MCP details
+        async function viewMCPDetails(mcp_id) {
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/${mcp_id}`);
+                if (response.ok) {
+                    const mcp = await response.json();
+                    
+                    // Show details in universal output
+                    const resultsDiv = document.getElementById('universal-results');
+                    const output = document.getElementById('universal-output');
+                    
+                    resultsDiv.classList.remove('hidden');
+                    output.className = output.className.replace('text-red-400', 'text-green-400');
+                    output.textContent = JSON.stringify(mcp, null, 2);
+                    
+                    // Scroll to results
+                    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Failed to load MCP details');
+                }
+            } catch (error) {
+                alert('Error loading MCP details: ' + error.message);
+            }
+        }
+        
+        // Deactivate MCP
+        async function deactivateMCP(mcp_id) {
+            if (!confirm(`Are you sure you want to deactivate this MCP?`)) return;
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/${mcp_id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('MCP deactivated successfully');
+                    loadRegisteredMCPs();
+                } else {
+                    alert('Failed to deactivate MCP');
+                }
+            } catch (error) {
+                alert('Error deactivating MCP: ' + error.message);
+            }
+        }
+        
+        // View LLM recommendations
+        async function viewLLMRecommendations() {
+            const optimization = document.getElementById('ai-optimization').value;
+            
+            try {
+                const response = await fetch(`${FASTAPI_URL}/api/mcp/llm/recommend?optimization=${optimization}`);
+                if (response.ok) {
+                    const recommendations = await response.json();
+                    
+                    const resultsDiv = document.getElementById('universal-results');
+                    const output = document.getElementById('universal-output');
+                    
+                    resultsDiv.classList.remove('hidden');
+                    output.className = output.className.replace('text-red-400', 'text-green-400');
+                    output.textContent = `LLM Recommendations for ${optimization} optimization:\n\n` + 
+                                        JSON.stringify(recommendations, null, 2);
+                    
+                    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Failed to get LLM recommendations');
+                }
+            } catch (error) {
+                alert('Error getting recommendations: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

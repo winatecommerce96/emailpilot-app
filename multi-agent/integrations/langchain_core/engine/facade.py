@@ -106,12 +106,21 @@ def prepare_run(
     # Create graph
     from ..agents.policies import AgentPolicy
     
-    policy = AgentPolicy(
-        max_tool_calls=agent_policy.get("max_tool_calls", 15),
-        timeout_seconds=agent_policy.get("timeout_seconds", 60),
-        allowed_tools=agent_policy.get("allowed_tools"),
-        denied_tools=agent_policy.get("denied_tools")
-    )
+    # Create policy with available parameters
+    policy_kwargs = {
+        "max_tool_calls": agent_policy.get("max_tool_calls", 15),
+        "timeout_seconds": agent_policy.get("timeout_seconds", 60)
+    }
+    
+    # Add denied_tools if provided
+    if "denied_tools" in agent_policy:
+        denied_tools = agent_policy["denied_tools"]
+        if isinstance(denied_tools, list):
+            policy_kwargs["denied_tools"] = set(denied_tools)
+        elif isinstance(denied_tools, set):
+            policy_kwargs["denied_tools"] = denied_tools
+    
+    policy = AgentPolicy(**policy_kwargs)
     
     graph = create_agent_graph(
         policy=policy,

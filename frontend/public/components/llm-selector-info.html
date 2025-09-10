@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Model Selection Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-gray-900">🤖 LLM Model Selection Guide</h1>
+        <p class="text-gray-600 mb-8">Choose the right AI model for your task - Good, Better, or Best from each provider</p>
+        
+        <!-- OpenAI Models -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-green-700">OpenAI Models</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- GPT-4o Mini -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-green-400">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">GPT-4o Mini</h3>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">💰 Good</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Fast and cost-effective for simple tasks</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 128K context window</li>
+                        <li>✓ Very fast responses</li>
+                        <li>✓ Lowest cost</li>
+                        <li>⚡ Best for: Quick queries, simple analysis</li>
+                    </ul>
+                </div>
+                
+                <!-- GPT-4o -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-green-500">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">GPT-4o</h3>
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">⚖️ Better</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Balanced performance for most tasks</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 128K context window</li>
+                        <li>✓ Excellent reasoning</li>
+                        <li>✓ Good value</li>
+                        <li>⚡ Best for: General tasks, code generation</li>
+                    </ul>
+                </div>
+                
+                <!-- O1 Preview -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-green-600">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">O1 Preview</h3>
+                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm">🧠 Best</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Advanced reasoning and complex problem solving</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 128K context window</li>
+                        <li>✓ Chain-of-thought reasoning</li>
+                        <li>✓ Highest accuracy</li>
+                        <li>⚡ Best for: Complex analysis, math, coding</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Anthropic Models -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-amber-700">Anthropic Models</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Claude 3.5 Haiku -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-amber-400">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">Claude 3.5 Haiku</h3>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">💰 Good</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Lightning-fast responses</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 200K context window</li>
+                        <li>✓ Fastest Claude model</li>
+                        <li>✓ Very affordable</li>
+                        <li>⚡ Best for: High-volume tasks, quick responses</li>
+                    </ul>
+                </div>
+                
+                <!-- Claude 3.5 Sonnet -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-amber-500">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">Claude 3.5 Sonnet</h3>
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">⚖️ Better</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Excellent balance of speed and intelligence</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 200K context window</li>
+                        <li>✓ Strong coding ability</li>
+                        <li>✓ Great for creative tasks</li>
+                        <li>⚡ Best for: Coding, writing, analysis</li>
+                    </ul>
+                </div>
+                
+                <!-- Claude 3 Opus -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-amber-600">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">Claude 3 Opus</h3>
+                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm">🧠 Best</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Most capable for complex analysis</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 200K context window</li>
+                        <li>✓ Nuanced reasoning</li>
+                        <li>✓ Expert-level tasks</li>
+                        <li>⚡ Best for: Complex analysis, research</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Google Models -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-700">Google Models</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Gemini 1.5 Flash -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-400">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">Gemini 1.5 Flash</h3>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">💰 Good</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Optimized for speed with massive context</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 1M token context window!</li>
+                        <li>✓ Very fast</li>
+                        <li>✓ Multimodal</li>
+                        <li>⚡ Best for: Large documents, quick processing</li>
+                    </ul>
+                </div>
+                
+                <!-- Gemini 1.5 Pro -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-500">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">Gemini 1.5 Pro</h3>
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">⚖️ Better</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Advanced capabilities with huge context</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 2M token context window!!</li>
+                        <li>✓ Advanced reasoning</li>
+                        <li>✓ Multimodal excellence</li>
+                        <li>⚡ Best for: Huge documents, complex tasks</li>
+                    </ul>
+                </div>
+                
+                <!-- Gemini 2.0 Flash -->
+                <div class="bg-white rounded-lg shadow p-6 border-t-4 border-blue-600">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold">Gemini 2.0 Flash</h3>
+                        <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm">🚀 Experimental</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3">Latest experimental with cutting-edge features</p>
+                    <ul class="text-xs text-gray-500 space-y-1">
+                        <li>✓ 1M token context</li>
+                        <li>✓ Latest capabilities</li>
+                        <li>✓ Experimental features</li>
+                        <li>⚡ Best for: Testing new capabilities</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Selection Guide -->
+        <div class="bg-white rounded-lg shadow p-6 mt-8">
+            <h2 class="text-xl font-semibold mb-4">🎯 Quick Selection Guide</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="font-medium mb-2">By Use Case:</h3>
+                    <ul class="text-sm space-y-1 text-gray-600">
+                        <li>📝 <strong>Simple Tasks:</strong> GPT-4o Mini, Claude 3.5 Haiku, Gemini 1.5 Flash</li>
+                        <li>⚙️ <strong>General Work:</strong> GPT-4o, Claude 3.5 Sonnet, Gemini 1.5 Pro</li>
+                        <li>🧮 <strong>Complex Analysis:</strong> O1 Preview, Claude 3 Opus</li>
+                        <li>📚 <strong>Large Documents:</strong> Gemini 1.5 Pro (2M tokens!)</li>
+                        <li>💻 <strong>Coding:</strong> GPT-4o, Claude 3.5 Sonnet</li>
+                        <li>✍️ <strong>Creative Writing:</strong> Claude 3.5 Sonnet</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-medium mb-2">By Priority:</h3>
+                    <ul class="text-sm space-y-1 text-gray-600">
+                        <li>⚡ <strong>Speed First:</strong> Claude 3.5 Haiku, Gemini 1.5 Flash</li>
+                        <li>💰 <strong>Cost First:</strong> GPT-4o Mini, Claude 3.5 Haiku</li>
+                        <li>🎯 <strong>Quality First:</strong> O1 Preview, Claude 3 Opus</li>
+                        <li>📏 <strong>Context First:</strong> Gemini 1.5 Pro (2M), Gemini 1.5 Flash (1M)</li>
+                        <li>⚖️ <strong>Balanced:</strong> GPT-4o, Claude 3.5 Sonnet</li>
+                        <li>🔬 <strong>Latest Tech:</strong> Gemini 2.0 Flash (Experimental)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="mt-8 p-4 bg-gray-100 rounded-lg">
+            <div class="flex items-center justify-center space-x-6 text-sm">
+                <span class="flex items-center"><span class="px-2 py-1 bg-green-100 text-green-700 rounded mr-2">💰</span> Good (Fast & Cheap)</span>
+                <span class="flex items-center"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded mr-2">⚖️</span> Better (Balanced)</span>
+                <span class="flex items-center"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded mr-2">🧠</span> Best (Maximum Capability)</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

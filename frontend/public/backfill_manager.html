@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klaviyo Data Backfill Manager - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .pulse-slow {
+            animation: pulse-slow 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div x-data="backfillManager()" x-init="init()" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <i class="fas fa-database text-blue-600 text-2xl"></i>
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-900">Klaviyo Data Backfill Manager</h1>
+                            <p class="text-sm text-gray-600">Sync historical data from Klaviyo accounts</p>
+                        </div>
+                    </div>
+                    <button @click="refreshAll()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Test with Rogue Creamery -->
+                    <div class="border rounded-lg p-4">
+                        <h3 class="font-medium text-gray-900 mb-2">
+                            <i class="fas fa-flask text-green-600 mr-2"></i>Test Backfill
+                        </h3>
+                        <p class="text-sm text-gray-600 mb-3">Run test backfill with Rogue Creamery (1 year)</p>
+                        <button @click="startTestBackfill()" 
+                                :disabled="loading.test"
+                                class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            <span x-show="!loading.test">
+                                <i class="fas fa-play mr-2"></i>Start Test
+                            </span>
+                            <span x-show="loading.test" class="flex items-center justify-center">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>Starting...
+                            </span>
+                        </button>
+                    </div>
+
+                    <!-- Backfill All Clients -->
+                    <div class="border rounded-lg p-4">
+                        <h3 class="font-medium text-gray-900 mb-2">
+                            <i class="fas fa-users text-blue-600 mr-2"></i>All Clients
+                        </h3>
+                        <p class="text-sm text-gray-600 mb-3">Backfill data for all active clients</p>
+                        <button @click="startAllBackfill()" 
+                                :disabled="loading.all"
+                                class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            <span x-show="!loading.all">
+                                <i class="fas fa-cloud-download-alt mr-2"></i>Backfill All
+                            </span>
+                            <span x-show="loading.all" class="flex items-center justify-center">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>Starting...
+                            </span>
+                        </button>
+                    </div>
+
+                    <!-- Custom Backfill -->
+                    <div class="border rounded-lg p-4">
+                        <h3 class="font-medium text-gray-900 mb-2">
+                            <i class="fas fa-cog text-purple-600 mr-2"></i>Custom Backfill
+                        </h3>
+                        <div class="space-y-2">
+                            <select x-model="customBackfill.clientId" class="w-full px-3 py-1 border rounded text-sm">
+                                <option value="">Select Client...</option>
+                                <template x-for="client in availableClients" :key="client.id">
+                                    <option :value="client.id" x-text="client.name"></option>
+                                </template>
+                            </select>
+                            <select x-model="customBackfill.years" class="w-full px-3 py-1 border rounded text-sm">
+                                <option value="1">1 Year</option>
+                                <option value="2">2 Years</option>
+                                <option value="3">3 Years</option>
+                            </select>
+                            <button @click="startCustomBackfill()" 
+                                    :disabled="!customBackfill.clientId || loading.custom"
+                                    class="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                                <span x-show="!loading.custom">
+                                    <i class="fas fa-download mr-2"></i>Start
+                                </span>
+                                <span x-show="loading.custom" class="flex items-center justify-center">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Starting...
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Overview -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Status Overview</h2>
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-blue-600" x-text="overview.total"></div>
+                        <div class="text-sm text-gray-600">Total Clients</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-yellow-600" x-text="overview.inProgress"></div>
+                        <div class="text-sm text-gray-600">In Progress</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-green-600" x-text="overview.completed"></div>
+                        <div class="text-sm text-gray-600">Completed</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-red-600" x-text="overview.failed"></div>
+                        <div class="text-sm text-gray-600">Failed</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Backfills -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6" x-show="activeBackfills.length > 0">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                    <i class="fas fa-spinner fa-spin text-yellow-600 mr-2"></i>Active Backfills
+                </h2>
+                <div class="space-y-3">
+                    <template x-for="backfill in activeBackfills" :key="backfill.client_id">
+                        <div class="border rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="font-medium text-gray-900" x-text="backfill.client_name"></h3>
+                                <span class="text-sm text-gray-600">
+                                    <span x-text="Math.round(backfill.progress || 0)"></span>%
+                                </span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                                <div class="bg-yellow-600 h-2 rounded-full progress-bar pulse-slow" 
+                                     :style="`width: ${backfill.progress || 0}%`"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-600">
+                                <span>
+                                    <i class="fas fa-calendar-day mr-1"></i>
+                                    Days: <span x-text="backfill.days_processed || 0"></span>
+                                </span>
+                                <span>
+                                    <i class="fas fa-bullhorn mr-1"></i>
+                                    Campaigns: <span x-text="backfill.campaigns_synced || 0"></span>
+                                </span>
+                                <span>
+                                    <i class="fas fa-sitemap mr-1"></i>
+                                    Flows: <span x-text="backfill.flows_synced || 0"></span>
+                                </span>
+                                <span>
+                                    <i class="fas fa-shopping-cart mr-1"></i>
+                                    Orders: <span x-text="backfill.orders_synced || 0"></span>
+                                </span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- All Backfill Status -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">All Backfill Status</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Range</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Synced Data</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="status in allStatuses" :key="status.client_id">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900" x-text="status.client_name"></div>
+                                        <div class="text-xs text-gray-500" x-text="status.client_id"></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                              :class="{
+                                                  'bg-yellow-100 text-yellow-800': status.status === 'in_progress',
+                                                  'bg-green-100 text-green-800': status.status === 'completed',
+                                                  'bg-red-100 text-red-800': status.status === 'failed',
+                                                  'bg-gray-100 text-gray-800': !status.status
+                                              }">
+                                            <span x-text="status.status || 'Not Started'"></span>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="w-24">
+                                            <div class="flex items-center">
+                                                <span class="text-sm text-gray-900" x-text="`${Math.round(status.progress || 0)}%`"></span>
+                                            </div>
+                                            <div class="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                                                <div class="h-1.5 rounded-full"
+                                                     :class="status.status === 'completed' ? 'bg-green-600' : 'bg-blue-600'"
+                                                     :style="`width: ${status.progress || 0}%`"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <template x-if="status.start_date">
+                                            <div>
+                                                <div class="text-xs" x-text="formatDate(status.start_date)"></div>
+                                                <div class="text-xs text-gray-500" x-text="formatDate(status.end_date)"></div>
+                                            </div>
+                                        </template>
+                                        <span x-if="!status.start_date" class="text-gray-400">-</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <template x-if="status.total_campaigns !== undefined">
+                                            <div class="text-xs space-y-1">
+                                                <div><i class="fas fa-bullhorn w-4"></i> <span x-text="status.total_campaigns || 0"></span> campaigns</div>
+                                                <div><i class="fas fa-sitemap w-4"></i> <span x-text="status.total_flows || 0"></span> flows</div>
+                                                <div><i class="fas fa-shopping-cart w-4"></i> <span x-text="status.total_orders || 0"></span> orders</div>
+                                            </div>
+                                        </template>
+                                        <span x-if="status.total_campaigns === undefined" class="text-gray-400">-</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <div class="flex space-x-2">
+                                            <button @click="viewDetails(status.client_id)" 
+                                                    class="text-blue-600 hover:text-blue-800"
+                                                    title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button @click="startBackfillForClient(status.client_id, status.client_name)" 
+                                                    x-show="status.status !== 'in_progress'"
+                                                    class="text-green-600 hover:text-green-800"
+                                                    title="Start Backfill">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button @click="clearStatus(status.client_id)" 
+                                                    x-show="status.status === 'failed' || status.status === 'completed'"
+                                                    class="text-red-600 hover:text-red-800"
+                                                    title="Clear Status">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- Details Modal -->
+        <div x-show="showDetailsModal" 
+             x-transition
+             class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-900">
+                        Backfill Details: <span x-text="selectedClient.name"></span>
+                    </h2>
+                    <button @click="showDetailsModal = false" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div x-show="clientDetails">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-blue-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-blue-600" x-text="clientDetails.summary?.orders || 0"></div>
+                            <div class="text-sm text-gray-600">Total Orders</div>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-green-600">
+                                $<span x-text="formatCurrency(clientDetails.summary?.total_revenue || 0)"></span>
+                            </div>
+                            <div class="text-sm text-gray-600">Total Revenue</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-purple-600">
+                                $<span x-text="formatCurrency(clientDetails.summary?.average_order_value || 0)"></span>
+                            </div>
+                            <div class="text-sm text-gray-600">Avg Order Value</div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Orders -->
+                    <div x-show="clientOrders && clientOrders.orders">
+                        <h3 class="font-semibold text-gray-900 mb-3">Recent Orders</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Order ID</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Value</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Items</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    <template x-for="order in clientOrders.orders.slice(0, 10)" :key="order.event_id">
+                                        <tr>
+                                            <td class="px-4 py-2 text-sm" x-text="formatDate(order.datetime)"></td>
+                                            <td class="px-4 py-2 text-sm font-mono" x-text="order.order_id"></td>
+                                            <td class="px-4 py-2 text-sm">$<span x-text="formatCurrency(order.value)"></span></td>
+                                            <td class="px-4 py-2 text-sm" x-text="order.item_count || '-'"></td>
+                                            <td class="px-4 py-2 text-sm" x-text="order.source || 'unknown'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function backfillManager() {
+            return {
+                loading: {
+                    test: false,
+                    all: false,
+                    custom: false
+                },
+                customBackfill: {
+                    clientId: '',
+                    years: '1'
+                },
+                availableClients: [],
+                allStatuses: [],
+                activeBackfills: [],
+                overview: {
+                    total: 0,
+                    inProgress: 0,
+                    completed: 0,
+                    failed: 0
+                },
+                showDetailsModal: false,
+                selectedClient: {},
+                clientDetails: null,
+                clientOrders: null,
+                refreshInterval: null,
+
+                async init() {
+                    await this.loadClients();
+                    await this.refreshAll();
+                    // Auto-refresh every 5 seconds
+                    this.refreshInterval = setInterval(() => this.refreshStatuses(), 5000);
+                },
+
+                async loadClients() {
+                    try {
+                        const response = await fetch('/api/admin/clients');
+                        const data = await response.json();
+                        this.availableClients = data.clients || [];
+                    } catch (error) {
+                        console.error('Failed to load clients:', error);
+                    }
+                },
+
+                async refreshAll() {
+                    await this.refreshStatuses();
+                },
+
+                async refreshStatuses() {
+                    try {
+                        const response = await fetch('/api/backfill/status');
+                        const data = await response.json();
+                        
+                        this.overview = {
+                            total: data.total || 0,
+                            inProgress: data.in_progress || 0,
+                            completed: data.completed || 0,
+                            failed: data.failed || 0
+                        };
+                        
+                        this.allStatuses = data.statuses || [];
+                        this.activeBackfills = this.allStatuses.filter(s => s.status === 'in_progress');
+                    } catch (error) {
+                        console.error('Failed to refresh statuses:', error);
+                    }
+                },
+
+                async startTestBackfill() {
+                    this.loading.test = true;
+                    try {
+                        // Find Rogue Creamery client
+                        const response = await fetch('/api/backfill/start/rogue-creamery?years=1&include_orders=true', {
+                            method: 'POST'
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            alert(`Test backfill started for ${data.client_name}`);
+                            await this.refreshAll();
+                        } else {
+                            alert(`Failed to start test backfill: ${data.detail || 'Unknown error'}`);
+                        }
+                    } catch (error) {
+                        console.error('Failed to start test backfill:', error);
+                        alert('Failed to start test backfill');
+                    } finally {
+                        this.loading.test = false;
+                    }
+                },
+
+                async startAllBackfill() {
+                    if (!confirm('This will start backfill for ALL active clients. Continue?')) {
+                        return;
+                    }
+                    
+                    this.loading.all = true;
+                    try {
+                        const response = await fetch('/api/backfill/start-all', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                years: 1,
+                                include_orders: true,
+                                test_mode: false
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            alert(`Backfill started for ${data.clients.length} clients`);
+                            await this.refreshAll();
+                        } else {
+                            alert(`Failed to start backfill: ${data.detail || 'Unknown error'}`);
+                        }
+                    } catch (error) {
+                        console.error('Failed to start backfill for all:', error);
+                        alert('Failed to start backfill for all clients');
+                    } finally {
+                        this.loading.all = false;
+                    }
+                },
+
+                async startCustomBackfill() {
+                    if (!this.customBackfill.clientId) {
+                        alert('Please select a client');
+                        return;
+                    }
+                    
+                    this.loading.custom = true;
+                    try {
+                        const response = await fetch(
+                            `/api/backfill/start/${this.customBackfill.clientId}?years=${this.customBackfill.years}&include_orders=true`,
+                            { method: 'POST' }
+                        );
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            alert(`Backfill started for ${data.client_name}`);
+                            this.customBackfill.clientId = '';
+                            await this.refreshAll();
+                        } else {
+                            alert(`Failed to start backfill: ${data.detail || 'Unknown error'}`);
+                        }
+                    } catch (error) {
+                        console.error('Failed to start custom backfill:', error);
+                        alert('Failed to start custom backfill');
+                    } finally {
+                        this.loading.custom = false;
+                    }
+                },
+
+                async startBackfillForClient(clientId, clientName) {
+                    if (!confirm(`Start backfill for ${clientName}?`)) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(
+                            `/api/backfill/start/${clientId}?years=1&include_orders=true`,
+                            { method: 'POST' }
+                        );
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            alert(`Backfill started for ${clientName}`);
+                            await this.refreshAll();
+                        } else {
+                            alert(`Failed to start backfill: ${data.detail || 'Unknown error'}`);
+                        }
+                    } catch (error) {
+                        console.error('Failed to start backfill:', error);
+                        alert('Failed to start backfill');
+                    }
+                },
+
+                async clearStatus(clientId) {
+                    if (!confirm('Clear backfill status for this client?')) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`/api/backfill/clear/${clientId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            await this.refreshAll();
+                        } else {
+                            alert('Failed to clear status');
+                        }
+                    } catch (error) {
+                        console.error('Failed to clear status:', error);
+                        alert('Failed to clear status');
+                    }
+                },
+
+                async viewDetails(clientId) {
+                    const status = this.allStatuses.find(s => s.client_id === clientId);
+                    if (!status) return;
+                    
+                    this.selectedClient = {
+                        id: clientId,
+                        name: status.client_name
+                    };
+                    
+                    // Load detailed data
+                    try {
+                        const [summaryResponse, ordersResponse] = await Promise.all([
+                            fetch(`/api/backfill/data/${clientId}/summary`),
+                            fetch(`/api/backfill/data/${clientId}/orders?limit=10`)
+                        ]);
+                        
+                        if (summaryResponse.ok) {
+                            this.clientDetails = await summaryResponse.json();
+                        }
+                        
+                        if (ordersResponse.ok) {
+                            this.clientOrders = await ordersResponse.json();
+                        }
+                        
+                        this.showDetailsModal = true;
+                    } catch (error) {
+                        console.error('Failed to load details:', error);
+                        alert('Failed to load client details');
+                    }
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return '-';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric'
+                    });
+                },
+
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    }).format(amount);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

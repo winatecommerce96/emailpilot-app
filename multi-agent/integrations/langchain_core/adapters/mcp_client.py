@@ -239,22 +239,32 @@ class MCPClient:
     def klaviyo_fetch(
         self,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        client_id: str = "default"
     ) -> MCPResponse:
         """
-        Fetch data from Klaviyo via MCP.
+        Fetch data from Klaviyo via MCP Gateway.
         
         Args:
             endpoint: Klaviyo endpoint
             params: Query parameters
+            client_id: Client ID for API key lookup
         
         Returns:
             MCPResponse
         """
+        # Use the MCP Gateway invoke endpoint
+        body = {
+            "client_id": client_id,
+            "tool_name": f"klaviyo.{endpoint}",
+            "arguments": params or {},
+            "use_enhanced": True
+        }
+        
         return self._request(
-            "GET",
-            f"klaviyo/{endpoint}",
-            params=params
+            "POST",
+            "invoke",
+            body=body
         )
     
     def klaviyo_campaigns(
@@ -264,24 +274,56 @@ class MCPClient:
         limit: int = 10
     ) -> MCPResponse:
         """
-        Get Klaviyo campaigns.
+        Get Klaviyo campaigns via MCP Gateway.
         
         Args:
-            brand_id: Brand identifier
+            brand_id: Brand identifier (used as client_id)
             month: Optional month filter
             limit: Result limit
         
         Returns:
             MCPResponse
         """
-        params = {
-            "brand_id": brand_id,
-            "limit": limit
+        # Use the MCP Gateway with proper tool name
+        body = {
+            "client_id": brand_id,  # Brand ID is the client ID
+            "tool_name": "campaigns.list",  # Use Enhanced MCP tool name
+            "arguments": {
+                "filter": f"equals(messages.channel,'email')",
+                "limit": limit
+            },
+            "use_enhanced": True
         }
-        if month:
-            params["month"] = month
         
-        return self.klaviyo_fetch("campaigns", params)
+        if month:
+            # Add date filter for the month
+            body["arguments"]["filter"] = f"and(equals(messages.channel,'email'),greater_or_equal(created,'{month}-01'))"
+        
+        # Call the gateway directly with proper URL
+        url = f"{self.klaviyo_url}/invoke"
+        try:
+            response = self.client.post(url, json=body)
+            
+            if response.status_code >= 400:
+                raise MCPError(
+                    endpoint="campaigns",
+                    status_code=response.status_code,
+                    message=f"Failed to get campaigns: {response.text}",
+                    details=None
+                )
+            
+            data = response.json()
+            return MCPResponse(
+                success=True,
+                data=data,
+                error=None,
+                endpoint="campaigns",
+                status_code=response.status_code,
+                duration_ms=0
+            )
+        except Exception as e:
+            logger.error(f"Error calling MCP Gateway: {e}")
+            raise
     
     def klaviyo_metrics(
         self,

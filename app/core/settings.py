@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+    
+    # Clerk Authentication
+    clerk_secret_key: str | None = None
+    clerk_frontend_api: str | None = None
+    clerk_webhook_secret: str | None = None
 
     class Config:
         env_file = ".env"
@@ -117,7 +122,34 @@ def get_settings() -> Settings:
         google_oauth_redirect_uri = secret_manager.get_secret("google-oauth-redirect-uri")
     except SecretNotFoundError:
         google_oauth_redirect_uri = "http://localhost:8000/api/auth/google/callback"
-
+    
+    # Load Clerk settings (using actual secret names in Secret Manager)
+    try:
+        clerk_secret_key = secret_manager.get_secret("CLERK_SECRET_KEY")
+    except SecretNotFoundError:
+        # Try alternate naming convention
+        try:
+            clerk_secret_key = secret_manager.get_secret("clerk-secret-key")
+        except SecretNotFoundError:
+            clerk_secret_key = None
+    
+    try:
+        clerk_frontend_api = secret_manager.get_secret("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")
+    except SecretNotFoundError:
+        # Try alternate naming convention
+        try:
+            clerk_frontend_api = secret_manager.get_secret("clerk-frontend-api")
+        except SecretNotFoundError:
+            clerk_frontend_api = None
+    
+    try:
+        clerk_webhook_secret = secret_manager.get_secret("CLERK_WEBHOOK_SECRET")
+    except SecretNotFoundError:
+        # Try alternate naming convention
+        try:
+            clerk_webhook_secret = secret_manager.get_secret("clerk-webhook-secret")
+        except SecretNotFoundError:
+            clerk_webhook_secret = None
 
     return Settings(
         google_cloud_project=project_id,
@@ -133,4 +165,7 @@ def get_settings() -> Settings:
         google_oauth_client_id=google_oauth_client_id,
         google_oauth_client_secret=google_oauth_client_secret,
         google_oauth_redirect_uri=google_oauth_redirect_uri,
+        clerk_secret_key=clerk_secret_key,
+        clerk_frontend_api=clerk_frontend_api,
+        clerk_webhook_secret=clerk_webhook_secret,
     )

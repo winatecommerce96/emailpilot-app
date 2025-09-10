@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Builder - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .tool-item {
+            cursor: grab;
+            transition: all 0.2s;
+        }
+        .tool-item:hover {
+            background-color: #f3f4f6;
+            transform: translateX(5px);
+        }
+        .tool-item.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .workflow-node {
+            min-width: 180px;
+            cursor: move;
+        }
+        .workflow-node.selected {
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3);
+        }
+        .connection-line {
+            stroke: #9ca3af;
+            stroke-width: 2;
+            fill: none;
+        }
+        .drop-zone {
+            min-height: 400px;
+            background-image: radial-gradient(circle, #e5e7eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .drop-zone.drag-over {
+            background-color: rgba(79, 70, 229, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="container mx-auto px-6 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <a href="/static/workflow_hub.html" class="text-gray-600 hover:text-gray-800 mr-4">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <h1 class="text-xl font-semibold text-gray-800">Workflow Builder</h1>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="saveWorkflow()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-save mr-2"></i>Save
+                    </button>
+                    <button onclick="testWorkflow()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <i class="fas fa-play mr-2"></i>Test
+                    </button>
+                    <button onclick="deployWorkflow()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        <i class="fas fa-rocket mr-2"></i>Deploy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex h-screen pt-14">
+        <!-- Left Panel - Tool Palette -->
+        <div class="w-64 bg-white border-r overflow-y-auto">
+            <div class="p-4">
+                <h2 class="text-lg font-semibold mb-4">Enhanced MCP Tools</h2>
+                
+                <!-- Search -->
+                <div class="mb-4">
+                    <input type="text" id="tool-search" placeholder="Search tools..." 
+                           class="w-full px-3 py-2 border rounded-lg text-sm"
+                           onkeyup="filterTools()">
+                </div>
+
+                <!-- Tool Categories -->
+                <div id="tool-palette">
+                    <!-- Campaign Tools -->
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-gray-600 mb-2">
+                            <i class="fas fa-envelope mr-1"></i>Campaigns
+                        </h3>
+                        <div class="space-y-1">
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="klaviyo_campaigns"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-list text-indigo-500 mr-2"></i>
+                                <span class="text-sm">List Campaigns</span>
+                            </div>
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="klaviyo_campaign_metrics"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>
+                                <span class="text-sm">Campaign Metrics</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Tools -->
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-gray-600 mb-2">
+                            <i class="fas fa-chart-line mr-1"></i>Metrics
+                        </h3>
+                        <div class="space-y-1">
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="klaviyo_metrics_aggregate"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-calculator text-green-500 mr-2"></i>
+                                <span class="text-sm">Aggregate Metrics</span>
+                            </div>
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="klaviyo_reporting_revenue"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-dollar-sign text-green-500 mr-2"></i>
+                                <span class="text-sm">Revenue Report</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Segment Tools -->
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-gray-600 mb-2">
+                            <i class="fas fa-users mr-1"></i>Segments
+                        </h3>
+                        <div class="space-y-1">
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="klaviyo_segments"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-user-friends text-purple-500 mr-2"></i>
+                                <span class="text-sm">List Segments</span>
+                            </div>
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="klaviyo_profiles"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-id-card text-purple-500 mr-2"></i>
+                                <span class="text-sm">Profile Data</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Flow Control -->
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-gray-600 mb-2">
+                            <i class="fas fa-code-branch mr-1"></i>Flow Control
+                        </h3>
+                        <div class="space-y-1">
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="condition"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-code-branch text-yellow-500 mr-2"></i>
+                                <span class="text-sm">Condition</span>
+                            </div>
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="delay"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-clock text-yellow-500 mr-2"></i>
+                                <span class="text-sm">Delay</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Agents -->
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold text-gray-600 mb-2">
+                            <i class="fas fa-robot mr-1"></i>AI Agents
+                        </h3>
+                        <div class="space-y-1">
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="calendar_planner"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-calendar text-blue-500 mr-2"></i>
+                                <span class="text-sm">Calendar Planner</span>
+                            </div>
+                            <div class="tool-item p-2 bg-gray-50 rounded cursor-pointer" 
+                                 draggable="true" 
+                                 data-tool="revenue_analyst"
+                                 ondragstart="handleDragStart(event)">
+                                <i class="fas fa-chart-pie text-blue-500 mr-2"></i>
+                                <span class="text-sm">Revenue Analyst</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center - Canvas -->
+        <div class="flex-1 p-6 overflow-auto">
+            <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <input type="text" id="workflow-name" placeholder="Workflow Name" 
+                               class="text-xl font-semibold bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-indigo-500 outline-none"
+                               value="New Email Campaign Workflow">
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <select id="client-selector" class="px-3 py-1 border rounded-lg text-sm">
+                            <option value="">Loading clients...</option>
+                        </select>
+                        <button onclick="clearCanvas()" class="text-gray-500 hover:text-red-500">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="workflow-canvas" class="drop-zone bg-white rounded-lg shadow-sm p-8 relative"
+                 ondrop="handleDrop(event)" 
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)">
+                
+                <!-- Start Node -->
+                <div class="workflow-node absolute top-8 left-1/2 transform -translate-x-1/2 bg-green-100 border-2 border-green-300 rounded-lg p-4 shadow-md">
+                    <div class="text-center">
+                        <i class="fas fa-play-circle text-green-600 text-2xl mb-2"></i>
+                        <p class="text-sm font-semibold">Start</p>
+                    </div>
+                </div>
+
+                <!-- Drop Instructions -->
+                <div id="drop-instructions" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-gray-400">
+                    <i class="fas fa-hand-pointer text-6xl mb-4"></i>
+                    <p class="text-lg">Drag tools here to build your workflow</p>
+                    <p class="text-sm mt-2">Connect nodes to create the flow</p>
+                </div>
+
+                <!-- SVG for connections -->
+                <svg id="connections-svg" class="absolute top-0 left-0 w-full h-full pointer-events-none">
+                    <!-- Connection lines will be drawn here -->
+                </svg>
+            </div>
+        </div>
+
+        <!-- Right Panel - Properties -->
+        <div class="w-80 bg-white border-l overflow-y-auto">
+            <div class="p-4">
+                <h2 class="text-lg font-semibold mb-4">Properties</h2>
+                
+                <div id="properties-panel">
+                    <!-- Default Message -->
+                    <div id="no-selection" class="text-center py-8 text-gray-400">
+                        <i class="fas fa-mouse-pointer text-4xl mb-3"></i>
+                        <p>Select a node to view properties</p>
+                    </div>
+
+                    <!-- Node Properties (Hidden by default) -->
+                    <div id="node-properties" class="hidden">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Node Name</label>
+                            <input type="text" id="node-name" class="w-full px-3 py-2 border rounded-lg">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea id="node-description" rows="3" class="w-full px-3 py-2 border rounded-lg"></textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Parameters</label>
+                            <div id="node-parameters" class="space-y-2">
+                                <!-- Dynamic parameters will be added here -->
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Conditions</label>
+                            <textarea id="node-conditions" rows="2" class="w-full px-3 py-2 border rounded-lg" 
+                                      placeholder="e.g., if revenue > 1000"></textarea>
+                        </div>
+
+                        <button onclick="deleteSelectedNode()" class="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">
+                            <i class="fas fa-trash mr-2"></i>Delete Node
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Code Preview -->
+                <div class="mt-8 border-t pt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-semibold text-gray-700">Code Preview</h3>
+                        <button onclick="copyCode()" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                            <i class="fas fa-copy mr-1"></i>Copy
+                        </button>
+                    </div>
+                    <pre id="code-preview" class="bg-gray-900 text-green-400 p-3 rounded-lg text-xs overflow-x-auto">
+# Workflow will be generated here
+from langgraph.graph import StateGraph
+from langchain_core.tools import tool
+
+# Your workflow code...
+                    </pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let workflowNodes = [];
+        let selectedNode = null;
+        let nodeIdCounter = 1;
+        let availableClients = [];
+
+        // Drag and Drop handlers
+        function handleDragStart(e) {
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('tool', e.target.dataset.tool);
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            document.getElementById('workflow-canvas').classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            document.getElementById('workflow-canvas').classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const canvas = document.getElementById('workflow-canvas');
+            canvas.classList.remove('drag-over');
+            
+            const tool = e.dataTransfer.getData('tool');
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            createWorkflowNode(tool, x, y);
+            hideDropInstructions();
+        }
+
+        function createWorkflowNode(tool, x, y) {
+            const node = {
+                id: `node-${nodeIdCounter++}`,
+                tool: tool,
+                x: x,
+                y: y,
+                name: tool.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                parameters: {}
+            };
+            
+            workflowNodes.push(node);
+            renderNode(node);
+            updateCodePreview();
+        }
+
+        function renderNode(node) {
+            const canvas = document.getElementById('workflow-canvas');
+            const nodeEl = document.createElement('div');
+            nodeEl.id = node.id;
+            nodeEl.className = 'workflow-node absolute bg-white border-2 border-gray-300 rounded-lg p-4 shadow-md cursor-move';
+            nodeEl.style.left = `${node.x}px`;
+            nodeEl.style.top = `${node.y}px`;
+            
+            const iconClass = getToolIcon(node.tool);
+            const iconColor = getToolColor(node.tool);
+            
+            nodeEl.innerHTML = `
+                <div class="text-center">
+                    <i class="fas ${iconClass} ${iconColor} text-2xl mb-2"></i>
+                    <p class="text-sm font-semibold">${node.name}</p>
+                </div>
+            `;
+            
+            nodeEl.onclick = () => selectNode(node);
+            canvas.appendChild(nodeEl);
+        }
+
+        function getToolIcon(tool) {
+            const icons = {
+                'klaviyo_campaigns': 'fa-envelope',
+                'klaviyo_metrics_aggregate': 'fa-calculator',
+                'klaviyo_segments': 'fa-users',
+                'klaviyo_reporting_revenue': 'fa-dollar-sign',
+                'calendar_planner': 'fa-calendar',
+                'revenue_analyst': 'fa-chart-pie',
+                'condition': 'fa-code-branch',
+                'delay': 'fa-clock'
+            };
+            return icons[tool] || 'fa-cog';
+        }
+
+        function getToolColor(tool) {
+            const colors = {
+                'klaviyo_campaigns': 'text-indigo-600',
+                'klaviyo_metrics_aggregate': 'text-green-600',
+                'klaviyo_segments': 'text-purple-600',
+                'klaviyo_reporting_revenue': 'text-green-600',
+                'calendar_planner': 'text-blue-600',
+                'revenue_analyst': 'text-blue-600',
+                'condition': 'text-yellow-600',
+                'delay': 'text-yellow-600'
+            };
+            return colors[tool] || 'text-gray-600';
+        }
+
+        function selectNode(node) {
+            // Remove previous selection
+            document.querySelectorAll('.workflow-node').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Add selection to current node
+            document.getElementById(node.id).classList.add('selected');
+            selectedNode = node;
+            
+            // Show properties panel
+            showNodeProperties(node);
+        }
+
+        function showNodeProperties(node) {
+            document.getElementById('no-selection').classList.add('hidden');
+            document.getElementById('node-properties').classList.remove('hidden');
+            
+            document.getElementById('node-name').value = node.name;
+            document.getElementById('node-description').value = node.description || '';
+            
+            // Add dynamic parameters based on tool type
+            const paramsContainer = document.getElementById('node-parameters');
+            paramsContainer.innerHTML = getToolParameters(node.tool);
+        }
+
+        function getToolParameters(tool) {
+            const params = {
+                'klaviyo_campaigns': `
+                    <input type="text" placeholder="Filter (optional)" class="w-full px-3 py-2 border rounded-lg mb-2">
+                    <input type="number" placeholder="Limit" value="10" class="w-full px-3 py-2 border rounded-lg">
+                `,
+                'klaviyo_metrics_aggregate': `
+                    <input type="text" placeholder="Metric IDs" class="w-full px-3 py-2 border rounded-lg mb-2">
+                    <input type="date" placeholder="Start Date" class="w-full px-3 py-2 border rounded-lg mb-2">
+                    <input type="date" placeholder="End Date" class="w-full px-3 py-2 border rounded-lg">
+                `,
+                'delay': `
+                    <input type="number" placeholder="Delay in seconds" value="60" class="w-full px-3 py-2 border rounded-lg">
+                `
+            };
+            return params[tool] || '<p class="text-gray-500 text-sm">No parameters required</p>';
+        }
+
+        function hideDropInstructions() {
+            const instructions = document.getElementById('drop-instructions');
+            if (instructions) {
+                instructions.style.display = 'none';
+            }
+        }
+
+        function updateCodePreview() {
+            const code = generateWorkflowCode();
+            document.getElementById('code-preview').textContent = code;
+        }
+
+        function generateWorkflowCode() {
+            const workflowName = document.getElementById('workflow-name').value || 'New Workflow';
+            const client = document.getElementById('client-selector').value;
+            
+            let code = `# Generated Workflow: ${workflowName}
+# Client: ${client}
+
+from langgraph.graph import StateGraph, END
+from langchain_core.messages import HumanMessage
+from multi-agent.integrations.langchain_core.adapters.enhanced_mcp_adapter import get_enhanced_mcp_adapter
+
+# Initialize Enhanced MCP
+adapter = get_enhanced_mcp_adapter()
+
+# Workflow State
+class WorkflowState(TypedDict):
+    client_id: str
+    messages: list
+    results: dict
+
+# Define workflow
+workflow = StateGraph(WorkflowState)
+
+`;
+            
+            // Add nodes
+            workflowNodes.forEach(node => {
+                code += `# Node: ${node.name}
+def ${node.tool.toLowerCase()}(state):
+    tools = adapter.get_tools_for_agent("${node.tool}", "${client}")
+    # Execute tool logic here
+    return state
+
+workflow.add_node("${node.tool}", ${node.tool.toLowerCase()})
+`;
+            });
+            
+            code += `
+# Compile workflow
+app = workflow.compile()
+
+# Run workflow
+result = app.invoke({
+    "client_id": "${client}",
+    "messages": [],
+    "results": {}
+})`;
+            
+            return code;
+        }
+
+        function filterTools() {
+            const search = document.getElementById('tool-search').value.toLowerCase();
+            const tools = document.querySelectorAll('.tool-item');
+            
+            tools.forEach(tool => {
+                const text = tool.textContent.toLowerCase();
+                tool.style.display = text.includes(search) ? 'block' : 'none';
+            });
+        }
+
+        function saveWorkflow() {
+            const workflow = {
+                name: document.getElementById('workflow-name').value,
+                client: document.getElementById('client-selector').value,
+                nodes: workflowNodes,
+                created: new Date().toISOString()
+            };
+            
+            // Save to localStorage for now
+            localStorage.setItem('current-workflow', JSON.stringify(workflow));
+            
+            // Show success message
+            showNotification('Workflow saved successfully!', 'success');
+        }
+
+        function testWorkflow() {
+            window.location.href = `/static/workflow_test_lab.html?workflow=${encodeURIComponent(JSON.stringify(workflowNodes))}`;
+        }
+
+        function deployWorkflow() {
+            showNotification('Deploying workflow...', 'info');
+            setTimeout(() => {
+                showNotification('Workflow deployed successfully!', 'success');
+            }, 2000);
+        }
+
+        function clearCanvas() {
+            if (confirm('Clear all nodes from canvas?')) {
+                workflowNodes = [];
+                document.querySelectorAll('.workflow-node:not(:first-child)').forEach(el => el.remove());
+                document.getElementById('drop-instructions').style.display = 'block';
+                updateCodePreview();
+            }
+        }
+
+        function deleteSelectedNode() {
+            if (selectedNode && confirm('Delete this node?')) {
+                workflowNodes = workflowNodes.filter(n => n.id !== selectedNode.id);
+                document.getElementById(selectedNode.id).remove();
+                selectedNode = null;
+                document.getElementById('node-properties').classList.add('hidden');
+                document.getElementById('no-selection').classList.remove('hidden');
+                updateCodePreview();
+            }
+        }
+
+        function copyCode() {
+            const code = document.getElementById('code-preview').textContent;
+            navigator.clipboard.writeText(code);
+            showNotification('Code copied to clipboard!', 'success');
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Initialize
+        updateCodePreview();
+        
+        // Load clients on page load
+        document.addEventListener('DOMContentLoaded', loadClients);
+        
+        // Load clients from API
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/admin/clients');
+                if (!response.ok) {
+                    throw new Error('Failed to load clients');
+                }
+                const data = await response.json();
+                availableClients = data.clients || [];
+                
+                // Sort clients by name
+                availableClients.sort((a, b) => a.name.localeCompare(b.name));
+                
+                // Update client dropdown
+                updateClientDropdown();
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                availableClients = [];
+                updateClientDropdown();
+            }
+        }
+
+        // Update client dropdown with loaded clients
+        function updateClientDropdown() {
+            const clientSelect = document.getElementById('client-selector');
+            if (!clientSelect) return;
+            
+            clientSelect.innerHTML = '';
+            
+            if (availableClients.length === 0) {
+                clientSelect.innerHTML = '<option value="">No clients available</option>';
+                return;
+            }
+            
+            // Add default option
+            clientSelect.innerHTML = '<option value="">Select a client...</option>';
+            
+            // Add client options
+            availableClients.forEach(client => {
+                if (client.is_active !== false) {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = client.name;
+                    clientSelect.appendChild(option);
+                }
+            });
+            
+            // Select first active client by default if available
+            const activeClients = availableClients.filter(c => c.is_active !== false);
+            if (activeClients.length > 0) {
+                clientSelect.selectedIndex = 1;
+            }
+        }
+    </script>
+</body>
+</html>

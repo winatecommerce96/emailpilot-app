@@ -6,10 +6,11 @@ from typing import Any, Dict, List, Optional
 
 from google.cloud import firestore
 
-from app.services.client_key_resolver import get_client_key_resolver
+from app.services.client_key_resolver import ClientKeyResolver
 from app.deps.firestore import get_db
 from app.services.klaviyo_client import KlaviyoClient
 from app.services.mcp_client import MCPClient
+from app.services.secrets import SecretManagerService
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,11 @@ class KlaviyoDataService:
     def __init__(self, db: Optional[firestore.Client] = None):
         # Use shared Firestore client helper to honor credentials/secret manager
         self.db = db or get_db()
-        self.key_resolver = get_client_key_resolver()
+        # Initialize ClientKeyResolver directly without FastAPI dependency injection
+        import os
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")
+        secret_manager = SecretManagerService(project_id=project_id)
+        self.key_resolver = ClientKeyResolver(db=self.db, secret_manager=secret_manager)
 
     async def run_daily_sync(self):
         """
@@ -79,36 +84,101 @@ class KlaviyoDataService:
 
         return {"client_id": client_id, "campaigns": c_count, "flows": f_count, "metrics": m_ok}
 
-    async def backfill_client_data(self, client_id: str) -> Dict[str, Any]:
+    async def backfill_client_data(self, client_id: str, years: int = 1, include_orders: bool = True) -> Dict[str, Any]:
         """
-        Backfills Klaviyo data for a single client for the last 2 years.
+        Backfills Klaviyo data for a single client.
+        
+        Args:
+            client_id: The client ID to backfill
+            years: Number of years to backfill (default 1)
+            include_orders: Whether to include granular order data (default True)
         """
-        logger.info(f"Backfilling data for client {client_id}...")
+        logger.info(f"Backfilling data for client {client_id} for {years} year(s)...")
         api_key = await self.key_resolver.get_client_klaviyo_key(client_id)
         if not api_key:
             logger.warning(f"No Klaviyo API key for client {client_id}. Skipping.")
-            return {"client_id": client_id, "days": 0, "campaigns": 0, "flows": 0}
+            return {"client_id": client_id, "days": 0, "campaigns": 0, "flows": 0, "orders": 0}
 
         end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=365 * 2)
+        start_date = end_date - timedelta(days=365 * years)
 
         total_days = 0
         total_campaigns = 0
         total_flows = 0
+        total_orders = 0
 
-        current = start_date
-        while current < end_date:
-            next_day = current + timedelta(days=1)
-            # Write daily snapshots for this day
-            total_campaigns += await self._sync_campaigns(client_id, api_key, current, next_day, write_daily=True)
-            total_flows += await self._sync_flows(client_id, api_key, current, next_day, write_daily=True)
-            total_days += 1
-            current = next_day
+        # Store backfill status
+        backfill_ref = self.db.collection("backfill_status").document(client_id)
+        backfill_ref.set({
+            "client_id": client_id,
+            "status": "in_progress",
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "started_at": firestore.SERVER_TIMESTAMP,
+            "progress": 0
+        }, merge=True)
 
-        # Refresh metrics at end
-        await self._sync_metrics(client_id, api_key)
+        try:
+            current = start_date
+            total_days_to_process = (end_date - start_date).days
+            
+            while current < end_date:
+                next_day = current + timedelta(days=1)
+                
+                # Write daily snapshots for this day
+                total_campaigns += await self._sync_campaigns(client_id, api_key, current, next_day, write_daily=True)
+                total_flows += await self._sync_flows(client_id, api_key, current, next_day, write_daily=True)
+                
+                # Sync granular order data if requested
+                if include_orders:
+                    orders_count = await self._sync_placed_orders(client_id, api_key, current, next_day)
+                    total_orders += orders_count
+                
+                total_days += 1
+                
+                # Update progress
+                progress = (total_days / total_days_to_process) * 100
+                backfill_ref.update({
+                    "progress": progress,
+                    "days_processed": total_days,
+                    "campaigns_synced": total_campaigns,
+                    "flows_synced": total_flows,
+                    "orders_synced": total_orders,
+                    "last_processed_date": current.isoformat()
+                })
+                
+                current = next_day
 
-        return {"client_id": client_id, "days": total_days, "campaigns": total_campaigns, "flows": total_flows}
+            # Refresh metrics at end
+            await self._sync_metrics(client_id, api_key)
+            
+            # Mark backfill as complete
+            backfill_ref.update({
+                "status": "completed",
+                "completed_at": firestore.SERVER_TIMESTAMP,
+                "progress": 100,
+                "total_days": total_days,
+                "total_campaigns": total_campaigns,
+                "total_flows": total_flows,
+                "total_orders": total_orders
+            })
+
+        except Exception as e:
+            logger.error(f"Backfill failed for {client_id}: {e}")
+            backfill_ref.update({
+                "status": "failed",
+                "error": str(e),
+                "failed_at": firestore.SERVER_TIMESTAMP
+            })
+            raise
+
+        return {
+            "client_id": client_id, 
+            "days": total_days, 
+            "campaigns": total_campaigns, 
+            "flows": total_flows,
+            "orders": total_orders
+        }
 
     async def _sync_campaigns(self, client_id: str, api_key: str, start_date: datetime, end_date: datetime, write_daily: bool = False) -> int:
         """Sync campaigns (v2 API) for a client within a date window.
@@ -116,12 +186,10 @@ class KlaviyoDataService:
         We fetch recent pages and filter by created/updated timestamps locally,
         storing rich attributes and a best-effort `send_time` field for planning queries.
         """
-        # Prefer MCP for campaigns (use slug)
-        mcp = MCPClient()
-        mcp_id = self._resolve_mcp_client_id(client_id)
-        mcp_items: List[Dict[str, Any]] = await mcp.list_campaigns(mcp_id, start_date, end_date)
-        # Normalize to data dict shape for downstream loop
-        data = {"data": mcp_items, "links": {}}
+        # Use Klaviyo API directly
+        klaviyo = KlaviyoClient(api_key)
+        # Klaviyo API requires channel filter for campaigns
+        data = await klaviyo._get("/campaigns/", {"filter": "equals(messages.channel,'email')"})
         written = 0
         cleared_days: set[str] = set()
         while True:
@@ -340,6 +408,125 @@ class KlaviyoDataService:
                     d.reference.delete()
         except Exception as e:
             logger.warning(f"Failed to clear daily docs for {client_id} {day_str} {kinds}: {e}")
+
+    async def _sync_placed_orders(self, client_id: str, api_key: str, start_date: datetime, end_date: datetime) -> int:
+        """
+        Sync granular placed order events for a specific day.
+        
+        Returns:
+            Number of orders synced
+        """
+        try:
+            klaviyo = KlaviyoClient(api_key)
+            
+            # First get the Placed Order metric ID
+            metrics_data = await klaviyo._get("/metrics/", {"filter": "equals(name,\"Placed Order\")"})
+            placed_order_metric_id = None
+            
+            for metric in metrics_data.get("data", []):
+                if metric.get("attributes", {}).get("name") == "Placed Order":
+                    placed_order_metric_id = metric.get("id")
+                    break
+            
+            if not placed_order_metric_id:
+                logger.warning(f"Could not find 'Placed Order' metric for client {client_id}")
+                return 0
+            
+            # Fetch events for this metric within the date range
+            filter_str = f'equals(metric_id,"{placed_order_metric_id}")'
+            filter_str += f',greater-or-equal(datetime,{start_date.isoformat()}T00:00:00Z)'
+            filter_str += f',less-than(datetime,{end_date.isoformat()}T00:00:00Z)'
+            
+            events_data = await klaviyo._get("/events/", {
+                "filter": filter_str,
+                "page[size]": 100,
+                "include": "metric,profile"
+            })
+            
+            orders_written = 0
+            day_str = start_date.date().isoformat()
+            
+            # Clear existing orders for this day
+            await self._clear_daily_day(client_id, day_str, kinds=("orders",))
+            
+            while True:
+                events = events_data.get("data", [])
+                
+                for event in events:
+                    event_id = event.get("id")
+                    attributes = event.get("attributes", {})
+                    properties = attributes.get("properties", {})
+                    
+                    # Extract order details
+                    order_data = {
+                        "client_id": client_id,
+                        "event_id": event_id,
+                        "order_id": properties.get("OrderId") or properties.get("$order_id") or event_id,
+                        "datetime": attributes.get("datetime"),
+                        "date": day_str,
+                        "value": properties.get("$value", 0),
+                        "currency": properties.get("Currency", "USD"),
+                        "items": properties.get("Items", []),
+                        "item_count": properties.get("ItemCount", 0),
+                        "categories": properties.get("Categories", []),
+                        "brands": properties.get("Brands", []),
+                        "discount_codes": properties.get("DiscountCodes", []),
+                        "discount_value": properties.get("DiscountValue", 0),
+                        "shipping": properties.get("Shipping", 0),
+                        "tax": properties.get("Tax", 0),
+                        "subtotal": properties.get("Subtotal", properties.get("$value", 0)),
+                        "billing_address": properties.get("BillingAddress", {}),
+                        "shipping_address": properties.get("ShippingAddress", {}),
+                        "profile_id": attributes.get("profile_id"),
+                        "email": properties.get("$email"),
+                        "phone": properties.get("$phone_number"),
+                        "source": properties.get("$source", "unknown"),
+                        "utm_source": properties.get("UTMSource"),
+                        "utm_medium": properties.get("UTMMedium"),
+                        "utm_campaign": properties.get("UTMCampaign"),
+                        "properties": properties,  # Store all properties for flexibility
+                        "updated_at_firestore": firestore.SERVER_TIMESTAMP
+                    }
+                    
+                    # Store in main orders collection
+                    order_ref = (
+                        self.db.collection("clients")
+                        .document(client_id)
+                        .collection("klaviyo")
+                        .document("data")
+                        .collection("orders")
+                        .document(event_id)
+                    )
+                    order_ref.set(order_data, merge=True)
+                    
+                    # Store in daily orders collection for reporting
+                    daily_order_ref = (
+                        self.db.collection("clients")
+                        .document(client_id)
+                        .collection("klaviyo")
+                        .document("data")
+                        .collection("daily")
+                        .document("orders")
+                        .collection(day_str)
+                        .document(event_id)
+                    )
+                    daily_order_ref.set(order_data, merge=True)
+                    
+                    orders_written += 1
+                
+                # Check for next page
+                next_link = (events_data.get("links") or {}).get("next")
+                if not next_link:
+                    break
+                    
+                events_data = await klaviyo._get(next_link.replace("https://a.klaviyo.com/api", ""))
+            
+            logger.info(f"Synced {orders_written} orders for {client_id} on {day_str}")
+            return orders_written
+            
+        except Exception as e:
+            logger.error(f"Failed to sync orders for {client_id} on {start_date.date()}: {e}")
+            return 0
 
     async def _sync_metrics(self, client_id: str, api_key: str) -> bool:
         """Store a simple MTD metrics summary for planning context.

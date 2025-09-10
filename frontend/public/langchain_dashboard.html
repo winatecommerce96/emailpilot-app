@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain Management Dashboard - EmailPilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dashboard-card {
+            transition: all 0.3s ease;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        .status-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-indigo-100 min-h-screen">
+    <!-- Header -->
+    <nav class="bg-white shadow-lg mb-8">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-brain text-3xl text-purple-600"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">LangChain Management Center</h1>
+                        <p class="text-sm text-gray-600">Agent Configuration & Model Selection Hub</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="flex items-center text-sm text-gray-600">
+                        <span class="status-dot w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                        System Active
+                    </span>
+                    <a href="/static/index.html" class="text-purple-600 hover:text-purple-800">
+                        <i class="fas fa-home mr-1"></i> Main Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-6 pb-8">
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-3xl font-bold text-purple-600">11</div>
+                <div class="text-sm text-gray-600">Active Agents</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-3xl font-bold text-blue-600">9</div>
+                <div class="text-sm text-gray-600">LLM Models</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-3xl font-bold text-green-600">100+</div>
+                <div class="text-sm text-gray-600">Variables</div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4 text-center">
+                <div class="text-3xl font-bold text-orange-600">26</div>
+                <div class="text-sm text-gray-600">MCP Tools</div>
+            </div>
+        </div>
+
+        <!-- Agent Management Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-robot mr-2 text-purple-600"></i>Agent Management
+            </h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <a href="/static/test_agent_prompts_final.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-edit text-purple-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Agent Prompts Panel</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Edit prompts, manage variables, test agents</p>
+                    <div class="mt-3 text-purple-600 text-sm font-semibold">
+                        Primary Interface →
+                    </div>
+                </a>
+
+                <a href="/static/test_all_agents.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-list-ul text-blue-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">All Agents Overview</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">View all 11 agents with categories</p>
+                    <div class="mt-3 text-blue-600 text-sm font-semibold">
+                        Quick View →
+                    </div>
+                </a>
+
+                <a href="/static/admin/langchain/agents.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-cogs text-green-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Agent Configuration</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Configure and run agents with variables</p>
+                    <div class="mt-3 text-green-600 text-sm font-semibold">
+                        Advanced Config →
+                    </div>
+                </a>
+
+                <a href="/static/langchain_debug_editor.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-code text-orange-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Prompt Editor</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Real-time prompt editing and testing</p>
+                    <div class="mt-3 text-orange-600 text-sm font-semibold">
+                        Live Editor →
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Model Configuration Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-microchip mr-2 text-blue-600"></i>Model Configuration
+            </h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <a href="/static/admin/langchain/models.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-sliders-h text-indigo-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Model Selection & Policies</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Configure default models, temperature, tokens</p>
+                    <div class="mt-3 text-indigo-600 text-sm font-semibold">
+                        Configure Models →
+                    </div>
+                </a>
+
+                <a href="/static/llm_selector_demo.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-layer-group text-pink-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">LLM Selector Demo</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Interactive model selector with all providers</p>
+                    <div class="mt-3 text-pink-600 text-sm font-semibold">
+                        View Demo →
+                    </div>
+                </a>
+
+                <a href="/static/admin/langchain/usage.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-chart-line text-teal-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Usage Analytics</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Track token usage and API costs</p>
+                    <div class="mt-3 text-teal-600 text-sm font-semibold">
+                        View Usage →
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Testing & Debugging Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-bug mr-2 text-red-600"></i>Testing & Debugging
+            </h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <a href="/static/langchain_debug.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-terminal text-green-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Debug Console</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Test agents, view system status, benchmark</p>
+                    <div class="mt-3 text-green-600 text-sm font-semibold">
+                        Open Console →
+                    </div>
+                </a>
+
+                <a href="/static/test_enhanced_prompts.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-flask text-purple-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Enhanced Prompts Test</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Test enhanced prompt features</p>
+                    <div class="mt-3 text-purple-600 text-sm font-semibold">
+                        Test Prompts →
+                    </div>
+                </a>
+
+                <a href="/static/mcp_tools.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-toolbox text-yellow-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">MCP Tools Interface</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Test MCP tools and integrations</p>
+                    <div class="mt-3 text-yellow-600 text-sm font-semibold">
+                        MCP Tools →
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Workflow Management Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-project-diagram mr-2 text-green-600"></i>Workflow Management
+            </h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <a href="/static/workflow_hub.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-hub text-blue-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Workflow Hub</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Central workflow management</p>
+                    <div class="mt-3 text-blue-600 text-sm font-semibold">
+                        Open Hub →
+                    </div>
+                </a>
+
+                <a href="/static/workflow_editor.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-pen-fancy text-purple-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Workflow Editor</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Create and edit workflows</p>
+                    <div class="mt-3 text-purple-600 text-sm font-semibold">
+                        Edit Workflows →
+                    </div>
+                </a>
+
+                <a href="/static/calendar_planner.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-calendar-alt text-green-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Calendar Planner</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Plan email campaigns</p>
+                    <div class="mt-3 text-green-600 text-sm font-semibold">
+                        Plan Calendar →
+                    </div>
+                </a>
+
+                <a href="/static/agent_creator_enhanced.html" class="dashboard-card bg-white rounded-lg shadow p-6 hover:shadow-xl cursor-pointer">
+                    <div class="flex items-center mb-3">
+                        <i class="fas fa-plus-circle text-orange-500 text-2xl mr-3"></i>
+                        <h3 class="font-semibold text-gray-800">Agent Creator</h3>
+                    </div>
+                    <p class="text-sm text-gray-600">Create new agents</p>
+                    <div class="mt-3 text-orange-600 text-sm font-semibold">
+                        Create Agent →
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- LangGraph Integration Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-network-wired mr-2 text-indigo-600"></i>LangGraph Integration
+            </h2>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-semibold text-gray-800 mb-3">Start LangGraph Server</h3>
+                        <div class="bg-gray-50 rounded p-4 mb-3">
+                            <code class="text-sm">
+                                cd emailpilot_graph<br>
+                                langgraph dev --port 2024
+                            </code>
+                        </div>
+                        <p class="text-sm text-gray-600">Server runs on port 2024 with hot reload enabled</p>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-gray-800 mb-3">Quick Links</h3>
+                        <div class="space-y-2">
+                            <a href="http://127.0.0.1:2024" target="_blank" class="flex items-center text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-server mr-2"></i>LangGraph API Server
+                            </a>
+                            <a href="http://127.0.0.1:2024/docs" target="_blank" class="flex items-center text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-book mr-2"></i>API Documentation
+                            </a>
+                            <a href="https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024" target="_blank" class="flex items-center text-purple-600 hover:text-purple-800">
+                                <i class="fas fa-paint-brush mr-2"></i>LangGraph Studio UI
+                            </a>
+                            <a href="https://smith.langchain.com" target="_blank" class="flex items-center text-green-600 hover:text-green-800">
+                                <i class="fas fa-chart-area mr-2"></i>LangSmith Traces
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Models Reference -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-list mr-2 text-orange-600"></i>Available Models Reference
+            </h2>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">OpenAI</h4>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• GPT-4o Mini (Fast & Cheap)</li>
+                            <li>• GPT-4o (Balanced)</li>
+                            <li>• O1 Preview (Advanced)</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">Anthropic</h4>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• Claude 3.5 Haiku (Fast)</li>
+                            <li>• Claude 3.5 Sonnet (Balanced)</li>
+                            <li>• Claude 3 Opus (Most Capable)</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2">Google</h4>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>• Gemini 1.5 Flash (Fast)</li>
+                            <li>• Gemini 1.5 Pro (Balanced)</li>
+                            <li>• Gemini 2.0 Flash Exp (Latest)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="bg-white rounded-lg shadow p-6 mt-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-semibold text-gray-800">Need Help?</h3>
+                    <p class="text-sm text-gray-600 mt-1">This dashboard provides centralized access to all LangChain and LangGraph features in EmailPilot.</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-500">Last Updated: January 2025</p>
+                    <p class="text-xs text-gray-400 mt-1">EmailPilot LangChain Integration v2.0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Check Script -->
+    <script>
+        // Check API status
+        async function checkApiStatus() {
+            try {
+                const response = await fetch('/api/admin/langchain/agents');
+                if (response.ok) {
+                    console.log('✅ LangChain API is accessible');
+                } else {
+                    console.warn('⚠️ LangChain API returned:', response.status);
+                }
+            } catch (error) {
+                console.error('❌ Cannot reach LangChain API:', error.message);
+            }
+        }
+
+        // Check LangGraph status
+        async function checkLangGraphStatus() {
+            try {
+                const response = await fetch('http://127.0.0.1:2024/assistants/agent');
+                if (response.ok) {
+                    console.log('✅ LangGraph server is running');
+                } else {
+                    console.info('ℹ️ LangGraph server not running (start with: langgraph dev --port 2024)');
+                }
+            } catch (error) {
+                console.info('ℹ️ LangGraph server not running (start with: langgraph dev --port 2024)');
+            }
+        }
+
+        // Run checks on page load
+        window.addEventListener('load', () => {
+            checkApiStatus();
+            checkLangGraphStatus();
+        });
+    </script>
+</body>
+</html>

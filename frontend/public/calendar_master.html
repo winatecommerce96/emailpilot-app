@@ -1739,6 +1739,61 @@
         }
         
         /* ============================================ */
+        /* Fullscreen Calendar Mode */
+        /* ============================================ */
+        .calendar-fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 99999 !important;
+            background: rgba(0, 0, 0, 0.98) !important;
+            overflow: auto !important;
+            padding: 20px !important;
+            margin: 0 !important;
+            max-width: 100vw !important;
+            border-radius: 0 !important;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .calendar-fullscreen .calendar-grid {
+            height: calc(100vh - 250px) !important;
+            max-width: 100% !important;
+            overflow: auto !important;
+        }
+        
+        .calendar-fullscreen .calendar-day {
+            min-height: 120px !important;
+        }
+        
+        /* Light mode fullscreen */
+        body.light-mode .calendar-fullscreen {
+            background: rgba(255, 255, 255, 0.98) !important;
+        }
+        
+        /* Hide other elements when calendar is fullscreen */
+        body.calendar-is-fullscreen .gradient-bg,
+        body.calendar-is-fullscreen .gradient-orbs,
+        body.calendar-is-fullscreen .stats-grid,
+        body.calendar-is-fullscreen #changeRequestsSection,
+        body.calendar-is-fullscreen #campaignTypesContainer,
+        body.calendar-is-fullscreen #aiChatSection,
+        body.calendar-is-fullscreen #commandFab,
+        body.calendar-is-fullscreen .mb-8:not(.calendar-fullscreen),
+        body.calendar-is-fullscreen .holiday-toggle {
+            display: none !important;
+        }
+        
+        /* Fullscreen transition animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        /* ============================================ */
         /* Light Mode Text Visibility Fixes - UI/UX Master */
         /* ============================================ */
         
@@ -2139,6 +2194,7 @@
                         <button onclick="setView('month')" class="glow-button view-btn active" data-view="month">Month</button>
                         <button onclick="setView('week')" class="glow-button view-btn" data-view="week">Week</button>
                         <button onclick="setView('list')" class="glow-button view-btn" data-view="list">List</button>
+                        <button onclick="toggleFullscreen()" class="glow-button" id="fullscreenBtn" title="Fullscreen">⛶</button>
                         <button onclick="saveToCloud()" class="glow-button primary">💾 Save</button>
                         <button onclick="undoLastChange()" class="glow-button" id="undoBtn" disabled title="Undo">↶</button>
                     </div>
@@ -6458,6 +6514,74 @@
 
         function undoLastChange() {
             calendarManager.undoLastChange();
+        }
+        
+        // Fullscreen toggle functionality
+        let isFullscreen = false;
+        
+        function toggleFullscreen() {
+            const calendarSection = document.querySelector('.glass-card.p-6.mb-8.fade-in');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const body = document.body;
+            
+            if (!calendarSection) {
+                console.error('Calendar section not found');
+                return;
+            }
+            
+            isFullscreen = !isFullscreen;
+            
+            if (isFullscreen) {
+                // Enter fullscreen
+                calendarSection.classList.add('calendar-fullscreen');
+                body.classList.add('calendar-is-fullscreen');
+                fullscreenBtn.innerHTML = '⤦'; // Reduce icon
+                fullscreenBtn.title = 'Exit Fullscreen';
+                
+                // Store scroll position
+                window.calendarScrollPosition = window.scrollY;
+                
+                // Focus on calendar
+                calendarSection.scrollIntoView({ behavior: 'smooth' });
+                
+                // Add ESC key listener
+                document.addEventListener('keydown', handleFullscreenEsc);
+                
+                showToast('Press ESC to exit fullscreen', 'info');
+            } else {
+                // Exit fullscreen
+                calendarSection.classList.remove('calendar-fullscreen');
+                body.classList.remove('calendar-is-fullscreen');
+                fullscreenBtn.innerHTML = '⛶'; // Expand icon
+                fullscreenBtn.title = 'Fullscreen';
+                
+                // Restore scroll position
+                if (window.calendarScrollPosition !== undefined) {
+                    window.scrollTo(0, window.calendarScrollPosition);
+                }
+                
+                // Remove ESC key listener
+                document.removeEventListener('keydown', handleFullscreenEsc);
+            }
+            
+            // Re-render calendar to adjust to new dimensions
+            if (calendarManager) {
+                setTimeout(() => {
+                    calendarManager.renderCalendar();
+                    // Also re-render week/list view if active
+                    const activeView = document.querySelector('.view-btn.active');
+                    if (activeView && activeView.dataset.view !== 'month') {
+                        setView(activeView.dataset.view);
+                    }
+                }, 100);
+            }
+        }
+        
+        function handleFullscreenEsc(e) {
+            if (e.key === 'Escape' && isFullscreen) {
+                e.preventDefault();
+                toggleFullscreen();
+            }
         }
 
         // Campaign Creation Functions

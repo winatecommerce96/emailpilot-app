@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - Campaign Calendar</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-semibold text-gray-900">{{ app_name }}</h1>
+                    <span class="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">v{{ app_version }}</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/health" class="text-sm text-gray-600 hover:text-gray-900">Health Check</a>
+                    {% if debug %}
+                    <a href="/docs" class="text-sm text-gray-600 hover:text-gray-900">API Docs</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Welcome Section -->
+        <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a1 1 0 011-1h6a1 1 0 011 1v4m-6 8h6m-6 4h6m2-14H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Interactive Campaign Calendar</h2>
+                <p class="text-gray-600 max-w-2xl mx-auto">
+                    Plan, organize, and track your email marketing campaigns with our comprehensive calendar system.
+                    Integrated with EmailPilot for seamless campaign management.
+                </p>
+            </div>
+        </div>
+
+        <!-- Feature Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-sm border p-6">
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Campaign Planning</h3>
+                <p class="text-gray-600">Create and schedule email campaigns with drag-and-drop calendar interface.</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border p-6">
+                <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2m0-10V6a2 2 0 00-2-2H9a2 2 0 00-2 2v2m8 0V8a2 2 0 012 2v8a2 2 0 01-2 2H9a2 2 0 01-2-2v-8a2 2 0 012-2h2"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Client Management</h3>
+                <p class="text-gray-600">Manage multiple clients and their campaign schedules in one central location.</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border p-6">
+                <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">AI Integration</h3>
+                <p class="text-gray-600">Get intelligent campaign suggestions and insights powered by Gemini AI.</p>
+            </div>
+        </div>
+
+        <!-- API Status -->
+        <div class="bg-white rounded-lg shadow-sm border p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">API Status</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-sm text-gray-500 mb-1">Application</div>
+                    <div class="text-lg font-semibold text-green-600">Running</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500 mb-1">Version</div>
+                    <div class="text-lg font-semibold text-gray-900">{{ app_version }}</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500 mb-1">Environment</div>
+                    <div class="text-lg font-semibold text-blue-600">
+                        {% if debug %}Development{% else %}Production{% endif %}
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500 mb-1">API</div>
+                    <div class="text-lg font-semibold text-green-600">
+                        <a href="/api" class="hover:underline">Available</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="mt-8 flex justify-center space-x-4">
+            <a href="/health" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+                Health Check
+            </a>
+            {% if debug %}
+            <a href="/docs" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition-colors">
+                API Documentation
+            </a>
+            <a href="/debug/config" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg transition-colors">
+                Debug Config
+            </a>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="text-center text-sm text-gray-500">
+                <p>&copy; 2024 {{ app_name }}. Interactive Campaign Calendar for EmailPilot.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Calendar Component Placeholder -->
+    <script>
+        // This is where the React calendar component will be mounted
+        // For now, we'll show a simple status indicator
+        
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                console.log('Health check:', data);
+                
+                // Update status indicators if needed
+                if (data.status === 'healthy') {
+                    document.querySelectorAll('.status-indicator').forEach(el => {
+                        el.className = 'status-indicator bg-green-500';
+                    });
+                }
+            } catch (error) {
+                console.error('Health check failed:', error);
+                document.querySelectorAll('.status-indicator').forEach(el => {
+                    el.className = 'status-indicator bg-red-500';
+                });
+            }
+        }
+        
+        // Check health on load
+        document.addEventListener('DOMContentLoaded', checkHealth);
+    </script>
+</body>
+</html>

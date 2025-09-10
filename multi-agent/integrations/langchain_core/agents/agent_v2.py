@@ -81,20 +81,28 @@ class SimpleAgentExecutor:
         llm: Optional[Any] = None,
         tools: Optional[List[Any]] = None,
         policy: Optional[AgentPolicy] = None,
-        config: Optional[LangChainConfig] = None
+        config: Optional[LangChainConfig] = None,
+        agent_name: Optional[str] = None,
+        client_id: Optional[str] = None
     ):
         """
-        Initialize agent executor.
+        Initialize agent executor with Enhanced MCP support.
         
         Args:
             llm: LLM instance
             tools: List of tools
             policy: Agent policy
             config: Configuration
+            agent_name: Name of the agent for Enhanced MCP tool selection
+            client_id: Default client ID for Klaviyo
         """
         self.config = config or get_config()
         self.llm = llm or get_llm(self.config)
-        self.tools = tools or get_all_tools(self.config)
+        self.agent_name = agent_name or self.__class__.__name__
+        self.client_id = client_id
+        
+        # Get tools including Enhanced MCP tools for this specific agent
+        self.tools = tools or get_all_tools(self.config, agent_name=self.agent_name, client_id=self.client_id)
         self.policy = policy or AgentPolicy()
         self.enforcer = PolicyEnforcer(self.policy)
         

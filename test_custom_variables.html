@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Custom Variables - Agent Creator Enhanced</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Custom Variables Test</h1>
+        
+        <div class="bg-white rounded-lg p-6 shadow-md mb-6">
+            <h2 class="text-lg font-semibold mb-4">Test Instructions</h2>
+            <ol class="list-decimal ml-6 space-y-2">
+                <li>Open the Agent Creator Enhanced page</li>
+                <li>Look for the new "➕ Add Custom Variable" section in the left panel</li>
+                <li>Click the dropdown arrow to expand the form</li>
+                <li>Try adding a custom variable (e.g., "my_test_var")</li>
+                <li>Check that it appears in the variables list</li>
+                <li>Try using it in a prompt by clicking on it</li>
+                <li>The variable should no longer show as invalid</li>
+                <li>Custom variables are saved to browser localStorage</li>
+            </ol>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 shadow-md mb-6">
+            <h2 class="text-lg font-semibold mb-4">Pre-loaded Custom Variables</h2>
+            <p class="mb-4">The following variables are pre-loaded automatically on first use:</p>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <code class="bg-gray-100 p-2 rounded">additional_context</code>
+                <code class="bg-gray-100 p-2 rounded">brand_guidelines</code>
+                <code class="bg-gray-100 p-2 rounded">target_audience</code>
+                <code class="bg-gray-100 p-2 rounded">campaign_goals</code>
+                <code class="bg-gray-100 p-2 rounded">product_focus</code>
+                <code class="bg-gray-100 p-2 rounded">promotional_offers</code>
+                <code class="bg-gray-100 p-2 rounded">seasonal_context</code>
+                <code class="bg-gray-100 p-2 rounded">competitor_insights</code>
+                <code class="bg-gray-100 p-2 rounded">email_frequency</code>
+                <code class="bg-gray-100 p-2 rounded">customer_segments</code>
+                <code class="bg-gray-100 p-2 rounded">historical_performance</code>
+                <code class="bg-gray-100 p-2 rounded">content_preferences</code>
+                <code class="bg-gray-100 p-2 rounded">call_to_action</code>
+                <code class="bg-gray-100 p-2 rounded">exclusion_dates</code>
+                <code class="bg-gray-100 p-2 rounded">priority_messages</code>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 shadow-md">
+            <h2 class="text-lg font-semibold mb-4">Features</h2>
+            <ul class="list-disc ml-6 space-y-2">
+                <li><strong>Add Custom Variables:</strong> Add any variable name you need</li>
+                <li><strong>Categories:</strong> Organize variables into categories (Custom, Firestore, System, Integration, Context)</li>
+                <li><strong>Persistence:</strong> Variables are saved to browser localStorage</li>
+                <li><strong>Validation:</strong> Custom variables are recognized in prompt validation</li>
+                <li><strong>Remove:</strong> Click the × next to any custom variable to remove it</li>
+                <li><strong>Auto-complete:</strong> Click any variable to insert it into the prompt</li>
+            </ul>
+        </div>
+        
+        <div class="mt-6 text-center">
+            <a href="/static/agent_creator_enhanced.html" 
+               class="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Open Agent Creator Enhanced →
+            </a>
+        </div>
+    </div>
+</body>
+</html>
