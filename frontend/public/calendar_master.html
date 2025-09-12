@@ -1939,6 +1939,19 @@
         .multi-day-campaign-icon {
             display: inline-block;
             margin-right: 4px;
+            flex-shrink: 0;
+        }
+        
+        .multi-day-campaign-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+        
+        .multi-day-campaign {
+            display: flex;
+            align-items: center;
         }
         
         /* Light mode adjustments */
@@ -2178,13 +2191,15 @@
         
         /* Campaign Pills with Yellow - Darker for Light Mode */
         body.light-mode .campaign-pill.engagement {
-            background: linear-gradient(135deg, #7c3aed, #84cc16) !important;
+            background: linear-gradient(135deg, #7c3aed, #6366f1) !important;
             color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
         }
         
         body.light-mode .campaign-pill.seasonal {
-            background: linear-gradient(135deg, #65a30d, #16a34a) !important;
+            background: linear-gradient(135deg, #059669, #047857) !important;
             color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
         }
         
         body.light-mode .campaign-pill.sms-special {
@@ -2278,8 +2293,8 @@
                     <div class="curiosity-badge" id="curiosityBadge">NEW!</div>
                     <div class="hover-hint" id="gradeHoverHint">Discover your score!</div>
                     <div class="grade-card-bg"></div>
-                    <div class="stat-value" id="gradeDisplay">🧑‍🏫 Grade</div>
-                    <div class="stat-label" id="gradeLabel">Performance</div>
+                    <div class="stat-value" id="gradeDisplay" style="position: relative; z-index: 10;">🧑‍🏫 Grade</div>
+                    <div class="stat-label" id="gradeLabel" style="position: relative; z-index: 10;">Performance</div>
                 </div>
             </div>
             
@@ -3381,7 +3396,7 @@
                              onclick="showMultiDayCampaignDetails('${c.id}')"
                              title="${c.name} (${duration} days)">
                             <span class="multi-day-campaign-icon">${c.emoji || '📅'}</span>
-                            ${positionClass === 'start' || positionClass === 'single' ? c.name : ''}
+                            <span class="multi-day-campaign-text">${c.name}</span>
                         </div>
                     `;
                 }).join('');
