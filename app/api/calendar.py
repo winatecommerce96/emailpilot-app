@@ -1,1145 +1,707 @@
 """
-Calendar API Router for EmailPilot
-Provides endpoints for calendar functionality with Firebase integration
-Now with LangSmith tracing integration for observability
+Calendar API Router for EmailPilot - Unified Deployment
+Integrates calendar generation workflow from emailpilot-simple with Clerk authentication
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
-from datetime import datetime, date
-from pydantic import BaseModel
-import json
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+from pydantic import BaseModel, Field
+import uuid
 import logging
 import os
 import sys
+from pathlib import Path
 from google.cloud import firestore
 
-# Add LangSmith tracing
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-try:
-    from workflow.instrumentation import instrument_workflow, create_langsmith_callback
-    from langsmith.run_helpers import traceable
-    TRACING_ENABLED = True
-except ImportError:
-    logger.warning("LangSmith tracing not available - running without traces")
-    TRACING_ENABLED = False
-    # Create dummy decorators
-    def instrument_workflow(name, context):
-        def decorator(func):
-            return func
-        return decorator
-    def traceable(**kwargs):
-        def decorator(func):
-            return func
-        return decorator
-
-# Import the new schemas and Gemini service
-from app.schemas.calendar import CampaignPlanRequest, CampaignPlanResponse, CalendarChatRequest, AICalendarRequest
-from app.services.gemini_service import GeminiService
-
-if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+# Import authentication dependency
+from app.api.auth_v2 import get_current_user
+from app.deps.firestore import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Import the Firestore client
-from app.deps import get_db, get_secret_manager_service
+# Global state for lazy-initialized calendar components
+_calendar_state = {
+    'initialized': False,
+    'calendar_agent': None,
+    'calendar_tool': None,
+    'mcp_client': None,
+    'rag_client': None,
+    'firestore_client': None,
+    'cache': None,
+    'storage_client': None,
+    'workflow_status': {}  # In-memory job status cache
+}
 
+# Pydantic models for request/response
+class WorkflowRequest(BaseModel):
+    """Request model for workflow execution"""
+    client_name: str = Field(..., description="Client name for the workflow")
+    start_date: str = Field(..., description="Start date in YYYY-MM-DD format")
+    end_date: str = Field(..., description="End date in YYYY-MM-DD format")
+    stage: str = Field(default='full', description="Workflow stage: 'full', 'rag', 'mcp', 'generate'")
+    prompt_name: Optional[str] = Field(default=None, description="Optional custom prompt name")
 
+class PromptRequest(BaseModel):
+    """Request model for prompt management"""
+    content: str = Field(..., description="Prompt template content")
 
-db = get_db()
+class RAGRequest(BaseModel):
+    """Request model for RAG data fetching"""
+    client_name: str = Field(..., description="Client name")
+    query: Optional[str] = Field(default=None, description="Optional search query")
 
-def get_gemini_service_dependency(secret_manager: SecretManagerService = Depends(get_secret_manager_service)) -> GeminiService:
-    return GeminiService(secret_manager=secret_manager)
+class MCPRequest(BaseModel):
+    """Request model for MCP data fetching"""
+    client_name: str = Field(..., description="Client name")
+    data_types: List[str] = Field(default=['campaigns', 'flows'], description="Data types to fetch")
 
-# Pydantic models
-class CalendarEvent(BaseModel):
-    title: str
-    date: str
-    client_id: str
-    content: Optional[str] = ""
-    color: Optional[str] = "bg-gray-200 text-gray-800"
-    event_type: Optional[str] = "general"
-
-class CalendarEventUpdate(BaseModel):
-    title: Optional[str]
-    date: Optional[str]
-    content: Optional[str]
-    color: Optional[str]
-    event_type: Optional[str]
-
-class AIRequest(BaseModel):
-    message: str
-    context: Optional[Dict[str, Any]] = {}
-    client_id: Optional[str]
-
-class DocumentImportRequest(BaseModel):
-    doc_text: str
-    client_id: str
-
-class EventDuplicateRequest(BaseModel):
-    new_date: Optional[str] = None
-
-
-@router.get("/")
-async def calendar_root():
-    """Calendar API root endpoint"""
-    return {
-        "status": "operational",
-        "service": "EmailPilot Calendar API",
-        "version": "2.0.0",
-        "features": ["campaign_planning", "ai_chat", "event_management", "firebase_sync"],
-        "available_endpoints": [
-            "POST /api/calendar/plan-campaign",
-            "POST /api/calendar/ai-chat",
-            "GET /api/calendar/events",
-            "POST /api/calendar/events",
-            "PUT /api/calendar/events/{event_id}",
-            "DELETE /api/calendar/events/{event_id}",
-            "POST /api/calendar/events/{event_id}/duplicate",
-            "POST /api/calendar/import-document"
-        ]
+def standard_response(success: bool, data: Any = None, error: Optional[str] = None) -> Dict[str, Any]:
+    """Standardized API response format"""
+    response = {
+        'success': success,
+        'timestamp': datetime.utcnow().isoformat()
     }
+    if data is not None:
+        response['data'] = data
+    if error is not None:
+        response['error'] = error
+    return response
 
+async def initialize_calendar_components():
+    """
+    Lazy initialization of calendar components on first request.
 
-# Campaign Planning Endpoint with Gemini AI
-@router.post("/plan-campaign", response_model=CampaignPlanResponse)
-@traceable(
-    run_type="chain",
-    name="calendar_plan_campaign",
-    project_name=os.getenv("LANGSMITH_PROJECT", "emailpilot-calendar"),
-    tags=["calendar", "campaign_planning", "gemini"]
-)
-async def plan_campaign(request: CampaignPlanRequest, gemini_service: GeminiService = Depends(get_gemini_service_dependency)):
+    This avoids blocking the app startup and allows the auth system
+    to be available immediately while calendar components load.
     """
-    Plan a comprehensive email/SMS campaign using Gemini AI
-    
-    This endpoint accepts campaign details and uses AI to generate:
-    - A strategic campaign plan
-    - Multiple calendar events with intelligent timing
-    - Both email and SMS touchpoints
-    - Events stored in Firestore calendar_events collection
-    
-    LangSmith tracing enabled for observability.
-    """
+    if _calendar_state['initialized']:
+        return
+
+    logger.info("Initializing calendar components...")
+
     try:
-        logger.info(f"Planning campaign for client {request.client_id}: {request.campaign_type}")
-        
-        # Generate campaign plan using Gemini AI
-        campaign_data = await gemini_service.plan_campaign(
-            client_id=request.client_id,
-            campaign_type=request.campaign_type,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            promotion_details=request.promotion_details
+        # Add emailpilot-simple to Python path
+        emailpilot_simple_path = str(Path(__file__).parent.parent.parent.parent / "emailpilot-simple")
+        if emailpilot_simple_path not in sys.path:
+            sys.path.insert(0, emailpilot_simple_path)
+
+        # Import calendar components
+        from tools import CalendarTool
+        from agents.calendar_agent import CalendarAgent
+        from data.native_mcp_client import NativeMCPClient as MCPClient
+        from data.enhanced_rag_client import EnhancedRAGClient as RAGClient
+        from data.firestore_client import FirestoreClient
+        from data.mcp_cache import MCPCache
+        from google.cloud import storage
+
+        # Initialize components
+        project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+
+        if not project_id or not anthropic_api_key:
+            raise RuntimeError("Missing required environment variables: GOOGLE_CLOUD_PROJECT or ANTHROPIC_API_KEY")
+
+        # Initialize data layer clients
+        rag_base_path = Path(emailpilot_simple_path) / "rag_data"
+        rag_client = RAGClient(rag_base_path=rag_base_path)
+
+        firestore_client = FirestoreClient(project_id=project_id)
+
+        cache = MCPCache()
+
+        mcp_client = MCPClient(project_id=project_id)
+        await mcp_client.__aenter__()
+
+        # Initialize calendar agent
+        model = "claude-sonnet-4-20250514"
+        calendar_agent = CalendarAgent(
+            anthropic_api_key=anthropic_api_key,
+            mcp_client=mcp_client,
+            rag_client=rag_client,
+            firestore_client=firestore_client,
+            cache=cache,
+            model=model
         )
-        
-        # Extract campaign strategy and events
-        campaign_strategy = campaign_data.get("campaign_strategy", "Strategic campaign plan generated")
-        events = campaign_data.get("events", [])
-        
-        # Create events in Firestore
-        created_events = []
-        touchpoint_counts = {"email": 0, "sms": 0, "push": 0}
-        
-        for event_data in events:
+
+        # Initialize storage client for production
+        storage_client = None
+        if os.getenv('ENVIRONMENT') == 'production':
             try:
-                # Prepare event data for Firestore
-                event_record = {
-                    "title": event_data.get("title", "Campaign Event"),
-                    "date": event_data.get("date"),
-                    "client_id": request.client_id,
-                    "content": event_data.get("content", ""),
-                    "color": event_data.get("color", "bg-gray-200 text-gray-800"),
-                    "event_type": event_data.get("event_type", "email"),
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
-                    # Add campaign metadata
-                    "campaign_metadata": event_data.get("campaign_metadata", {}),
-                    "generated_by_ai": True,
-                    "campaign_type": request.campaign_type,
-                    "promotion_details": request.promotion_details
-                }
-                
-                # Add to Firestore
-                doc_ref = db.collection('calendar_events').add(event_record)
-                
-                # Add ID to the event record for response
-                event_record['id'] = doc_ref[1].id
-                created_events.append(event_record)
-                
-                # Count touchpoint types
-                event_type = event_data.get("event_type", "email")
-                if event_type in touchpoint_counts:
-                    touchpoint_counts[event_type] += 1
-                
-                logger.info(f"Created event: {event_record['title']} on {event_record['date']}")
-                
+                storage_client = storage.Client(project=project_id)
+                logger.info("Production: Using GCS for output storage")
             except Exception as e:
-                logger.error(f"Error creating event {event_data.get('title', 'Unknown')}: {e}")
-                continue
-        
-        # Prepare response
-        response = CampaignPlanResponse(
-            campaign_plan=campaign_strategy,
-            events_created=created_events,
-            total_events=len(created_events),
-            touchpoints=touchpoint_counts
+                logger.warning(f"Failed to initialize GCS client: {e}")
+
+        # Initialize calendar tool
+        output_dir = Path(emailpilot_simple_path) / "outputs"
+        calendar_tool = CalendarTool(
+            calendar_agent=calendar_agent,
+            output_dir=output_dir,
+            validate_outputs=True,
+            storage_client=storage_client
         )
-        
-        logger.info(f"Successfully created {len(created_events)} events for {request.campaign_type} campaign")
-        return response
-        
+
+        # Store in global state
+        _calendar_state['calendar_agent'] = calendar_agent
+        _calendar_state['calendar_tool'] = calendar_tool
+        _calendar_state['mcp_client'] = mcp_client
+        _calendar_state['rag_client'] = rag_client
+        _calendar_state['firestore_client'] = firestore_client
+        _calendar_state['cache'] = cache
+        _calendar_state['storage_client'] = storage_client
+        _calendar_state['initialized'] = True
+
+        logger.info("Calendar components initialized successfully")
+
     except Exception as e:
-        logger.error(f"Error planning campaign: {e}")
+        logger.error(f"Failed to initialize calendar components: {e}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to plan campaign: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initialize calendar system: {str(e)}"
         )
 
-# Calendar Event Endpoints
-@router.get("/events")
-@traceable(
-    run_type="chain",
-    name="calendar_get_events",
-    project_name=os.getenv("LANGSMITH_PROJECT", "emailpilot-calendar"),
-    tags=["calendar", "events", "retrieval"]
-)
-async def get_calendar_events(
-    client_id: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+async def execute_workflow_background(
+    job_id: str,
+    client_name: str,
+    start_date: str,
+    end_date: str,
+    user_id: str,
+    calendar_tool,
+    db: firestore.Client
 ):
-    """Get calendar events for a client with LangSmith tracing"""
-    try:
-        # Query Firebase for events
-        events_ref = db.collection('calendar_events')
-        
-        # If client_id is provided, filter by it
-        if client_id:
-            query = events_ref.where('client_id', '==', client_id)
-        else:
-            query = events_ref
-        
-        if start_date:
-            query = query.where('date', '>=', start_date)
-        if end_date:
-            query = query.where('date', '<=', end_date)
-        
-        events = []
-        for doc in query.stream():
-            event_data = doc.to_dict()
-            event_data['id'] = doc.id
-            events.append(event_data)
-        
-        return events
-    except Exception as e:
-        logger.error(f"Error fetching calendar events: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """
+    Execute workflow in background and update job state.
 
-@router.get("/events/{client_id}")
-async def get_calendar_events_by_client(client_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
-    """Get calendar events for a specific client - compatible with orchestrator output"""
+    Job status is persisted to Firestore for durability across server restarts.
+    """
     try:
-        logger.info(f"Fetching events for client: {client_id}, date range: {start_date} to {end_date}")
-        
-        # Try both field names for compatibility (orchestrator uses client_firestore_id)
-        events_ref = db.collection('calendar_events')
-        
-        # First try with client_firestore_id (orchestrator field)
-        query = events_ref.where('client_firestore_id', '==', client_id).where('latest', '==', True)
-        
-        # Execute query for orchestrator events
-        events = []
-        for doc in query.stream():
-            event_data = doc.to_dict()
-            event_data['id'] = doc.id
-            
-            # Map orchestrator fields to frontend expected fields
-            if 'planned_send_datetime' in event_data:
-                # Convert datetime to ISO string for frontend
-                if hasattr(event_data['planned_send_datetime'], 'isoformat'):
-                    event_data['date'] = event_data['planned_send_datetime'].isoformat()
-                else:
-                    event_data['date'] = str(event_data['planned_send_datetime'])
-            
-            # Map campaign_name to title
-            if 'campaign_name' in event_data and 'title' not in event_data:
-                event_data['title'] = event_data['campaign_name']
-            
-            # Add color based on channel
-            if 'channel' in event_data:
-                event_data['color'] = 'bg-orange-200 text-orange-800' if event_data['channel'] == 'sms' else 'bg-blue-200 text-blue-800'
-            
-            # Ensure required fields
-            event_data['client_id'] = client_id
-            
-            events.append(event_data)
-        
-        # If no orchestrator events, try legacy format
-        if not events:
-            query = events_ref.where('client_id', '==', client_id)
-            
-            # Apply date filters if provided
-            if start_date:
-                query = query.where('date', '>=', start_date)
-            if end_date:
-                query = query.where('date', '<=', end_date)
-            
-            for doc in query.stream():
-                event_data = doc.to_dict()
-                event_data['id'] = doc.id
-                events.append(event_data)
-        
-        # Apply date filtering for orchestrator events if needed
-        if events and start_date:
-            filtered_events = []
-            for event in events:
-                event_date = event.get('date', event.get('planned_send_datetime', ''))
-                if event_date and event_date >= start_date:
-                    if not end_date or event_date <= end_date:
-                        filtered_events.append(event)
-            events = filtered_events
-        
-        # Sort by date
-        events.sort(key=lambda x: x.get('date', x.get('planned_send_datetime', '')))
-        
-        logger.info(f"Retrieved {len(events)} calendar events for client {client_id}")
-        return events
-    except Exception as e:
-        logger.error(f"Error fetching calendar events for client {client_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/events")
-async def create_calendar_event(event: CalendarEvent):
-    """Create a new calendar event"""
-    try:
-        event_data = event.dict()
-        event_data['created_at'] = datetime.utcnow()
-        event_data['updated_at'] = datetime.utcnow()
-        
-        # Add to Firebase
-        doc_ref = db.collection('calendar_events').add(event_data)
-        
-        return {
-            "id": doc_ref[1].id,
-            "message": "Event created successfully",
-            **event_data
+        # Update status to stage-1
+        job_data = {
+            'status': 'stage-1',
+            'current_stage': 1,
+            'updated_at': datetime.utcnow().isoformat()
         }
-    except Exception as e:
-        logger.error(f"Error creating calendar event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        _calendar_state['workflow_status'][job_id].update(job_data)
 
-@router.put("/events/{event_id}")
-async def update_calendar_event(event_id: str, updates: CalendarEventUpdate):
-    """Update an existing calendar event"""
-    try:
-        event_ref = db.collection('calendar_events').document(event_id)
-        event_doc = event_ref.get()
-        
-        if not event_doc.exists:
-            raise HTTPException(status_code=404, detail="Event not found")
-        
-        update_data = {k: v for k, v in updates.dict().items() if v is not None}
-        update_data['updated_at'] = datetime.utcnow()
-        
-        event_ref.update(update_data)
-        
-        return {"message": "Event updated successfully", "event_id": event_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating calendar event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Persist to Firestore
+        db.collection("calendar_jobs").document(job_id).update(job_data)
 
-@router.delete("/events/{event_id}")
-async def delete_calendar_event(event_id: str):
-    """Delete a calendar event"""
-    try:
-        event_ref = db.collection('calendar_events').document(event_id)
-        event_doc = event_ref.get()
-        
-        if not event_doc.exists:
-            raise HTTPException(status_code=404, detail="Event not found")
-        
-        event_ref.delete()
-        
-        return {"message": "Event deleted successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting calendar event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.info(f"[Job {job_id}] Starting workflow for {client_name} ({start_date} to {end_date})")
 
-@router.post("/events/{event_id}/duplicate")
-async def duplicate_calendar_event(event_id: str, request: EventDuplicateRequest):
-    """Duplicate an existing calendar event with optional new date"""
-    try:
-        # Retrieve the original event
-        event_ref = db.collection('calendar_events').document(event_id)
-        event_doc = event_ref.get()
-        
-        if not event_doc.exists:
-            raise HTTPException(status_code=404, detail="Event not found")
-        
-        # Get the original event data
-        original_data = event_doc.to_dict()
-        
-        # Create duplicate data by copying all fields except ID and timestamps
-        duplicate_data = {
-            "title": f"{original_data.get('title', 'Event')} (Copy)",
-            "date": request.new_date or original_data.get('date'),
-            "client_id": original_data.get('client_id'),
-            "content": original_data.get('content', ''),
-            "color": original_data.get('color', 'bg-gray-200 text-gray-800'),
-            "event_type": original_data.get('event_type', 'general'),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-            # Preserve additional metadata fields if they exist
-            "segment": original_data.get('segment'),
-            "send_time": original_data.get('send_time'),
-            "subject_a": original_data.get('subject_a'),
-            "subject_b": original_data.get('subject_b'),
-            "preview_text": original_data.get('preview_text'),
-            "main_cta": original_data.get('main_cta'),
-            "offer": original_data.get('offer'),
-            "ab_test": original_data.get('ab_test'),
-            "campaign_metadata": original_data.get('campaign_metadata', {}),
-            "campaign_type": original_data.get('campaign_type'),
-            "promotion_details": original_data.get('promotion_details'),
-            # Mark as duplicate
-            "is_duplicate": True,
-            "original_event_id": event_id,
-            "duplicated_from": event_id
-        }
-        
-        # Remove None values to keep the document clean
-        duplicate_data = {k: v for k, v in duplicate_data.items() if v is not None}
-        
-        # Create the duplicate event in Firestore
-        doc_ref = db.collection('calendar_events').add(duplicate_data)
-        duplicate_id = doc_ref[1].id
-        
-        # Add the new ID to the response data
-        duplicate_data['id'] = duplicate_id
-        
-        logger.info(f"Successfully duplicated event {event_id} to {duplicate_id}")
-        
-        return {
-            "message": "Event duplicated successfully",
-            "original_event_id": event_id,
-            "duplicate_event_id": duplicate_id,
-            "duplicate_event": duplicate_data
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error duplicating calendar event {event_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to duplicate event: {str(e)}")
-
-# Client Management Endpoints
-@router.get("/clients")
-async def get_calendar_clients(active_only: Optional[bool] = None):
-    """Get clients for calendar with optional active filtering"""
-    try:
-        clients = []
-        clients_ref = db.collection('clients')
-        
-        # Query documents
-        query = clients_ref
-        if active_only is True:
-            query = query.where('is_active', '==', True)
-        
-        for doc in query.stream():
-            client_data = doc.to_dict()
-            if client_data is None:
-                continue
-                
-            # Add document ID
-            client_data['id'] = doc.id
-            
-            # Ensure required fields exist
-            if 'name' not in client_data:
-                client_data['name'] = f"Client {doc.id}"
-            if 'is_active' not in client_data:
-                client_data['is_active'] = True
-            if 'email' not in client_data:
-                client_data['email'] = client_data.get('contact_email', '')
-            
-            # Only add if client meets active filter criteria
-            if active_only is True and not client_data.get('is_active', True):
-                continue
-            elif active_only is False and client_data.get('is_active', True):
-                continue
-            
-            clients.append(client_data)
-        
-        # Sort by name for consistent ordering
-        clients.sort(key=lambda x: x.get('name', ''))
-        
-        return clients
-    except Exception as e:
-        logger.error(f"Error fetching clients: {e}")
-        # Return demo clients as fallback
-        demo_clients = [
-            {"id": "demo1", "name": "Demo Client 1", "email": "demo1@example.com", "is_active": True},
-            {"id": "demo2", "name": "Demo Client 2", "email": "demo2@example.com", "is_active": True}
-        ]
-        
-        # Apply active filter to demo clients if needed
-        if active_only is True:
-            demo_clients = [c for c in demo_clients if c.get('is_active', True)]
-        elif active_only is False:
-            demo_clients = [c for c in demo_clients if not c.get('is_active', True)]
-        
-        return demo_clients
-
-@router.post("/clients")
-async def create_calendar_client(client_data: dict):
-    """Create a new client"""
-    try:
-        if not client_data.get('name'):
-            raise HTTPException(status_code=400, detail="Client name is required")
-        
-        client_data['created_at'] = datetime.utcnow()
-        client_data['updated_at'] = datetime.utcnow()
-        # Set default is_active to True if not provided
-        if 'is_active' not in client_data:
-            client_data['is_active'] = True
-        
-        doc_ref = db.collection('clients').add(client_data)
-        
-        return {
-            "id": doc_ref[1].id,
-            "message": "Client created successfully",
-            **client_data
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating client: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Goals Integration Endpoints
-@router.get("/goals/{client_id}")
-async def get_client_goals(
-    client_id: str,
-    year: Optional[int] = None,
-    month: Optional[int] = None
-):
-    """Get revenue goals for a client"""
-    try:
-        goals_ref = db.collection('goals')
-        query = goals_ref.where('client_id', '==', client_id)
-        
-        if year:
-            query = query.where('year', '==', year)
-        if month is not None:
-            query = query.where('month', '==', month)
-        
-        goals = []
-        for doc in query.stream():
-            goal_data = doc.to_dict()
-            goal_data['id'] = doc.id
-            goals.append(goal_data)
-        
-        # Return demo goal if none found
-        if not goals:
-            current_date = datetime.now()
-            goals = [{
-                "id": "demo-goal",
-                "client_id": client_id,
-                "monthly_revenue": 50000,
-                "year": year or current_date.year,
-                "month": month if month is not None else current_date.month
-            }]
-        
-        return goals
-    except Exception as e:
-        logger.error(f"Error fetching client goals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/dashboard/{client_id}")
-async def get_calendar_dashboard(client_id: str):
-    """Get calendar dashboard with goals and progress"""
-    try:
-        current_date = datetime.now()
-        
-        # Get current month's goal
-        goals = await get_client_goals(
-            client_id, 
-            current_date.year, 
-            current_date.month
-        )
-        
-        # Get current month's events
-        events = await get_calendar_events(
-            client_id,
-            f"{current_date.year}-{current_date.month:02d}-01",
-            f"{current_date.year}-{current_date.month:02d}-31"
-        )
-        
-        # Calculate revenue progress
-        campaign_multipliers = {
-            'cheese club': 2.0,
-            'rrb': 1.5,
-            'sms': 1.3,
-            're-engagement': 1.2,
-            'nurturing': 0.8,
-            'education': 0.8,
-            'community': 0.7,
-            'lifestyle': 0.7
-        }
-        
-        total_revenue = 0
-        for event in events:
-            base_revenue = 500  # Base revenue per campaign
-            title_lower = (event.get('title', '') or '').lower()
-            
-            multiplier = 1.0
-            for key, mult in campaign_multipliers.items():
-                if key in title_lower:
-                    multiplier = mult
-                    break
-            
-            total_revenue += base_revenue * multiplier
-        
-        goal_amount = goals[0]['monthly_revenue'] if goals else 50000
-        achievement_percentage = (total_revenue / goal_amount * 100) if goal_amount > 0 else 0
-        
-        # Determine status
-        if achievement_percentage >= 100:
-            status = {"label": "Achieved", "color": "green", "emoji": "🎉"}
-        elif achievement_percentage >= 75:
-            status = {"label": "On Track", "color": "blue", "emoji": "✅"}
-        elif achievement_percentage >= 50:
-            status = {"label": "Warning", "color": "yellow", "emoji": "⚠️"}
-        else:
-            status = {"label": "At Risk", "color": "red", "emoji": "🚨"}
-        
-        return {
-            "client_id": client_id,
-            "current_month": current_date.strftime("%B %Y"),
-            "goal": goal_amount,
-            "current_revenue": total_revenue,
-            "achievement_percentage": achievement_percentage,
-            "status": status,
-            "campaign_count": len(events),
-            "recommendations": get_recommendations(achievement_percentage)
-        }
-    except Exception as e:
-        logger.error(f"Error getting calendar dashboard: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-def get_recommendations(achievement_percentage: float) -> List[str]:
-    """Get strategic recommendations based on achievement"""
-    if achievement_percentage >= 100:
-        return [
-            "Excellent performance! Consider stretch goals",
-            "Focus on maintaining quality",
-            "Document successful strategies"
-        ]
-    elif achievement_percentage >= 75:
-        return [
-            "You're on track to meet your goal",
-            "Add 1-2 more high-value campaigns",
-            "Consider a Cheese Club promotion"
-        ]
-    elif achievement_percentage >= 50:
-        return [
-            "Schedule more campaigns to reach goal",
-            "Focus on high-revenue campaign types",
-            "Add SMS alerts for quick wins"
-        ]
-    else:
-        return [
-            "Urgent: Add high-value campaigns immediately",
-            "Consider RRB promotions (1.5x revenue)",
-            "Schedule Cheese Club campaigns (2x revenue)",
-            "Implement SMS campaign series"
-        ]
-
-# AI Integration Endpoints
-@router.post("/ai/summarize")
-async def summarize_document(request: DocumentImportRequest, gemini_service: GeminiService = Depends(get_gemini_service_dependency)):
-    """Parse document text into calendar campaigns using AI"""
-    try:
-        # Use Gemini service to process document
-        campaigns = await gemini_service.process_campaign_document(request.doc_text)
-        
-        # If no campaigns returned, provide fallback
-        if not campaigns:
-            campaigns = [
-                {
-                    "date": "2024-01-15",
-                    "title": "January Cheese Club Launch",
-                    "content": "Monthly cheese club promotion",
-                    "color": "bg-green-200 text-green-800"
-                },
-                {
-                    "date": "2024-01-20",
-                    "title": "RRB Mid-Month Sale",
-                    "content": "Red Ribbon Box promotion",
-                    "color": "bg-red-200 text-red-800"
-                }
-            ]
-        
-        return campaigns
-    except Exception as e:
-        logger.error(f"Error summarizing document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/ai/chat")
-async def calendar_ai_chat_legacy(request: AIRequest):
-    """Legacy AI chat endpoint - deprecated in favor of /ai/chat-enhanced"""
-    try:
-        # Basic response for backward compatibility
-        response = {
-            "response": "Based on your current calendar, I recommend adding high-value campaigns like Cheese Club promotions to reach your revenue goals.",
-            "suggestions": [
-                "Add a Cheese Club campaign (2x revenue multiplier)",
-                "Schedule an RRB promotion (1.5x revenue)",
-                "Include SMS alerts for engagement"
-            ],
-            "action": None
-        }
-        
-        # Check if this is an action request
-        message_lower = request.message.lower()
-        if "delete" in message_lower:
-            response["action"] = {"type": "delete", "target": "campaign"}
-        elif "create" in message_lower or "add" in message_lower:
-            response["action"] = {"type": "create", "target": "campaign"}
-        elif "update" in message_lower or "change" in message_lower:
-            response["action"] = {"type": "update", "target": "campaign"}
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error in AI chat: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/ai/chat-enhanced")
-async def calendar_ai_chat_enhanced(request: AICalendarRequest, gemini_service: GeminiService = Depends(get_gemini_service_dependency)):
-    """Enhanced AI-powered calendar chat with full CRUD operations support"""
-    try:
-        logger.info(f"Processing AI chat for client {request.client_id}: {request.message}")
-        
-        # Get current calendar events for context
-        current_events = await get_calendar_events(client_id=request.client_id)
-        
-        # Get client information for context
-        try:
-            client_doc = db.collection('clients').document(request.client_id).get()
-            client_name = client_doc.to_dict().get('name', 'Client') if client_doc.exists else 'Client'
-        except:
-            client_name = 'Client'
-        
-        # Convert Firestore events to schema format for Gemini service
-        from app.schemas.calendar import CalendarEventResponse
-        schema_events = []
-        for event in current_events:
-            try:
-                # Convert the Firestore event to the expected schema format
-                schema_event = CalendarEventResponse(
-                    id=event.get('id', ''),
-                    client_id=request.client_id,
-                    title=event.get('title', ''),
-                    content=event.get('content', ''),
-                    event_date=datetime.strptime(event.get('date', '2024-01-01'), '%Y-%m-%d').date(),
-                    color=event.get('color', 'bg-gray-200 text-gray-800'),
-                    event_type=event.get('event_type', 'email'),
-                    imported_from_doc=event.get('imported_from_doc', False),
-                    import_doc_id=event.get('import_doc_id'),
-                    original_event_id=event.get('original_event_id'),
-                    created_at=event.get('created_at', datetime.utcnow()),
-                    updated_at=event.get('updated_at', datetime.utcnow())
-                )
-                schema_events.append(schema_event)
-            except Exception as e:
-                logger.warning(f"Error converting event to schema: {e}")
-                continue
-        
-        # Process the chat message with Gemini AI
-        ai_response = await gemini_service.process_calendar_chat(
-            message=request.message,
+        # Execute complete workflow
+        result = await calendar_tool.run_workflow(
             client_name=client_name,
-            events=schema_events,
-            chat_history=request.chat_history
+            start_date=start_date,
+            end_date=end_date,
+            save_outputs=True
         )
-        
-        # If this is an action request, execute it
-        if ai_response.is_action and ai_response.action:
-            action_result = await execute_calendar_action(
-                action=ai_response.action,
-                client_id=request.client_id
+
+        # Update final status
+        if result.get('success', False):
+            final_data = {
+                'status': 'completed',
+                'current_stage': None,
+                'results': result,
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            logger.info(f"[Job {job_id}] Workflow completed successfully")
+        else:
+            final_data = {
+                'status': 'failed',
+                'current_stage': None,
+                'error': result.get('error', 'Unknown error'),
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            logger.error(f"[Job {job_id}] Workflow failed: {final_data['error']}")
+
+        # Update both memory and Firestore
+        _calendar_state['workflow_status'][job_id].update(final_data)
+        db.collection("calendar_jobs").document(job_id).update(final_data)
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[Job {job_id}] Workflow execution error: {error_msg}")
+
+        error_data = {
+            'status': 'failed',
+            'current_stage': None,
+            'error': error_msg,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        # Update both memory and Firestore
+        _calendar_state['workflow_status'][job_id].update(error_data)
+        db.collection("calendar_jobs").document(job_id).update(error_data)
+
+@router.get("/health")
+async def calendar_health(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Health check endpoint for calendar API.
+
+    Requires authentication.
+    """
+    return standard_response(
+        success=True,
+        data={
+            'status': 'healthy',
+            'service': 'calendar',
+            'initialized': _calendar_state['initialized'],
+            'user': current_user.get('email') or current_user.get('user_id')
+        }
+    )
+
+@router.post("/workflow/run")
+async def run_workflow(
+    request: WorkflowRequest,
+    background_tasks: BackgroundTasks,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Execute workflow stage or full workflow.
+
+    Requires authentication. Jobs are associated with the authenticated user.
+
+    For full workflow:
+    - Returns immediately with job_id
+    - Workflow executes in background
+    - Poll GET /calendar/jobs/{job_id} for status
+
+    For individual stages:
+    - Executes synchronously
+    - Returns results directly
+    """
+    await initialize_calendar_components()
+
+    user_id = current_user.get("user_id") or current_user.get("email")
+    calendar_tool = _calendar_state['calendar_tool']
+
+    client_name = request.client_name
+    start_date = request.start_date
+    end_date = request.end_date
+    stage = request.stage
+    prompt_name = request.prompt_name
+
+    logger.info(f"User {user_id} requested workflow: client={client_name}, stage={stage}")
+
+    if stage == 'full':
+        # Full workflow - execute in background
+        job_id = str(uuid.uuid4())
+
+        job_data = {
+            'job_id': job_id,
+            'status': 'queued',
+            'client_name': client_name,
+            'start_date': start_date,
+            'end_date': end_date,
+            'user_id': user_id,
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat(),
+            'current_stage': None,
+            'results': None,
+            'error': None
+        }
+
+        # Store in memory
+        _calendar_state['workflow_status'][job_id] = job_data
+
+        # Persist to Firestore
+        db.collection("calendar_jobs").document(job_id).set(job_data)
+
+        # Schedule background task
+        background_tasks.add_task(
+            execute_workflow_background,
+            job_id,
+            client_name,
+            start_date,
+            end_date,
+            user_id,
+            calendar_tool,
+            db
+        )
+
+        logger.info(f"[Job {job_id}] Queued for user {user_id}")
+
+        return standard_response(
+            success=True,
+            data={
+                'job_id': job_id,
+                'status': 'queued',
+                'message': 'Workflow started in background. Poll /api/calendar/jobs/{job_id} for status.'
+            }
+        )
+
+    # Individual stage execution (synchronous)
+    try:
+        if stage == 'rag':
+            result = await calendar_tool.calendar_agent.rag_client.get_client_context(client_name)
+        elif stage == 'mcp':
+            result = await calendar_tool.calendar_agent.fetch_all_klaviyo_data(client_name)
+        elif stage == 'generate':
+            result = await calendar_tool.calendar_agent.generate_calendar(
+                client_name=client_name,
+                start_date=start_date,
+                end_date=end_date,
+                prompt_name=prompt_name
             )
-            
-            return {
-                "message": ai_response.message,
-                "is_action": True,
-                "action_executed": True,
-                "action_result": action_result,
-                "action_details": ai_response.action.dict()
-            }
         else:
-            # Regular conversational response
-            return {
-                "message": ai_response.message,
-                "is_action": False,
-                "action_executed": False,
-                "suggestions": _generate_contextual_suggestions(current_events, client_name)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid stage: {stage}. Must be 'full', 'rag', 'mcp', or 'generate'"
+            )
+
+        logger.info(f"User {user_id} completed stage {stage} for {client_name}")
+
+        return standard_response(
+            success=True,
+            data={
+                'stage': stage,
+                'result': result
             }
-            
+        )
+
     except Exception as e:
-        logger.error(f"Error in enhanced AI chat: {e}")
-        return {
-            "message": "I'm sorry, I encountered an error processing your request. Please try again or rephrase your message.",
-            "is_action": False,
-            "action_executed": False,
-            "error": str(e)
-        }
+        logger.error(f"Stage {stage} error for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
-async def execute_calendar_action(action, client_id: str) -> Dict[str, Any]:
-    """Execute calendar actions based on AI interpretation"""
+@router.get("/jobs/{job_id}")
+async def get_job_status(
+    job_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get status and results for a workflow job.
+
+    Requires authentication. Users can only access their own jobs.
+    """
+    user_id = current_user.get("user_id") or current_user.get("email")
+
+    # Try memory first (fast path)
+    if job_id in _calendar_state['workflow_status']:
+        job_data = _calendar_state['workflow_status'][job_id]
+
+        # Verify user owns this job
+        if job_data.get('user_id') != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this job"
+            )
+
+        return standard_response(success=True, data=job_data)
+
+    # Fetch from Firestore (durability path)
+    job_doc = db.collection("calendar_jobs").document(job_id).get()
+
+    if not job_doc.exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found"
+        )
+
+    job_data = job_doc.to_dict()
+
+    # Verify user owns this job
+    if job_data.get('user_id') != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this job"
+        )
+
+    # Cache in memory for subsequent requests
+    _calendar_state['workflow_status'][job_id] = job_data
+
+    return standard_response(success=True, data=job_data)
+
+@router.get("/prompts/{prompt_name}")
+async def get_prompt(
+    prompt_name: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Get a prompt template by name.
+
+    Requires authentication.
+    """
+    await initialize_calendar_components()
+
     try:
-        if action.action == "create":
-            # Create a new calendar event
-            event_data = action.event
-            if not event_data:
-                raise ValueError("No event data provided for creation")
-            
-            # Ensure required fields
-            event_data["client_id"] = client_id
-            if "color" not in event_data:
-                # Set default color based on event type or content
-                if event_data.get("event_type") == "sms":
-                    event_data["color"] = "bg-orange-300 text-orange-800"
-                elif "cheese club" in event_data.get("title", "").lower():
-                    event_data["color"] = "bg-green-200 text-green-800"
-                elif "rrb" in event_data.get("title", "").lower():
-                    event_data["color"] = "bg-red-300 text-red-800"
-                else:
-                    event_data["color"] = "bg-blue-200 text-blue-800"
-            
-            # Add timestamps
-            event_data["created_at"] = datetime.utcnow()
-            event_data["updated_at"] = datetime.utcnow()
-            event_data["generated_by_ai"] = True
-            
-            # Create in Firestore
-            doc_ref = db.collection('calendar_events').add(event_data)
-            event_data["id"] = doc_ref[1].id
-            
-            return {
-                "success": True,
-                "action": "create",
-                "event_id": doc_ref[1].id,
-                "message": f"Successfully created event: {event_data.get('title', 'New Event')}",
-                "created_event": event_data
-            }
-            
-        elif action.action == "update":
-            # Update an existing calendar event
-            if not action.event_id:
-                raise ValueError("No event ID provided for update")
-            
-            event_ref = db.collection('calendar_events').document(action.event_id)
-            event_doc = event_ref.get()
-            
-            if not event_doc.exists:
-                raise ValueError(f"Event with ID {action.event_id} not found")
-            
-            # Prepare update data
-            update_data = action.updates or {}
-            update_data["updated_at"] = datetime.utcnow()
-            update_data["updated_by_ai"] = True
-            
-            # Update in Firestore
-            event_ref.update(update_data)
-            
-            return {
-                "success": True,
-                "action": "update",
-                "event_id": action.event_id,
-                "message": f"Successfully updated event",
-                "updates_applied": update_data
-            }
-            
-        elif action.action == "delete":
-            # Delete a calendar event
-            if not action.event_id:
-                raise ValueError("No event ID provided for deletion")
-            
-            event_ref = db.collection('calendar_events').document(action.event_id)
-            event_doc = event_ref.get()
-            
-            if not event_doc.exists:
-                raise ValueError(f"Event with ID {action.event_id} not found")
-            
-            # Get event title for confirmation
-            event_data = event_doc.to_dict()
-            event_title = event_data.get('title', 'Unknown Event')
-            
-            # Delete from Firestore
-            event_ref.delete()
-            
-            return {
-                "success": True,
-                "action": "delete",
-                "event_id": action.event_id,
-                "message": f"Successfully deleted event: {event_title}",
-                "deleted_event": event_data
-            }
-            
-        else:
-            raise ValueError(f"Unknown action: {action.action}")
-            
-    except Exception as e:
-        logger.error(f"Error executing calendar action {action.action}: {e}")
-        return {
-            "success": False,
-            "action": action.action,
-            "message": f"Failed to execute action: {str(e)}",
-            "error": str(e)
-        }
+        prompt_path = Path(__file__).parent.parent.parent.parent / "emailpilot-simple" / "prompts" / f"{prompt_name}.yaml"
 
-def _generate_contextual_suggestions(events: List[Dict], client_name: str) -> List[str]:
-    """Generate contextual suggestions based on current calendar state"""
-    suggestions = []
-    
-    # Count event types
-    email_count = sum(1 for e in events if e.get('event_type') == 'email')
-    sms_count = sum(1 for e in events if e.get('event_type') == 'sms')
-    
-    # Current month event count
-    current_month = datetime.now().strftime("%Y-%m")
-    this_month_events = [e for e in events if e.get('date', '').startswith(current_month)]
-    
-    if len(this_month_events) < 4:
-        suggestions.append("Consider adding more campaigns this month to meet revenue goals")
-    
-    if sms_count < email_count * 0.3:
-        suggestions.append("Add SMS campaigns for better engagement rates")
-    
-    # Check for high-value campaign types
-    high_value_campaigns = [e for e in events if any(keyword in e.get('title', '').lower() 
-                           for keyword in ['cheese club', 'rrb', 'flash sale'])]
-    
-    if len(high_value_campaigns) < 2:
-        suggestions.append("Schedule high-value campaigns like Cheese Club or RRB promotions")
-    
-    if not suggestions:
-        suggestions.append("Your calendar looks well balanced! Consider adding seasonal campaigns.")
-    
-    return suggestions[:3]  # Limit to 3 suggestions
+        if not prompt_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Prompt '{prompt_name}' not found"
+            )
 
-# Conversation History Management
-@router.post("/ai/save-conversation")
-async def save_conversation_history(request: Dict[str, Any]):
-    """Save conversation history for context persistence"""
-    try:
-        client_id = request.get('client_id')
-        conversation = request.get('conversation', [])
-        
-        if not client_id:
-            raise HTTPException(status_code=400, detail="Client ID required")
-        
-        # Save to Firestore
-        conversation_data = {
-            "client_id": client_id,
-            "conversation": conversation,
-            "updated_at": datetime.utcnow(),
-            "message_count": len(conversation)
-        }
-        
-        # Use client_id as document ID for easy retrieval
-        db.collection('calendar_conversations').document(client_id).set(conversation_data)
-        
-        return {
-            "success": True,
-            "message": "Conversation history saved",
-            "message_count": len(conversation)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error saving conversation history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        with open(prompt_path, 'r') as f:
+            import yaml
+            prompt_data = yaml.safe_load(f)
 
-@router.get("/ai/conversation/{client_id}")
-async def get_conversation_history(client_id: str):
-    """Retrieve conversation history for a client"""
-    try:
-        doc_ref = db.collection('calendar_conversations').document(client_id)
-        doc = doc_ref.get()
-        
-        if doc.exists:
-            data = doc.to_dict()
-            return {
-                "client_id": client_id,
-                "conversation": data.get('conversation', []),
-                "last_updated": data.get('updated_at'),
-                "message_count": data.get('message_count', 0)
-            }
-        else:
-            return {
-                "client_id": client_id,
-                "conversation": [],
-                "last_updated": None,
-                "message_count": 0
-            }
-            
-    except Exception as e:
-        logger.error(f"Error retrieving conversation history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.info(f"User {current_user.get('email')} retrieved prompt: {prompt_name}")
 
-# Bulk Event Creation Endpoint
-@router.post("/create-bulk-events")
-async def create_bulk_events(request: dict):
-    """Create multiple calendar events at once"""
-    try:
-        client_id = request.get("client_id")
-        events = request.get("events", [])
-        
-        if not client_id:
-            raise HTTPException(status_code=400, detail="client_id is required")
-        if not events:
-            raise HTTPException(status_code=400, detail="events list is required")
-        
-        created_events = []
-        
-        for event_data in events:
-            try:
-                # Prepare event data for Firestore
-                event_record = {
-                    "title": event_data.get("title", "Campaign Event"),
-                    "date": event_data.get("event_date") or event_data.get("date"),
-                    "client_id": client_id,
-                    "content": event_data.get("content", ""),
-                    "color": event_data.get("color", "bg-gray-200 text-gray-800"),
-                    "event_type": event_data.get("event_type", "email"),
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
-                    # Campaign metadata
-                    "segment": event_data.get("segment"),
-                    "send_time": event_data.get("send_time"),
-                    "subject_a": event_data.get("subject_a"),
-                    "subject_b": event_data.get("subject_b"),
-                    "preview_text": event_data.get("preview_text"),
-                    "main_cta": event_data.get("main_cta"),
-                    "offer": event_data.get("offer"),
-                    "ab_test": event_data.get("ab_test"),
-                    "generated_by_ai": True
-                }
-                
-                # Add to Firestore
-                doc_ref = db.collection('calendar_events').add(event_record)
-                
-                # Add ID to the event record for response
-                event_record['id'] = doc_ref[1].id
-                created_events.append(event_record)
-                
-                logger.info(f"Created bulk event: {event_record['title']} on {event_record['date']}")
-                
-            except Exception as e:
-                logger.error(f"Error creating bulk event {event_data.get('title', 'Unknown')}: {e}")
-                continue
-        
-        return {
-            "message": f"Successfully created {len(created_events)} events",
-            "created_events": created_events,
-            "total_created": len(created_events),
-            "total_requested": len(events)
-        }
-        
+        return standard_response(success=True, data=prompt_data)
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating bulk events: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error loading prompt {prompt_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
-# Stats endpoint
-@router.get("/stats")
-async def get_calendar_stats(client_id: str):
-    """Get calendar statistics for a client"""
+@router.put("/prompts/{prompt_name}")
+async def update_prompt(
+    prompt_name: str,
+    request: PromptRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Update a prompt template.
+
+    Requires authentication.
+    """
+    await initialize_calendar_components()
+
     try:
-        # Get current date
-        now = datetime.utcnow()
-        current_month_start = datetime(now.year, now.month, 1)
-        next_month = current_month_start.replace(month=current_month_start.month + 1) if current_month_start.month < 12 else current_month_start.replace(year=current_month_start.year + 1, month=1)
-        
-        # Query events for the client
-        events_ref = db.collection('calendar_events').where('client_id', '==', client_id)
-        all_events = []
-        
-        for doc in events_ref.stream():
-            event_data = doc.to_dict()
-            event_data['id'] = doc.id
-            all_events.append(event_data)
-        
-        # Calculate statistics
-        total_events = len(all_events)
-        events_this_month = 0
-        events_next_month = 0
-        event_types = {}
-        upcoming_events = []
-        
-        for event in all_events:
-            # Parse event date
-            try:
-                if 'date' in event:
-                    event_date_str = event['date']
-                    if isinstance(event_date_str, str):
-                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d')
-                    else:
-                        event_date = event_date_str
-                    
-                    # Count events by month
-                    if event_date.year == now.year and event_date.month == now.month:
-                        events_this_month += 1
-                    elif event_date.year == next_month.year and event_date.month == next_month.month:
-                        events_next_month += 1
-                    
-                    # Add to upcoming if in the future
-                    if event_date >= now:
-                        upcoming_events.append(event)
-            except:
-                pass
-            
-            # Count event types
-            event_type = event.get('event_type', 'general')
-            event_types[event_type] = event_types.get(event_type, 0) + 1
-        
-        # Sort upcoming events by date
-        upcoming_events.sort(key=lambda x: x.get('date', ''))
-        
-        return {
-            "total_events": total_events,
-            "events_this_month": events_this_month,
-            "events_next_month": events_next_month,
-            "event_types": event_types,
-            "upcoming_events": upcoming_events[:10]  # Return only next 10 events
-        }
-        
+        prompt_path = Path(__file__).parent.parent.parent.parent / "emailpilot-simple" / "prompts" / f"{prompt_name}.yaml"
+
+        # Backup existing prompt
+        if prompt_path.exists():
+            backup_path = prompt_path.with_suffix('.yaml.bak')
+            import shutil
+            shutil.copy2(prompt_path, backup_path)
+
+        # Write new prompt
+        import yaml
+        with open(prompt_path, 'w') as f:
+            yaml.dump({'content': request.content}, f)
+
+        logger.info(f"User {current_user.get('email')} updated prompt: {prompt_name}")
+
+        return standard_response(
+            success=True,
+            data={'message': f"Prompt '{prompt_name}' updated successfully"}
+        )
+
     except Exception as e:
-        logger.error(f"Error getting calendar stats for client {client_id}: {e}")
-        # Return empty stats on error
-        return {
-            "total_events": 0,
-            "events_this_month": 0,
-            "events_next_month": 0,
-            "event_types": {},
-            "upcoming_events": []
+        logger.error(f"Error updating prompt {prompt_name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.post("/rag/data")
+async def fetch_rag_data(
+    request: RAGRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Fetch RAG (Retrieval-Augmented Generation) data for a client.
+
+    Requires authentication.
+    """
+    await initialize_calendar_components()
+
+    try:
+        rag_client = _calendar_state['rag_client']
+
+        if request.query:
+            result = await rag_client.search(request.client_name, request.query)
+        else:
+            result = await rag_client.get_client_context(request.client_name)
+
+        logger.info(f"User {current_user.get('email')} fetched RAG data for {request.client_name}")
+
+        return standard_response(success=True, data=result)
+
+    except Exception as e:
+        logger.error(f"Error fetching RAG data: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.post("/mcp/data")
+async def fetch_mcp_data(
+    request: MCPRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Fetch Klaviyo data via MCP (Model Context Protocol) servers.
+
+    Requires authentication.
+    """
+    await initialize_calendar_components()
+
+    try:
+        calendar_agent = _calendar_state['calendar_agent']
+
+        result = await calendar_agent.fetch_all_klaviyo_data(
+            client_name=request.client_name,
+            data_types=request.data_types
+        )
+
+        logger.info(f"User {current_user.get('email')} fetched MCP data for {request.client_name}")
+
+        return standard_response(success=True, data=result)
+
+    except Exception as e:
+        logger.error(f"Error fetching MCP data: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/outputs/{output_type}")
+async def get_workflow_outputs(
+    output_type: str,
+    client_name: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Retrieve workflow outputs (calendars, summaries, etc.).
+
+    Requires authentication.
+
+    output_type: 'calendar', 'summary', 'rag', 'mcp', 'all'
+    """
+    await initialize_calendar_components()
+
+    try:
+        storage_client = _calendar_state['storage_client']
+        output_dir = Path(__file__).parent.parent.parent.parent / "emailpilot-simple" / "outputs"
+
+        # Production: fetch from GCS
+        if storage_client:
+            bucket_name = os.getenv('GCS_BUCKET_NAME', 'emailpilot-outputs')
+            bucket = storage_client.bucket(bucket_name)
+
+            prefix = f"{client_name}/" if client_name else ""
+            if output_type != 'all':
+                prefix += f"{output_type}_"
+
+            blobs = list(bucket.list_blobs(prefix=prefix, max_results=100))
+
+            outputs = []
+            for blob in blobs:
+                if output_type == 'all' or output_type in blob.name:
+                    outputs.append({
+                        'name': blob.name,
+                        'size': blob.size,
+                        'updated': blob.updated.isoformat(),
+                        'url': blob.public_url
+                    })
+
+            logger.info(f"User {current_user.get('email')} fetched {len(outputs)} outputs from GCS")
+
+            return standard_response(success=True, data={'outputs': outputs})
+
+        # Development: fetch from local filesystem
+        outputs = []
+
+        if client_name:
+            client_dir = output_dir / client_name
+            if client_dir.exists():
+                for file_path in client_dir.glob('*'):
+                    if output_type == 'all' or output_type in file_path.stem:
+                        outputs.append({
+                            'name': file_path.name,
+                            'path': str(file_path),
+                            'size': file_path.stat().st_size,
+                            'modified': datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+                        })
+        else:
+            for file_path in output_dir.rglob('*'):
+                if file_path.is_file():
+                    if output_type == 'all' or output_type in file_path.stem:
+                        outputs.append({
+                            'name': file_path.name,
+                            'path': str(file_path.relative_to(output_dir)),
+                            'size': file_path.stat().st_size,
+                            'modified': datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+                        })
+
+        logger.info(f"User {current_user.get('email')} fetched {len(outputs)} outputs from filesystem")
+
+        return standard_response(success=True, data={'outputs': outputs})
+
+    except Exception as e:
+        logger.error(f"Error fetching outputs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/cache")
+async def view_cache(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    View MCP cache statistics.
+
+    Requires authentication.
+    """
+    await initialize_calendar_components()
+
+    try:
+        cache = _calendar_state['cache']
+
+        stats = {
+            'size': len(cache._cache) if hasattr(cache, '_cache') else 0,
+            'keys': list(cache._cache.keys()) if hasattr(cache, '_cache') else []
         }
 
-# Health check
-@router.get("/health")
-async def calendar_health():
-    """Check calendar API health"""
-    return {
-        "status": "healthy",
-        "service": "calendar",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+        logger.info(f"User {current_user.get('email')} viewed cache stats")
+
+        return standard_response(success=True, data=stats)
+
+    except Exception as e:
+        logger.error(f"Error viewing cache: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.delete("/cache")
+async def clear_cache(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Clear MCP cache.
+
+    Requires authentication.
+    """
+    await initialize_calendar_components()
+
+    try:
+        cache = _calendar_state['cache']
+
+        if hasattr(cache, 'clear'):
+            cache.clear()
+            message = "Cache cleared successfully"
+        elif hasattr(cache, '_cache'):
+            cache._cache.clear()
+            message = "Cache cleared successfully"
+        else:
+            message = "Cache clear not supported"
+
+        logger.info(f"User {current_user.get('email')} cleared cache")
+
+        return standard_response(success=True, data={'message': message})
+
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
