@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from app.deps.firestore import get_db
-from app.api import auth_v2, calendar, admin_clients
+from app.api import auth_v2, calendar, admin_clients, firebase_calendar
 import os
 
 app = FastAPI()
@@ -25,6 +25,9 @@ app.include_router(auth_v2.router, prefix="/api/auth/v2", tags=["authentication"
 
 # Register calendar routes
 app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
+
+# Register Firebase calendar events API
+app.include_router(firebase_calendar.router, prefix="/api/calendar", tags=["calendar-events"])
 
 # Register admin client management routes
 app.include_router(admin_clients.router, tags=["admin"])
