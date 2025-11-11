@@ -1,0 +1,5914 @@
+        // Calendar Manager Class
+        class CalendarManager {
+            constructor() {
+                this.campaigns = [];
+                this.multiDayCampaigns = []; // New: Store multi-day campaigns
+                this.clients = [];
+                this.selectedClient = null;
+                this.selectedDate = new Date();
+                this.currentMonthGoal = 50000; // Default fallback value
+                this.currentView = 'month';
+                this.undoStack = [];
+                this.chatHistory = [];
+                this.selectedDay = null;
+                this.pendingAction = null;
+                this.holidays = {};  // Store holidays by date
+                this.klaviyoEvents = {};  // Store Klaviyo events by date
+                this.activeSeasons = [];  // Current e-commerce seasons
+                this.showHolidays = true;  // Admin-only flag
+                this.affinitySegments = [];
+                this.lastSyncCheck = 0;
+                this.draggedCampaignId = null;
+                this.autoSaveTimeout = null;
+            }
+            
+            async loadClients() {
+                // Show loading screen with aviation messages
+                const loadingScreen = document.getElementById('loadingScreen');
+                const loadingMessage = document.getElementById('loadingMessage');
+                const messages = [
+                    "Pre-flight checks in progress... 🛫",
+                    "Fueling up the email engines... ⛽",
+                    "Calibrating campaign altitude... 📐",
+                    "Checking wind conditions for optimal delivery... 🌬️",
+                    "Loading passenger manifest (your clients)... 📋",
+                    "Tower, we're ready for departure... 🗼"
+                ];
+                
+                loadingScreen.style.display = 'flex';
+                let messageIndex = 0;
+                
+                // Rotate through messages
+                const messageInterval = setInterval(() => {
+                    messageIndex = (messageIndex + 1) % messages.length;
+                    loadingMessage.textContent = messages[messageIndex];
+                }, 2000);
+                
+                try {
+                    const response = await fetch('/api/admin/clients');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.clients = data.clients.filter(client => client.is_active && client.has_klaviyo_key);
+                        this.renderClientList();
+                        showToast(`✈️ Cleared for landing with ${this.clients.length} active clients`);
+                    } else {
+                        // Fallback to demo clients
+                        this.clients = [
+                            { id: 'demo-1', name: 'Demo Company', client_slug: 'demo' },
+                            { id: 'demo-2', name: 'Test Brand', client_slug: 'test' }
+                        ];
+                        this.renderClientList();
+                        showToast('Using demo flight plan (demo clients)');
+                    }
+                } catch (error) {
+                    console.error('Failed to load clients:', error);
+                    showToast('⚠️ Turbulence detected - using backup flight plan', 'warning');
+                } finally {
+                    // Hide loading screen
+                    clearInterval(messageInterval);
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                    }, 500);
+                }
+            }
+            
+            renderClientList() {
+                const list = document.getElementById('clientList');
+                list.innerHTML = this.clients.map(client => `
+                    <button onclick="selectClient('${client.id}')" class="glass-card p-4 text-left hover:border-purple-500/50 transition-all">
+                        <div class="font-bold">${client.name}</div>
+                        <div class="text-sm text-white/50">${client.client_slug}</div>
+                    </button>
+                `).join('');
+            }
+            
+            selectClient(clientId) {
+                this.selectedClient = this.clients.find(c => c.id === clientId);
+                document.getElementById('selectedClientName').textContent = this.selectedClient.name;
+                closeClientModal();
+                // Load existing calendar data for this client
+                this.loadFromCloud();
+                // Check approval status
+                checkApprovalStatus();
+                // Check for any pending changes for this client
+                setTimeout(() => {
+                    checkForChanges();
+                }, 500);
+                showToast(`Selected ${this.selectedClient.name}`);
+                
+                // Load client's affinity segments
+                this.loadAffinitySegments();
+                
+                // Check for change requests from this client
+                this.loadChangeRequests();
+                
+                // Check for changes and notifications
+                setTimeout(() => checkForChanges(), 1000);
+                
+                // Re-enable AI Assistant now that a client is selected
+                const chatInput = document.getElementById('chatInput');
+                const chatHistory = document.getElementById('chatHistory');
+                
+                if (chatInput) {
+                    chatInput.disabled = false;
+                    chatInput.placeholder = 'Ask me anything about your calendar...';
+                }
+                
+                if (chatHistory && !chatHistory.querySelector('.user-message')) {
+                    // Only replace if no conversation has started
+                    chatHistory.innerHTML = `
+                        <div class="ai-message">
+                            <div class="text-sm text-blue-400 mb-1">AI Assistant</div>
+                            <div class="text-white/90">Hello! I'm ready to help you manage ${this.selectedClient.name}'s campaigns. Try commands like:</div>
+                            <ul class="text-white/70 text-sm mt-2 ml-4 list-disc">
+                                <li>"Add a promotional campaign on the 15th"</li>
+                                <li>"Move the newsletter from the 10th to the 12th"</li>
+                                <li>"What campaigns are scheduled for next week?"</li>
+                                <li>"Generate a month of campaigns"</li>
+                                <li>"Clear all campaigns"</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                // Load existing calendar data
+                this.loadFromCloud();
+            }
+            
+            // Load change requests for the selected client
+            async loadChangeRequests() {
+                if (!this.selectedClient) return;
+                
+                try {
+                    // Build approval ID to match what we're looking for
+                    const year = this.selectedDate.getFullYear();
+                    const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
+                    const approvalIdPrefix = `${this.selectedClient.client_slug || this.selectedClient.id}-${year}-${month}`;
+                    
+                    const response = await fetch(`/api/calendar/change-requests/${approvalIdPrefix}`);
+                    if (!response.ok) return;
+                    
+                    const result = await response.json();
+                    if (result.change_requests && result.change_requests.length > 0) {
+                        this.displayChangeRequests(result.change_requests);
+                    } else {
+                        document.getElementById('changeRequestsSection').classList.add('hidden');
+                    }
+                } catch (error) {
+                    console.error('Error loading change requests:', error);
+                }
+            }
+            
+            // Display change requests with task checkboxes
+            displayChangeRequests(requests) {
+                const section = document.getElementById('changeRequestsSection');
+                const list = document.getElementById('changeRequestsList');
+                
+                if (!requests || requests.length === 0) {
+                    section.classList.add('hidden');
+                    // Update badges to show no requests
+                    this.updateChangeRequestBadges(0);
+                    return;
+                }
+                
+                section.classList.remove('hidden');
+                
+                // Count tasks that need attention
+                let totalTasks = 0;
+                requests.forEach(r => {
+                    if (r.tasks && r.tasks.length > 0) {
+                        totalTasks += r.tasks.filter(t => t.status !== 'completed').length;
+                    }
+                });
+                
+                // Update notification badges with real count
+                this.updateChangeRequestBadges(totalTasks || requests.length);
+                
+                // Sort by most recent first
+                requests.sort((a, b) => new Date(b.requested_at) - new Date(a.requested_at));
+                
+                list.innerHTML = requests.map(request => {
+                    const date = new Date(request.requested_at);
+                    const dateStr = date.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    const tasksHtml = request.tasks.map((task, index) => {
+                        // Check if task was previously marked complete in localStorage
+                        const taskKey = `task_${request.id}_${index}`;
+                        const storedStatus = localStorage.getItem(taskKey);
+                        const isCompleted = storedStatus === 'completed' || (storedStatus === null && task.status === 'completed');
+                        
+                        return `
+                            <div class="flex items-start gap-2 ml-4 mt-1">
+                                <input type="checkbox" 
+                                       id="task-${request.id}-${index}"
+                                       data-request-id="${request.id}"
+                                       data-task-index="${index}"
+                                       ${isCompleted ? 'checked' : ''}
+                                       onchange="window.updateTaskStatus('${request.id}', ${index}, this.checked)"
+                                       class="mt-1">
+                                <label for="task-${request.id}-${index}" 
+                                       class="text-sm text-white/70 ${isCompleted ? 'line-through opacity-50' : ''}">
+                                    ${this.getTaskIcon(task.type)} ${task.description}
+                                </label>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    return `
+                        <div class="border-b border-white/10 pb-3 mb-3 last:border-0">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="font-semibold text-white/90">
+                                    ${request.client_name || 'Client'}
+                                </div>
+                                <div class="text-xs text-white/50">${dateStr}</div>
+                            </div>
+                            <div class="text-sm text-white/60 mb-2">${request.change_request}</div>
+                            ${tasksHtml ? '<div class="space-y-1">' + tasksHtml + '</div>' : ''}
+                        </div>
+                    `;
+                }).join('');
+                
+                // Add a "Mark All Complete" button if there are pending tasks
+                const hasPendingTasks = requests.some(r => 
+                    r.tasks.some(t => t.status !== 'completed')
+                );
+                
+                if (hasPendingTasks) {
+                    list.innerHTML += `
+                        <div class="mt-3 pt-3 border-t border-white/10">
+                            <button onclick="window.markAllTasksComplete()" class="text-sm text-green-400 hover:text-green-300">
+                                ✓ Mark All Complete
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+            
+            getTaskIcon(type) {
+                const icons = {
+                    'move': '↔️',
+                    'add': '➕',
+                    'remove': '❌',
+                    'update': '✏️',
+                    'general': '📌'
+                };
+                return icons[type] || '📌';
+            }
+            
+            // Update notification badges with change request count
+            updateChangeRequestBadges(count) {
+                const fabBadge = document.getElementById('fabNotificationBadge');
+                const commandFab = document.getElementById('commandFab');
+                
+                if (count > 0) {
+                    // Show badge
+                    if (fabBadge) {
+                        fabBadge.style.display = 'block';
+                        fabBadge.textContent = count;
+                    }
+                    if (commandFab) {
+                        commandFab.classList.add('has-changes');
+                    }
+                } else {
+                    // Hide badge
+                    if (fabBadge) fabBadge.style.display = 'none';
+                    if (commandFab) commandFab.classList.remove('has-changes');
+                }
+            }
+            
+            loadAffinitySegments() {
+                // Extract affinity segments from the selected client
+                this.affinitySegments = [];
+                
+                if (this.selectedClient) {
+                    // Check for affinity_segment_1_name, affinity_segment_2_name, affinity_segment_3_name
+                    const segmentColors = [
+                        'linear-gradient(135deg, #FFD700, #FFA500)', // Gold
+                        'linear-gradient(135deg, #4169E1, #1E90FF)', // Blue
+                        'linear-gradient(135deg, #32CD32, #90EE90)'  // Green
+                    ];
+                    
+                    const segmentEmojis = ['⭐', '💎', '🆕'];
+                    
+                    for (let i = 1; i <= 3; i++) {
+                        const segmentName = this.selectedClient[`affinity_segment_${i}_name`];
+                        if (segmentName && segmentName.trim() !== '') {
+                            this.affinitySegments.push({
+                                id: `segment_${i}`,
+                                name: segmentName,
+                                emoji: segmentEmojis[i - 1],
+                                color: segmentColors[i - 1],
+                                definition: this.selectedClient[`affinity_segment_${i}_definition`] || ''
+                            });
+                        }
+                    }
+                    
+                    // If no segments found, use defaults
+                    if (this.affinitySegments.length === 0) {
+                        this.affinitySegments = [
+                            { id: 'vip', name: 'VIP Customers', emoji: '⭐', color: segmentColors[0] },
+                            { id: 'regular', name: 'Regular Buyers', emoji: '💎', color: segmentColors[1] },
+                            { id: 'new', name: 'New Subscribers', emoji: '🆕', color: segmentColors[2] }
+                        ];
+                    }
+                }
+                
+                // Update the segments display
+                const segmentsDiv = document.getElementById('affinitySegments');
+                if (segmentsDiv) {
+                    segmentsDiv.innerHTML = this.affinitySegments.map(seg => `
+                        <div class="glass-card p-3 flex-1 min-w-[140px]" title="${seg.definition || seg.name}">
+                            <div class="flex items-center justify-center gap-2">
+                                <div class="w-4 h-4 rounded" style="background: ${seg.color};"></div>
+                                <span class="text-xs font-semibold">${seg.emoji || ''} ${seg.name}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                // Also update the target segment dropdown in the create campaign modal
+                const segmentSelect = document.getElementById('campaignSegment');
+                if (segmentSelect) {
+                    const defaultOptions = `
+                        <option value="">Select target segment...</option>
+                        <option value="all">All Subscribers</option>
+                    `;
+                    const segmentOptions = this.affinitySegments.map(seg => 
+                        `<option value="${seg.id}">${seg.emoji || ''} ${seg.name}</option>`
+                    ).join('');
+                    segmentSelect.innerHTML = defaultOptions + segmentOptions;
+                }
+            }
+            
+            // REMOVED: Duplicate loadFromCloud method - using the one at line 2883 instead
+            
+            async generateWithAI(additionalContext = '') {
+                if (!this.selectedClient) {
+                    showToast('Please select a client first', 'warning');
+                    return;
+                }
+                
+                showToast('Generating campaigns with AI...', 'info');
+                
+                try {
+                    const month = this.selectedDate.toISOString().slice(0, 7);
+                    const response = await fetch('/api/calendar/workflow/execute', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            client_id: this.selectedClient.id,
+                            client_name: this.selectedClient.name,
+                            client_slug: this.selectedClient.client_slug,
+                            selected_month: month,
+                            campaign_count: 12,
+                            sales_goal: calendarManager.currentMonthGoal || 50000,
+                            optimization_goal: 'balanced',
+                            additional_context: additionalContext // Pass the context to the API
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success && result.calendar) {
+                            this.processCampaigns(result.calendar.campaigns);
+                            showToast(`Generated ${result.calendar.campaigns.length} campaigns!`, 'success');
+                            this.updateStats();
+                        }
+                    } else {
+                        // Fallback to demo campaigns
+                        this.generateDemoCampaigns();
+                    }
+                } catch (error) {
+                    console.error('AI generation failed:', error);
+                    this.generateDemoCampaigns();
+                }
+            }
+            
+            generateDemoCampaigns() {
+                const types = [
+                    { type: 'promotional', name: 'Flash Sale', gradient: 'promotional' },
+                    { type: 'content', name: 'Newsletter', gradient: 'content' },
+                    { type: 'engagement', name: 'Survey', gradient: 'engagement' },
+                    { type: 'seasonal', name: 'Holiday Special', gradient: 'seasonal' }
+                ];
+                
+                const campaigns = [];
+                for (let i = 0; i < 12; i++) {
+                    const type = types[i % types.length];
+                    const day = Math.floor(Math.random() * 28) + 1;
+                    
+                    campaigns.push({
+                        id: `demo-${i}`,
+                        name: type.name,
+                        type: type.type,
+                        date: new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth(), day),
+                        gradient: type.gradient,
+                        metrics: {
+                            openRate: 0.2 + Math.random() * 0.2,
+                            clickRate: 0.02 + Math.random() * 0.08,
+                            revenue: 3000 + Math.random() * 15000
+                        }
+                    });
+                }
+                
+                this.processCampaigns(campaigns);
+                showToast('Generated demo campaigns', 'info');
+            }
+            
+            processCampaigns(campaigns) {
+                this.campaigns = campaigns.map(c => ({
+                    ...c,
+                    date: new Date(c.date),
+                    gradient: c.color_gradient || c.gradient || this.getTypeGradient(c.type)
+                }));
+                this.renderCalendar();
+                this.updateStats();
+            }
+            
+            getTypeGradient(type) {
+                const gradients = {
+                    promotional: 'promotional',
+                    content: 'content',
+                    engagement: 'engagement',
+                    seasonal: 'seasonal',
+                    special: 'special',
+                    custom: 'special',
+                    mixed: 'content'
+                };
+                return gradients[type] || 'content';
+            }
+            
+            getChannelGradient(type, channel) {
+                // SMS campaigns get different shades
+                if (channel === 'sms') {
+                    const smsGradients = {
+                        promotional: 'sms-promotional',
+                        content: 'sms-content',
+                        engagement: 'sms-engagement',
+                        seasonal: 'sms-seasonal',
+                        special: 'sms-special',
+                        custom: 'sms-special',
+                        mixed: 'sms-content'
+                    };
+                    return smsGradients[type] || 'sms-content';
+                }
+                // Email campaigns use default gradients
+                return this.getTypeGradient(type);
+            }
+            
+            renderCalendar() {
+                const container = document.getElementById('calendarContainer');
+                if (!container) {
+                    console.error('Calendar container not found');
+                    return;
+                }
+                
+                // Clear and rebuild the calendar structure
+                container.className = 'calendar-grid';
+                container.innerHTML = `
+                    <div class="calendar-header">Sun</div>
+                    <div class="calendar-header">Mon</div>
+                    <div class="calendar-header">Tue</div>
+                    <div class="calendar-header">Wed</div>
+                    <div class="calendar-header">Thu</div>
+                    <div class="calendar-header">Fri</div>
+                    <div class="calendar-header">Sat</div>
+                `;
+                
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth();
+                
+                // PERMANENT FIX: Use local time consistently to avoid timezone issues
+                const firstDayOfMonth = new Date(year, month, 1);
+                const firstDay = firstDayOfMonth.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const today = new Date();
+                
+                // Verify August 2025 specifically (August 1, 2025 is a Friday = day 5)
+                if (month === 7 && year === 2025) {
+                    console.log(`August 2025: First day calculation = ${firstDay}, should be 5 (Friday)`);
+                    // The calculation should already be correct now
+                }
+                
+                // Debug logging for date verification
+                console.log(`Rendering ${year}-${month + 1}: First day (${firstDayOfMonth.toDateString()}) is ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][firstDay]}`);
+                
+                // Add empty cells for days before month starts
+                for (let i = 0; i < firstDay; i++) {
+                    const emptyDay = document.createElement('div');
+                    emptyDay.className = 'calendar-day opacity-30';
+                    container.appendChild(emptyDay);
+                }
+                
+                // Add days of month
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(year, month, day);
+                    const isToday = currentDate.toDateString() === today.toDateString();
+                    const dayCampaigns = this.getCampaignsForDay(day);
+                    
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = `calendar-day ${isToday ? 'today' : ''}`;
+                    dayDiv.dataset.day = day;
+                    dayDiv.ondragover = (e) => this.handleDragOver(e);
+                    dayDiv.ondrop = (e) => this.handleDrop(e, day);
+                    dayDiv.onclick = (e) => {
+                        if (e.target === dayDiv || e.target.classList.contains('day-number')) {
+                            this.openCreateCampaignModal(day);
+                        }
+                    };
+                    // Get holidays and events for this day
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayHolidays = this.holidays[dateStr] || [];
+                    const dayKlaviyoEvents = this.klaviyoEvents[dateStr] || [];
+                    
+                    // Check for active seasons
+                    let seasonClass = '';
+                    if (this.activeSeasons && this.activeSeasons.length > 0) {
+                        const highestIntensity = this.activeSeasons.reduce((max, season) => {
+                            if (season.intensity === 'critical') return 'critical';
+                            if (season.intensity === 'high' && max !== 'critical') return 'high';
+                            if (season.intensity === 'medium' && max === '') return 'medium';
+                            return max;
+                        }, '');
+                        if (highestIntensity) {
+                            seasonClass = `<div class="season-indicator ${highestIntensity}"></div>`;
+                        }
+                    }
+                    
+                    // Get multi-day campaigns for this day
+                    const multiDayHtml = this.getMultiDayCampaignsForDay(day);
+                    
+                    dayDiv.innerHTML = `
+                        ${seasonClass}
+                        <div class="day-number">${day}</div>
+                        <div class="add-btn" onclick="event.stopPropagation(); calendarManager.openCreateCampaignModal(${day})">+</div>
+                        ${this.showHolidays ? `
+                            <div class="calendar-day-header">
+                                ${dayHolidays.map(h => `
+                                    <div class="holiday-indicator ${h.category}" title="${h.name}">
+                                        <span>${h.emoji || '📅'}</span>
+                                        <span class="holiday-indicator-text">${h.name}</span>
+                                    </div>
+                                `).join('')}
+                                ${dayKlaviyoEvents.map(e => `
+                                    <div class="klaviyo-event ${e.category}" title="${e.name}">
+                                        <span>${e.emoji || '📋'}</span>
+                                        <span class="klaviyo-event-text">${e.name}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<div class="calendar-day-header"></div>'}
+                        ${multiDayHtml ? `<div class="multi-day-campaigns">${multiDayHtml}</div>` : ''}
+                        <div class="space-y-1">
+                            ${dayCampaigns}
+                        </div>
+                    `;
+                    
+                    container.appendChild(dayDiv);
+                }
+            }
+            
+            getMultiDayCampaignsForDay(day) {
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth();
+                const currentDate = new Date(year, month, day);
+                currentDate.setHours(0, 0, 0, 0);
+                
+                const campaigns = this.multiDayCampaigns.filter(c => {
+                    const startDate = new Date(c.startDate);
+                    const endDate = new Date(c.endDate);
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    return currentDate >= startDate && currentDate <= endDate;
+                });
+                
+                return campaigns.map(c => {
+                    const startDate = new Date(c.startDate);
+                    const endDate = new Date(c.endDate);
+                    startDate.setHours(0, 0, 0, 0);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    let positionClass = 'single';
+                    if (startDate.getTime() === currentDate.getTime() && endDate.getTime() === currentDate.getTime()) {
+                        positionClass = 'single';
+                    } else if (startDate.getTime() === currentDate.getTime()) {
+                        positionClass = 'start';
+                    } else if (endDate.getTime() === currentDate.getTime()) {
+                        positionClass = 'end';
+                    } else {
+                        positionClass = 'middle';
+                    }
+                    
+                    const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+                    
+                    return `
+                        <div class="multi-day-campaign ${positionClass}" 
+                             onclick="showMultiDayCampaignDetails('${c.id}')"
+                             title="${c.name} (${duration} days)">
+                            <span class="multi-day-campaign-icon">${c.emoji || '📅'}</span>
+                            <span class="multi-day-campaign-text">${c.name}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            getCampaignsForDay(day) {
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth();
+                const campaigns = this.campaigns.filter(c => {
+                    return c.date.getFullYear() === year &&
+                           c.date.getMonth() === month &&
+                           c.date.getDate() === day;
+                });
+                
+                return campaigns.map(c => {
+                    // Get channel-specific emoji
+                    let channelEmoji = '📧'; // Default email
+                    if (c.channel === 'sms') {
+                        channelEmoji = '📱';
+                    } else if (c.channel === 'push') {
+                        channelEmoji = '💻';
+                    } else if (c.emoji) {
+                        channelEmoji = c.emoji;
+                    }
+
+                    // Get audience/segments to display - filter out channel labels only (keep ALL)
+                    const segments = c.segments || c.segment || c.audience || [];
+                    const segmentsList = Array.isArray(segments) ? segments : [segments];
+                    const excludeLabels = ['email', 'sms', 'push', 'EMAIL', 'SMS', 'PUSH'];
+                    const audienceList = segmentsList
+                        .filter(s => s && !excludeLabels.includes(s))
+                        .map(s => {
+                            // Capitalize first letter of each word for display
+                            return s.split(' ')
+                                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                                .join(' ');
+                        });
+
+                    // Determine if this is the only campaign for the day (for expanded view)
+                    const isSingleEvent = campaigns.length === 1;
+
+                    return `
+                    <div class="campaign-pill ${c.gradient || c.type} ${isSingleEvent ? 'expanded-pill' : ''}"
+                         draggable="true"
+                         ondragstart="calendarManager.handleDragStart(event, '${c.id}')"
+                         ondragend="calendarManager.handleDragEnd(event)"
+                         onclick="showCampaignDetails('${c.id}')"
+                         title="${c.name}">
+                        <span class="campaign-pill-text">
+                            ${channelEmoji} ${c.name}
+                        </span>
+                        ${audienceList.length > 0 ? `
+                        <div class="campaign-pill-meta">
+                            ${audienceList.map(aud => `<span class="campaign-pill-meta-badge">🎯 ${aud}</span>`).join('')}
+                        </div>
+                        ` : ''}
+                        ${isSingleEvent && c.description ? `<div class="campaign-pill-description">${c.description}</div>` : ''}
+                        <div class="pill-actions">
+                            <div class="pill-action" onclick="event.stopPropagation(); duplicateCampaign('${c.id}')" title="Duplicate">📋</div>
+                            <div class="pill-action" onclick="event.stopPropagation(); editCampaign('${c.id}')" title="Edit">✏️</div>
+                            <div class="pill-action" onclick="event.stopPropagation(); confirmDeleteCampaign('${c.id}')" title="Delete">🗑️</div>
+                        </div>
+                    </div>
+                `;
+                }).join('');
+            }
+            
+            async loadMonthGoal() {
+                if (!this.selectedClient) return;
+                
+                try {
+                    // Get current month and year
+                    const currentMonth = this.selectedDate.getMonth() + 1;
+                    const currentYear = this.selectedDate.getFullYear();
+                    
+                    // Fetch goals for this client, year, and month
+                    const response = await fetch(`/api/goals/${this.selectedClient.id}?year=${currentYear}&month=${currentMonth}`);
+                    
+                    if (response.ok) {
+                        const goals = await response.json();
+                        
+                        if (goals && goals.length > 0) {
+                            const goal = goals[0];
+                            
+                            // Check for multi-metric support first
+                            if (goal.metrics && goal.metrics.revenue) {
+                                this.currentMonthGoal = goal.metrics.revenue.goal || goal.metrics.revenue.predicted || 50000;
+                            } else if (goal.revenue_goal) {
+                                // Fallback to legacy field
+                                this.currentMonthGoal = goal.revenue_goal;
+                            } else {
+                                this.currentMonthGoal = 50000;
+                            }
+                            
+                            // Update the display
+                            const goalElement = document.getElementById('monthGoal');
+                            if (goalElement) {
+                                goalElement.textContent = this.formatCurrency(this.currentMonthGoal);
+                            }
+                            
+                            // Store the full goal data for reference
+                            this.currentGoalData = goal;
+                            
+                            // Show confidence indicator if available
+                            if (goal.confidence) {
+                                this.showGoalConfidence(goal.confidence);
+                            }
+                            
+                            // Show if it's a human override
+                            if (goal.human_override) {
+                                this.showHumanOverrideIndicator();
+                            }
+                        } else {
+                            // No goals found, use default
+                            this.currentMonthGoal = 50000;
+                            document.getElementById('monthGoal').textContent = '$50k';
+                            
+                            // Optionally suggest generating goals
+                            console.log('No goals found for this month. Consider generating predictions.');
+                        }
+                    } else {
+                        console.error('Failed to load goals:', response.status);
+                        // Use default on error
+                        this.currentMonthGoal = 50000;
+                        document.getElementById('monthGoal').textContent = '$50k';
+                    }
+                } catch (error) {
+                    console.error('Error loading month goal:', error);
+                    // Use default on error
+                    this.currentMonthGoal = 50000;
+                    document.getElementById('monthGoal').textContent = '$50k';
+                }
+            }
+            
+            formatCurrency(value) {
+                if (value >= 1000000) {
+                    return `$${(value / 1000000).toFixed(1)}M`;
+                } else if (value >= 1000) {
+                    return `$${(value / 1000).toFixed(0)}k`;
+                } else {
+                    return `$${value.toFixed(0)}`;
+                }
+            }
+            
+            showGoalConfidence(confidence) {
+                const goalCard = document.querySelector('#monthGoal').parentElement;
+                if (goalCard) {
+                    // Remove existing confidence classes
+                    goalCard.classList.remove('confidence-high', 'confidence-medium', 'confidence-low');
+                    // Add new confidence class
+                    goalCard.classList.add(`confidence-${confidence}`);
+                    
+                    // Add tooltip
+                    goalCard.title = `Confidence: ${confidence}`;
+                }
+            }
+            
+            showHumanOverrideIndicator() {
+                const goalCard = document.querySelector('#monthGoal').parentElement;
+                if (goalCard && !goalCard.querySelector('.override-indicator')) {
+                    const indicator = document.createElement('div');
+                    indicator.className = 'override-indicator';
+                    indicator.innerHTML = '<i class="fas fa-user-edit"></i>';
+                    indicator.title = 'Manually adjusted goal';
+                    goalCard.appendChild(indicator);
+                }
+            }
+            
+            updateStats() {
+                const totalCampaigns = this.campaigns.length;
+                const totalRevenue = this.campaigns.reduce((sum, c) => {
+                    return sum + (c.metrics?.revenue || c.expected_metrics?.revenue || 0);
+                }, 0);
+                const avgOpenRate = this.campaigns.reduce((sum, c) => {
+                    return sum + (c.metrics?.openRate || c.expected_metrics?.open_rate || 0);
+                }, 0) / (totalCampaigns || 1);
+                
+                document.getElementById('totalCampaigns').textContent = totalCampaigns;
+                document.getElementById('expectedRevenue').textContent = `$${Math.round(totalRevenue).toLocaleString()}`;
+                document.getElementById('avgOpenRate').textContent = `${(avgOpenRate * 100).toFixed(1)}%`;
+                
+                // Reset grade when calendar changes
+                this.resetGrade();
+            }
+            
+            resetGrade() {
+                const gradeCard = document.querySelector('.grade-card');
+                const gradeDisplay = document.getElementById('gradeDisplay');
+                const gradeLabel = document.getElementById('gradeLabel');
+                
+                if (gradeCard) {
+                    // Remove grade classes to reset to ungraded state
+                    gradeCard.classList.remove('has-grade', 'grade-a', 'grade-a-plus', 'grade-b', 'grade-c', 'grade-d', 'grade-f');
+                    gradeCard.classList.add('needs-grading');
+                }
+                
+                if (gradeDisplay) {
+                    gradeDisplay.textContent = '🧑‍🏫 Grade';
+                    gradeDisplay.style.color = '';
+                    gradeDisplay.style.textShadow = '';
+                }
+                
+                if (gradeLabel) {
+                    gradeLabel.textContent = 'Performance';
+                }
+            }
+
+            // New CRUD Methods
+            openCreateCampaignModal(day) {
+                this.selectedDay = day;
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth();
+                const dateStr = new Date(year, month, day).toISOString().split('T')[0];
+                
+                document.getElementById('campaignDate').value = dateStr;
+                document.getElementById('createCampaignModal').classList.add('show');
+            }
+
+            saveState() {
+                this.undoStack.push(JSON.parse(JSON.stringify(this.campaigns)));
+                if (this.undoStack.length > 10) {
+                    this.undoStack.shift(); // Keep only last 10 states
+                }
+                document.getElementById('undoBtn').disabled = false;
+            }
+
+            duplicateCampaign(campaignId) {
+                const campaign = this.campaigns.find(c => c.id === campaignId);
+                if (!campaign) return;
+                
+                this.saveState();
+                
+                // Find the next available date after the original campaign
+                const occupiedDates = new Set(this.campaigns.map(c => c.date.toDateString()));
+                let newDate = new Date(campaign.date);
+                let daysToAdd = 1;
+                
+                // Find next available date (skip weekends for B2B)
+                while (daysToAdd < 30) {
+                    newDate = new Date(campaign.date);
+                    newDate.setDate(newDate.getDate() + daysToAdd);
+                    
+                    // Skip weekends
+                    if (newDate.getDay() === 0 || newDate.getDay() === 6) {
+                        daysToAdd++;
+                        continue;
+                    }
+                    
+                    // Check if date is available
+                    if (!occupiedDates.has(newDate.toDateString())) {
+                        break;
+                    }
+                    daysToAdd++;
+                }
+                
+                const newCampaign = {
+                    ...campaign,
+                    id: 'campaign-' + Date.now(),
+                    name: campaign.name + ' (Copy)',
+                    date: newDate
+                };
+                
+                this.campaigns.push(newCampaign);
+                this.renderCalendar();
+                this.updateStats();
+                
+                // Auto-save to cloud
+                this.saveToCloud();
+                
+                showToast(`Campaign duplicated to ${newDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}!`, 'success');
+            }
+
+            editCampaign(campaignId) {
+                const campaign = this.campaigns.find(c => c.id === campaignId);
+                if (!campaign) return;
+                
+                // Pre-populate form with existing data
+                document.getElementById('campaignName').value = campaign.name;
+                document.getElementById('campaignType').value = campaign.type;
+                document.getElementById('campaignDate').value = campaign.date.toISOString().split('T')[0];
+                document.getElementById('campaignTime').value = campaign.time || '10:00';
+                document.getElementById('campaignSubjects').value = campaign.subject_lines?.join(', ') || '';
+                document.getElementById('campaignSegment').value = campaign.target_segment || '';
+                
+                // Update modal title for edit mode
+                const modalTitle = document.querySelector('#createCampaignModal h3');
+                if (modalTitle) {
+                    modalTitle.textContent = '✏️ Edit Campaign';
+                }
+                
+                // Store editing campaign ID
+                document.getElementById('campaignForm').dataset.editingId = campaignId;
+                document.getElementById('createCampaignModal').classList.add('show');
+                
+                // Focus on the name field
+                setTimeout(() => {
+                    document.getElementById('campaignName').focus();
+                }, 100);
+                
+                showToast(`Editing: ${campaign.name}`, 'info');
+            }
+
+            confirmDeleteCampaign(campaignId) {
+                const campaign = this.campaigns.find(c => c.id === campaignId);
+                if (!campaign) return;
+                
+                this.pendingAction = () => this.deleteCampaign(campaignId);
+                document.getElementById('confirmTitle').textContent = '🗑️ Delete Campaign';
+                document.getElementById('confirmMessage').innerHTML = `
+                    <div class="text-center">
+                        <div class="mb-2">Are you sure you want to delete:</div>
+                        <div class="font-bold text-lg mb-2">"${campaign.name}"</div>
+                        <div class="text-sm text-white/60">
+                            ${campaign.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </div>
+                    </div>
+                `;
+                document.getElementById('confirmBtn').textContent = 'Delete Campaign';
+                document.getElementById('confirmBtn').className = 'glow-button bg-red-500 hover:bg-red-600';
+                document.getElementById('confirmModal').classList.add('show');
+            }
+
+            deleteCampaign(campaignId) {
+                const campaign = this.campaigns.find(c => c.id === campaignId);
+                const campaignName = campaign ? campaign.name : 'Campaign';
+                
+                this.saveState();
+                this.campaigns = this.campaigns.filter(c => c.id !== campaignId);
+                this.renderCalendar();
+                this.updateStats();
+                
+                // Auto-save to cloud
+                this.saveToCloud();
+                
+                showToast(`🗑️ "${campaignName}" deleted successfully`, 'success');
+            }
+
+            // Firestore Integration - Uses calendar_events collection
+            async saveToCloud() {
+                if (!this.selectedClient) {
+                    showToast('Please select a client first', 'warning');
+                    return false;
+                }
+                
+                showSaveStatus('saving', 'Saving to cloud...');
+                
+                try {
+                    // Format dates properly
+                    const year = this.selectedDate.getFullYear();
+                    const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
+                    const monthStart = `${year}-${month}-01`;
+                    const monthEnd = `${year}-${month}-31`;
+                    
+                    // Get existing events for this client and month
+                    const existingResponse = await fetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`);
+                    
+                    let existingEventIds = [];
+                    if (existingResponse.ok) {
+                        const existingEvents = await existingResponse.json();
+                        existingEventIds = existingEvents.map(e => e.id).filter(id => id);
+                        
+                        // Delete old events in batch (more efficient)
+                        const deletePromises = existingEventIds.map(eventId => 
+                            fetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
+                                .catch(err => console.warn(`Failed to delete event ${eventId}:`, err))
+                        );
+                        await Promise.all(deletePromises);
+                    }
+                    
+                    // Now save new events using the proper calendar_events collection
+                    const events = this.campaigns.map(campaign => ({
+                        title: campaign.name,
+                        date: campaign.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+                        client_id: this.selectedClient.id,
+                        content: campaign.description || '',
+                        color: this.getChannelColor(campaign.channel),
+                        event_type: campaign.type,
+                        // Additional metadata
+                        channel: campaign.channel || 'email',
+                        time: campaign.time,
+                        segment: campaign.segment || 'all',
+                        expected_metrics: campaign.metrics || {},
+                        gradient: campaign.gradient,
+                        emoji: campaign.emoji
+                    }));
+                    
+                    // Try bulk save first, fall back to individual saves
+                    let saveSuccess = false;
+                    
+                    // Attempt bulk save
+                    const bulkResponse = await fetch('/api/calendar/create-bulk-events', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            client_id: this.selectedClient.id,
+                            events: events
+                        })
+                    }).catch(() => null);
+                    
+                    if (bulkResponse && bulkResponse.ok) {
+                        saveSuccess = true;
+                    } else {
+                        // Fall back to individual saves
+                        const savePromises = events.map(event => 
+                            fetch('/api/calendar/events', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(event)
+                            }).then(res => res.ok).catch(() => false)
+                        );
+                        
+                        const results = await Promise.all(savePromises);
+                        saveSuccess = results.filter(r => r).length > 0;
+                    }
+                    
+                    const response = { ok: saveSuccess };
+                    
+                    if (response.ok) {
+                        showSaveStatus('saved', 'Saved to cloud!');
+                        showToast('Calendar saved to cloud successfully!');
+                        
+                        // Save conversation history if there's chat history
+                        if (this.chatHistory && this.chatHistory.length > 0) {
+                            await this.saveChatHistory();
+                        }
+                        // Trigger sync notification for approval pages
+                        this.broadcastSync();
+                        return true;
+                    } else {
+                        throw new Error('Failed to save all events');
+                    }
+                } catch (error) {
+                    console.error('Save failed:', error);
+                    showSaveStatus('error', 'Save failed - ' + error.message);
+                    showToast('Failed to save to cloud: ' + error.message, 'error');
+                    return false;
+                }
+            }
+            
+            // Helper method to get channel color
+            getChannelColor(channel) {
+                if (channel === 'sms') {
+                    return 'bg-purple-200 text-purple-800';
+                }
+                return 'bg-blue-200 text-blue-800';
+            }
+            
+            // Save chat history to calendar_chat_history collection
+            async saveChatHistory() {
+                try {
+                    await fetch('/api/calendar/ai/save-conversation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            client_id: this.selectedClient.id,
+                            conversation: this.chatHistory
+                        })
+                    });
+                } catch (error) {
+                    console.error('Failed to save chat history:', error);
+                }
+            }
+            
+            // Load events from Firestore calendar_events collection
+            async loadFromCloud() {
+                if (!this.selectedClient) {
+                    return;
+                }
+                
+                // Show loading indicator immediately
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'fixed top-20 right-4 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-lg border border-blue-500/40 z-50';
+                loadingIndicator.innerHTML = '⏳ Loading calendar events...';
+                document.body.appendChild(loadingIndicator);
+                
+                try {
+                    const monthStart = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-01`;
+                    const monthEnd = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-31`;
+                    
+                    // Parallel fetch for events, goals, and holidays
+                    const [eventsResponse, goalsPromise, holidaysPromise] = await Promise.all([
+                        fetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`),
+                        this.loadMonthGoal(), // Load goals in parallel
+                        this.loadHolidaysAndEvents() // Load holidays in parallel
+                    ]);
+                    
+                    if (eventsResponse.ok) {
+                        const events = await eventsResponse.json();
+                        
+                        // Convert Firestore events to campaign format
+                        this.campaigns = events.map(event => ({
+                            id: event.id,
+                            name: event.title,
+                            type: event.event_type || 'promotional',
+                            date: new Date(event.date),
+                            time: event.time || '10:00',
+                            channel: event.channel || 'email',
+                            segment: event.segment || 'all',
+                            description: event.content || '',
+                            gradient: event.gradient || this.getTypeGradient(event.event_type),
+                            emoji: event.emoji || this.getTypeEmoji(event.event_type),
+                            metrics: event.expected_metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                        }));
+                        
+                        this.renderCalendar();
+                        this.updateStats();
+                        
+                        // Only show toast if we loaded events
+                        if (this.campaigns.length > 0) {
+                            showToast(`Loaded ${this.campaigns.length} campaigns`, 'success');
+                        }
+                    } else {
+                        // If no events found, ensure calendar is cleared
+                        this.campaigns = [];
+                        this.renderCalendar();
+                        this.updateStats();
+                    }
+                    
+                    // Load chat history in background (don't wait for it)
+                    this.loadChatHistory().catch(console.error);
+                    
+                } catch (error) {
+                    console.error('Failed to load from cloud:', error);
+                    showToast('Failed to load calendar events', 'error');
+                    // Clear campaigns on error to show empty state
+                    this.campaigns = [];
+                    this.renderCalendar();
+                    this.updateStats();
+                } finally {
+                    // Remove loading indicator
+                    if (loadingIndicator.parentNode) {
+                        loadingIndicator.remove();
+                    }
+                }
+            }
+            
+            // Load holidays and Klaviyo events for the current month
+            async loadHolidaysAndEvents() {
+                const year = this.selectedDate.getFullYear();
+                const month = this.selectedDate.getMonth() + 1;
+                
+                try {
+                    const response = await fetch(`/api/calendar/holidays/?year=${year}&month=${month}&include_klaviyo=true&include_seasons=true`);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Clear existing holidays for this month
+                        this.holidays = {};
+                        this.klaviyoEvents = {};
+                        
+                        // Process holidays and events
+                        data.holidays.forEach(item => {
+                            const dateKey = item.date;
+                            
+                            if (item.type === 'holiday' || item.type === 'custom') {
+                                if (!this.holidays[dateKey]) {
+                                    this.holidays[dateKey] = [];
+                                }
+                                this.holidays[dateKey].push(item);
+                            } else if (item.type === 'klaviyo') {
+                                if (!this.klaviyoEvents[dateKey]) {
+                                    this.klaviyoEvents[dateKey] = [];
+                                }
+                                this.klaviyoEvents[dateKey].push(item);
+                            }
+                        });
+                        
+                        // Store active seasons if any
+                        if (data.holidays.length > 0 && data.holidays[0].active_seasons) {
+                            this.activeSeasons = data.holidays[0].active_seasons;
+                        }
+                        
+                        console.log(`Loaded ${Object.keys(this.holidays).length} holiday dates and ${Object.keys(this.klaviyoEvents).length} Klaviyo event dates`);
+                    }
+                } catch (error) {
+                    console.error('Failed to load holidays:', error);
+                    // Continue without holidays - non-critical feature
+                }
+            }
+            
+            // Add drag and drop handlers
+            handleDragStart(e, campaignId) {
+                this.draggedCampaignId = campaignId;
+                e.dataTransfer.effectAllowed = 'move';
+                e.target.style.opacity = '0.5';
+            }
+            
+            handleDragEnd(e) {
+                e.target.style.opacity = '';
+                this.draggedCampaignId = null;
+            }
+            
+            handleDragOver(e) {
+                if (e.preventDefault) {
+                    e.preventDefault();
+                }
+                e.dataTransfer.dropEffect = 'move';
+                return false;
+            }
+            
+            async handleDrop(e, targetDay) {
+                if (e.stopPropagation) {
+                    e.stopPropagation();
+                }
+                
+                if (this.draggedCampaignId) {
+                    const campaign = this.campaigns.find(c => c.id === this.draggedCampaignId);
+                    if (campaign) {
+                        const oldDay = campaign.date.getDate();
+                        if (oldDay !== targetDay) {
+                            // Save state for undo
+                            this.saveState();
+                            
+                            // Update campaign date
+                            campaign.date.setDate(targetDay);
+                            
+                            // Re-render calendar
+                            this.renderCalendar();
+                            this.updateStats();
+                            
+                            // Auto-save to cloud
+                            await this.autoSaveToCloud();
+                            
+                            showToast(`Campaign moved from ${oldDay} to ${targetDay}`);
+                        }
+                    }
+                }
+                
+                return false;
+            }
+            
+            // Auto-save method with debouncing
+            async autoSaveToCloud() {
+                // Clear existing timeout
+                if (this.autoSaveTimeout) {
+                    clearTimeout(this.autoSaveTimeout);
+                }
+                
+                // Set new timeout for auto-save (debounce for 1 second)
+                this.autoSaveTimeout = setTimeout(async () => {
+                    await this.saveToCloud();
+                    this.broadcastSync(); // Notify other views
+                }, 1000);
+            }
+            
+            // Broadcast sync to other views/tabs
+            broadcastSync() {
+                // Use localStorage to communicate between tabs/views
+                const syncData = {
+                    clientId: this.selectedClient?.id,
+                    timestamp: Date.now(),
+                    campaigns: this.campaigns.length,
+                    campaigns_data: JSON.stringify(this.campaigns),
+                    action: 'calendar_updated'
+                };
+                localStorage.setItem('calendar_sync', JSON.stringify(syncData));
+                
+                // Also trigger custom event for same-page sync
+                window.dispatchEvent(new CustomEvent('calendarSync', { detail: syncData }));
+                
+                // Broadcast on multiple channels for better reliability
+                document.dispatchEvent(new CustomEvent('calendar_data_updated', { 
+                    detail: { 
+                        client: this.selectedClient,
+                        campaigns: this.campaigns,
+                        timestamp: Date.now()
+                    } 
+                }));
+            }
+            
+            // Listen for sync updates
+            setupSyncListener() {
+                // Listen for localStorage changes (other tabs)
+                window.addEventListener('storage', (e) => {
+                    if (e.key === 'calendar_sync' && e.newValue) {
+                        const syncData = JSON.parse(e.newValue);
+                        if (syncData.clientId === this.selectedClient?.id) {
+                            this.handleSyncUpdate(syncData);
+                        }
+                    }
+                });
+                
+                // Listen for same-page sync events
+                window.addEventListener('calendarSync', (e) => {
+                    if (e.detail.clientId === this.selectedClient?.id) {
+                        this.handleSyncUpdate(e.detail);
+                    }
+                });
+                
+                // Enhanced cross-tab sync - listen for page visibility changes
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        // Page became visible - check for updates
+                        this.checkForSyncUpdates();
+                    }
+                });
+                
+                // Listen for window focus events
+                window.addEventListener('focus', () => {
+                    this.checkForSyncUpdates();
+                });
+            }
+            
+            // Check for pending sync updates
+            checkForSyncUpdates() {
+                const syncData = localStorage.getItem('calendar_sync');
+                if (syncData) {
+                    try {
+                        const parsed = JSON.parse(syncData);
+                        if (parsed.clientId === this.selectedClient?.id && 
+                            parsed.timestamp > (this.lastSyncCheck || 0)) {
+                            this.lastSyncCheck = Date.now();
+                            this.handleSyncUpdate(parsed);
+                        }
+                    } catch (error) {
+                        console.error('Error checking sync updates:', error);
+                    }
+                }
+            }
+            
+            // Handle incoming sync updates
+            handleSyncUpdate(syncData) {
+                showToast(`🔄 Calendar updated (${syncData.campaigns} campaigns)`);
+                
+                // If we have campaign data, use it directly for immediate sync
+                if (syncData.campaigns_data) {
+                    try {
+                        const updatedCampaigns = JSON.parse(syncData.campaigns_data);
+                        this.campaigns = updatedCampaigns;
+                        this.renderCalendar();
+                        showToast('✅ Calendar synchronized with latest changes', 'success');
+                        return;
+                    } catch (error) {
+                        console.error('Error parsing sync data:', error);
+                    }
+                }
+                
+                // Fallback to cloud reload if no data or error
+                setTimeout(() => {
+                    this.loadFromCloud();
+                }, 500);
+            }
+            
+            // Load chat history from calendar_conversations collection
+            async loadChatHistory() {
+                try {
+                    const response = await fetch(`/api/calendar/ai/get-conversation/${this.selectedClient.id}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.chatHistory = data.conversation || [];
+                        // Render chat history if needed
+                        this.renderChatHistory();
+                    }
+                } catch (error) {
+                    console.error('Failed to load chat history:', error);
+                }
+            }
+            
+            // Render chat history in the UI
+            renderChatHistory() {
+                const container = document.getElementById('chatResponse');
+                if (!container || this.chatHistory.length === 0) return;
+                
+                // Clear existing content and render history
+                container.innerHTML = '';
+                this.chatHistory.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${message.role}`;
+                    messageDiv.innerHTML = `
+                        <div class="mb-2 p-3 rounded-lg ${message.role === 'user' ? 'bg-blue-500/10 text-blue-300' : 'bg-white/5 text-white/90'}">
+                            <div class="font-semibold mb-1">${message.role === 'user' ? 'You' : 'AI Assistant'}:</div>
+                            <div>${message.content}</div>
+                        </div>
+                    `;
+                    container.appendChild(messageDiv);
+                });
+            }
+
+            undoLastChange() {
+                if (this.undoStack.length === 0) return;
+                
+                this.campaigns = this.undoStack.pop();
+                this.renderCalendar();
+                this.updateStats();
+                
+                if (this.undoStack.length === 0) {
+                    document.getElementById('undoBtn').disabled = true;
+                }
+                
+                showToast('Undo successful!');
+            }
+            
+            // Clear all campaigns for the current viewing month only
+            clearCurrentMonth() {
+                // Save state before clearing
+                this.saveState();
+                
+                // Get the year and month of the currently selected date
+                const currentYear = this.selectedDate.getFullYear();
+                const currentMonth = this.selectedDate.getMonth();
+                
+                // Filter out campaigns that are in the current viewing month
+                const beforeCount = this.campaigns.length;
+                this.campaigns = this.campaigns.filter(campaign => {
+                    const campaignYear = campaign.date.getFullYear();
+                    const campaignMonth = campaign.date.getMonth();
+                    // Keep campaigns that are NOT in the current viewing month
+                    return !(campaignYear === currentYear && campaignMonth === currentMonth);
+                });
+                
+                const deletedCount = beforeCount - this.campaigns.length;
+                
+                // Update the UI
+                this.renderCalendar();
+                this.updateStats();
+                
+                // Auto-save to Firestore
+                this.saveToCloud();
+                
+                // Show feedback
+                const monthName = this.selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                showToast(`Cleared ${deletedCount} campaigns from ${monthName}`);
+                
+                // Cleared campaigns
+            }
+
+            // AI Chat Integration with Calendar Manipulation
+            async sendChatMessage(message) {
+                if (!message) return;
+                
+                // Add user message to chat
+                this.addChatMessage(message, 'user');
+                
+                // Process command locally first
+                const localResult = this.processLocalCommand(message);
+                if (localResult.handled) {
+                    this.addChatMessage(localResult.response, 'ai');
+                    return;
+                }
+                
+                // Show typing indicator for API calls
+                const chatHistory = document.getElementById('chatHistory');
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'ai-message typing';
+                typingDiv.innerHTML = `<div class="text-sm text-blue-400 mb-1">AI Assistant</div><div class="text-white/90">Thinking...</div>`;
+                chatHistory.appendChild(typingDiv);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                
+                try {
+                    // Use the new calendar chat endpoint
+                    const response = await fetch('/api/calendar/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: message,
+                            context: {
+                                client_name: this.selectedClient?.name || 'No client selected',
+                                campaign_count: this.campaigns.length,
+                                total_revenue: this.campaigns.reduce((sum, c) => sum + (c.metrics?.revenue || 5000), 0),
+                                current_month: this.selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                                campaigns_list: JSON.stringify(this.campaigns.map(c => ({
+                                    id: c.id,
+                                    name: c.name,
+                                    type: c.type,
+                                    date: c.date.toISOString(),
+                                    day: c.date.getDate()
+                                })))
+                            },
+                            provider: document.getElementById('llmSelector').value
+                        })
+                    });
+                    
+                    typingDiv.remove();
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        // AI response received
+                        
+                        // Add AI response to chat
+                        this.addChatMessage(result.response, 'ai');
+                        
+                        // Execute the structured action if present
+                        if (result.action) {
+                            this.executeStructuredAction(result.action);
+                        }
+                    } else {
+                        const error = await response.text();
+                        console.error('AI Error:', error);
+                        this.addChatMessage('I couldn\'t connect to the AI service. But I can still help with basic commands!', 'ai');
+                    }
+                } catch (error) {
+                    // Chat API error handled
+                    console.error('Chat error:', error);
+                    if (typingDiv && typingDiv.parentNode) typingDiv.remove();
+                    this.addChatMessage('Let me handle that locally instead.', 'ai');
+                }
+            }
+            
+            // Execute structured action from AI response
+            executeStructuredAction(action) {
+                // Executing structured action
+                
+                const actionType = action.action;
+                
+                if (actionType === 'add') {
+                    // Handle campaigns with LLM-extracted names
+                    const campaignName = action.campaign_name || action.custom_name;
+                    
+                    if (action.type === 'custom' && action.custom_name) {
+                        this.addCustomEventToDate(action.day, action.custom_name);
+                    } else if (campaignName) {
+                        // Use the LLM-extracted name
+                        this.addCampaignToDate(action.day, action.type, 'email', campaignName);
+                    } else {
+                        // Fall back to type-based naming
+                        this.addCampaignToDate(action.day, action.type);
+                    }
+                } else if (actionType === 'move') {
+                    this.moveCampaign(action.from_day, action.to_day);
+                } else if (actionType === 'delete') {
+                    this.deleteCampaignOnDay(action.day);
+                } else if (actionType === 'clear_all') {
+                    this.saveState();
+                    this.campaigns = [];
+                    this.renderCalendar();
+                    this.updateStats();
+                    this.saveToCloud();
+                    showToast('All campaigns cleared');
+                } else if (actionType === 'delete_type') {
+                    this.saveState();
+                    this.campaigns = this.campaigns.filter(c => c.type !== action.type);
+                    this.renderCalendar();
+                    this.updateStats();
+                    this.saveToCloud();
+                    showToast(`All ${action.type} campaigns removed`);
+                } else if (actionType === 'list') {
+                    // Listing is handled by the response message
+                    // List action handled
+                } else if (actionType === 'analytics') {
+                    // Analytics is handled by the response message
+                    // Analytics action handled
+                } else if (actionType === 'help') {
+                    // Help is handled by the response message
+                    // Help action handled
+                }
+            }
+            
+            // Parse AI response for commands and execute them (legacy method for backward compatibility)
+            parseAndExecuteAICommands(response) {
+                const lowerResponse = response.toLowerCase();
+                
+                // Check for add campaign confirmation
+                if (lowerResponse.includes('✅') && lowerResponse.includes('added')) {
+                    const dayMatch = response.match(/(\d+)(?:st|nd|rd|th)?/);
+                    if (dayMatch) {
+                        const day = parseInt(dayMatch[1]);
+                        let type = 'promotional';
+                        if (lowerResponse.includes('content')) type = 'content';
+                        if (lowerResponse.includes('engagement')) type = 'engagement';
+                        if (lowerResponse.includes('seasonal')) type = 'seasonal';
+                        
+                        this.addCampaignToDate(day, type);
+                    }
+                }
+                
+                // Check for move campaign confirmation
+                if (lowerResponse.includes('moved') || lowerResponse.includes('rescheduled')) {
+                    const fromMatch = response.match(/from .*?(\d+)/);
+                    const toMatch = response.match(/to .*?(\d+)/);
+                    if (fromMatch && toMatch) {
+                        const fromDay = parseInt(fromMatch[1]);
+                        const toDay = parseInt(toMatch[1]);
+                        this.moveCampaign(fromDay, toDay);
+                    }
+                }
+                
+                // Check for delete confirmation
+                if (lowerResponse.includes('❌') || (lowerResponse.includes('deleted') || lowerResponse.includes('removed'))) {
+                    const dayMatch = response.match(/(\d+)(?:st|nd|rd|th)?/);
+                    if (dayMatch) {
+                        const day = parseInt(dayMatch[1]);
+                        this.deleteCampaignOnDay(day);
+                    }
+                }
+            }
+            
+            // Helper method to add campaign to a specific date
+            addCampaignToDate(day, type, channel = 'email', customName = null) {
+                const campaign = {
+                    id: `ai-${Date.now()}`,
+                    // Use custom name if provided, otherwise use type-based name
+                    name: customName || `${type.charAt(0).toUpperCase() + type.slice(1)} Campaign`,
+                    type: type,
+                    channel: channel,  // 'email' or 'sms'
+                    date: new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth(), day),
+                    time: '10:00',
+                    emoji: this.getTypeEmoji(type),
+                    gradient: this.getChannelGradient(type, channel),
+                    metrics: { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                };
+                
+                this.saveState();
+                this.campaigns.push(campaign);
+                this.renderCalendar();
+                this.updateStats();
+                this.saveToCloud();
+                showToast(`Added "${campaign.name}" on the ${day}${this.getDaySuffix(day)}`);
+            }
+            
+            // Add multi-day campaign
+            addMultiDayCampaign(startDate, endDate, name, type = 'campaign', description = '') {
+                const campaign = {
+                    id: `multi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    name: name,
+                    type: type,
+                    startDate: new Date(startDate),
+                    endDate: new Date(endDate),
+                    description: description,
+                    isMultiDay: true,
+                    color: 'multi-day-campaign',
+                    emoji: '📅',
+                    created_at: new Date().toISOString()
+                };
+                
+                this.saveState();
+                this.multiDayCampaigns.push(campaign);
+                this.renderCalendar();
+                this.updateStats();
+                this.saveToCloud();
+                
+                const duration = Math.ceil((campaign.endDate - campaign.startDate) / (1000 * 60 * 60 * 24)) + 1;
+                showToast(`Added ${duration}-day campaign: "${name}"`);
+                
+                return campaign;
+            }
+            
+            // Helper method to add custom event to a specific date
+            addCustomEventToDate(day, customName) {
+                const campaign = {
+                    id: `custom-${Date.now()}`,
+                    name: customName,
+                    type: 'special',  // Use special type for custom events
+                    date: new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth(), day),
+                    time: '10:00',
+                    emoji: '⭐',  // Star emoji for custom events
+                    gradient: 'gradient-purple',  // Purple gradient for custom events
+                    metrics: { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                };
+                
+                this.saveState();
+                this.campaigns.push(campaign);
+                this.renderCalendar();
+                this.updateStats();
+                this.saveToCloud();
+                showToast(`Event "${customName}" added on the ${day}${this.getDaySuffix(day)}`);
+                // Custom event added
+            }
+            
+            // Helper method to move campaign
+            moveCampaign(fromDay, toDay) {
+                const campaign = this.campaigns.find(c => c.date.getDate() === fromDay);
+                if (campaign) {
+                    this.saveState();
+                    campaign.date.setDate(toDay);
+                    this.renderCalendar();
+                    this.saveToCloud();
+                    showToast(`Campaign moved to the ${toDay}${this.getDaySuffix(toDay)}`);
+                }
+            }
+            
+            // Helper method to delete campaign on a day
+            deleteCampaignOnDay(day) {
+                const index = this.campaigns.findIndex(c => c.date.getDate() === day);
+                if (index !== -1) {
+                    this.saveState();
+                    this.campaigns.splice(index, 1);
+                    this.renderCalendar();
+                    this.updateStats();
+                    this.saveToCloud();
+                    showToast(`Campaign deleted from the ${day}${this.getDaySuffix(day)}`);
+                }
+            }
+            
+            // Helper to get day suffix
+            getDaySuffix(day) {
+                if (day >= 11 && day <= 13) return 'th';
+                switch (day % 10) {
+                    case 1: return 'st';
+                    case 2: return 'nd';
+                    case 3: return 'rd';
+                    default: return 'th';
+                }
+            }
+            
+            // Process commands locally for immediate response
+            processLocalCommand(message) {
+                const msg = message.toLowerCase();
+                let handled = true;
+                let response = '';
+                
+                // Add campaign
+                if ((msg.includes('add') || msg.includes('create')) && (msg.includes('campaign') || msg.includes('email'))) {
+                    const dayMatch = msg.match(/(?:on |the )?(\d+)(?:st|nd|rd|th)?/i);
+                    const day = dayMatch ? parseInt(dayMatch[1]) : 15;
+                    
+                    // Try to extract campaign name
+                    let campaignName = null;
+                    const nameMatch = message.match(/(?:called|named)\s+([^,\.\n]+)/i) ||
+                                      message.match(/["']([^"']+)["']/) ||
+                                      message.match(/campaign\s+([^,\.\n]+?)(?:\s+(?:on|for|at)\s+)/i);
+                    if (nameMatch) {
+                        campaignName = nameMatch[1].trim();
+                    }
+                    
+                    let type = 'promotional';
+                    if (msg.includes('content') || msg.includes('newsletter')) type = 'content';
+                    if (msg.includes('engagement') || msg.includes('survey')) type = 'engagement';
+                    if (msg.includes('seasonal') || msg.includes('holiday')) type = 'seasonal';
+                    
+                    const campaign = {
+                        id: `ai-${Date.now()}`,
+                        name: campaignName || `${type.charAt(0).toUpperCase() + type.slice(1)} Campaign`,
+                        type: type,
+                        channel: 'email',  // Default to email
+                        date: new Date(this.selectedDate.getFullYear(), this.selectedDate.getMonth(), day),
+                        time: '10:00',
+                        emoji: this.getTypeEmoji(type),
+                        gradient: this.getTypeGradient(type),
+                        metrics: { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                    };
+                    
+                    this.saveState();
+                    this.campaigns.push(campaign);
+                    this.renderCalendar();
+                    this.updateStats();
+                    this.saveToCloud();
+                    
+                    response = `✅ Added "${campaign.name}" on ${campaign.date.toLocaleDateString()}`;
+                }
+                // Move campaign
+                else if (msg.includes('move') && msg.includes('from')) {
+                    const fromMatch = msg.match(/from (?:the )?(\d+)/i);
+                    const toMatch = msg.match(/to (?:the )?(\d+)/i);
+                    
+                    if (fromMatch && toMatch) {
+                        const fromDay = parseInt(fromMatch[1]);
+                        const toDay = parseInt(toMatch[1]);
+                        const campaign = this.campaigns.find(c => c.date.getDate() === fromDay);
+                        
+                        if (campaign) {
+                            this.saveState();
+                            campaign.date.setDate(toDay);
+                            this.renderCalendar();
+                            this.updateStats();
+                            this.saveToCloud();
+                            response = `✅ Moved ${campaign.name} from day ${fromDay} to day ${toDay}`;
+                        } else {
+                            response = `❌ No campaign found on day ${fromDay}`;
+                        }
+                    } else {
+                        response = '❌ Please specify: "Move campaign from the 10th to the 15th"';
+                    }
+                }
+                // Delete campaign
+                else if ((msg.includes('delete') || msg.includes('remove')) && msg.includes('campaign')) {
+                    const dayMatch = msg.match(/(?:on |the )?(\d+)/i);
+                    
+                    if (dayMatch) {
+                        const day = parseInt(dayMatch[1]);
+                        const campaign = this.campaigns.find(c => c.date.getDate() === day);
+                        
+                        if (campaign) {
+                            this.saveState();
+                            this.campaigns = this.campaigns.filter(c => c.id !== campaign.id);
+                            this.renderCalendar();
+                            this.updateStats();
+                            this.saveToCloud();
+                            response = `✅ Deleted ${campaign.name} from day ${day}`;
+                        } else {
+                            response = `❌ No campaign found on day ${day}`;
+                        }
+                    } else if (msg.includes('all')) {
+                        const count = this.campaigns.length;
+                        this.saveState();
+                        this.campaigns = [];
+                        this.renderCalendar();
+                        this.updateStats();
+                        this.saveToCloud();
+                        response = `✅ Deleted all ${count} campaigns`;
+                    }
+                }
+                // List campaigns
+                else if (msg.includes('what') || msg.includes('show') || msg.includes('list')) {
+                    if (this.campaigns.length === 0) {
+                        response = 'No campaigns scheduled. Try: "Add a promotional campaign on the 15th"';
+                    } else {
+                        const list = this.campaigns
+                            .sort((a, b) => a.date - b.date)
+                            .slice(0, 5)
+                            .map(c => `• ${c.emoji} ${c.name} on day ${c.date.getDate()}`)
+                            .join('\n');
+                        response = `You have ${this.campaigns.length} campaigns:\n${list}`;
+                        if (this.campaigns.length > 5) response += `\n... and ${this.campaigns.length - 5} more`;
+                    }
+                }
+                // Stats
+                else if (msg.includes('stats') || msg.includes('revenue')) {
+                    const revenue = this.campaigns.reduce((sum, c) => sum + (c.metrics?.revenue || 0), 0);
+                    response = `📊 Stats: ${this.campaigns.length} campaigns, $${revenue.toLocaleString()} expected revenue`;
+                }
+                else {
+                    handled = false;
+                    response = '';
+                }
+                
+                return { handled, response };
+            }
+
+            addChatMessage(message, sender, isTyping = false) {
+                const chatHistory = document.getElementById('chatHistory');
+                if (!chatHistory) {
+                    console.error('Chat history element not found');
+                    return null;
+                }
+                
+                // Adding message to chat
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = sender === 'user' ? 'user-message' : 'ai-message';
+                
+                if (sender === 'user') {
+                    messageDiv.innerHTML = `
+                        <div class="text-sm text-lime-400 mb-1">You</div>
+                        <div class="text-black">${message}</div>
+                    `;
+                } else {
+                    messageDiv.innerHTML = `
+                        <div class="text-sm text-blue-400 mb-1">AI Assistant</div>
+                        <div class="text-white/90">${message}</div>
+                    `;
+                }
+                
+                if (isTyping) {
+                    messageDiv.innerHTML += '<div class="pulse-loader inline-block ml-2" style="width: 12px; height: 12px;"></div>';
+                }
+                
+                chatHistory.appendChild(messageDiv);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                
+                return messageDiv;
+            }
+
+            async executeAIActions(actions) {
+                for (const action of actions) {
+                    switch (action.type) {
+                        case 'add_campaign':
+                            this.saveState();
+                            this.campaigns.push({
+                                id: 'ai-' + Date.now(),
+                                name: action.name,
+                                type: action.campaign_type || 'content',
+                                date: new Date(action.date),
+                                time: action.time || '10:00',
+                                gradient: this.getTypeGradient(action.campaign_type),
+                                emoji: this.getTypeEmoji(action.campaign_type)
+                            });
+                            break;
+                            
+                        case 'move_campaign':
+                            this.saveState();
+                            const campaign = this.campaigns.find(c => 
+                                c.name.toLowerCase().includes(action.campaign_name.toLowerCase())
+                            );
+                            if (campaign) {
+                                campaign.date = new Date(action.new_date);
+                            }
+                            break;
+                            
+                        case 'delete_campaigns':
+                            this.saveState();
+                            this.campaigns = this.campaigns.filter(c => 
+                                !action.filter || c.type !== action.filter
+                            );
+                            break;
+                    }
+                }
+                
+                this.renderCalendar();
+                this.updateStats();
+                showToast('AI actions executed successfully!');
+            }
+
+            getTypeEmoji(type) {
+                const emojis = {
+                    promotional: '🎯',
+                    content: '📰',
+                    engagement: '💬',
+                    seasonal: '🎄'
+                };
+                return emojis[type] || '📧';
+            }
+        }
+        
+        // Theme Management Functions
+        function initTheme() {
+            const savedTheme = localStorage.getItem('calendarTheme') || 'dark';
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (savedTheme === 'light') {
+                body.classList.add('light-mode');
+                if (themeIcon) themeIcon.textContent = '☀️';
+            } else {
+                body.classList.remove('light-mode');
+                if (themeIcon) themeIcon.textContent = '🌙';
+            }
+        }
+        
+        function toggleTheme() {
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            const isLight = body.classList.contains('light-mode');
+            
+            if (isLight) {
+                body.classList.remove('light-mode');
+                if (themeIcon) themeIcon.textContent = '🌙';
+                localStorage.setItem('calendarTheme', 'dark');
+                showToast('Switched to Dark Mode 🌙');
+            } else {
+                body.classList.add('light-mode');
+                if (themeIcon) themeIcon.textContent = '☀️';
+                localStorage.setItem('calendarTheme', 'light');
+                showToast('Switched to Light Mode ☀️');
+            }
+            
+            // Trigger a subtle animation
+            body.style.transition = 'background 0.5s ease, color 0.5s ease';
+            setTimeout(() => {
+                body.style.transition = 'background 0.3s ease, color 0.3s ease';
+            }, 500);
+        }
+        
+        // Notification and Changes Management
+        let pendingChanges = [];
+        let lastApprovalCheck = null;
+        
+        // Check for pending changes and approval status
+        async function checkForChanges() {
+            if (!calendarManager.selectedClient) {
+                // No client selected - clear everything and hide panels
+                pendingChanges = [];
+                updateNotificationBadges();
+                hideChangesPanel();
+                return;
+            }
+            
+            try {
+                // Check for change requests
+                const year = calendarManager.selectedDate.getFullYear();
+                const month = String(calendarManager.selectedDate.getMonth() + 1).padStart(2, '0');
+                const clientSlug = calendarManager.selectedClient.client_slug || calendarManager.selectedClient.id;
+                const approvalId = `${clientSlug}-${year}-${month}`;
+                
+                // Check if this is Colorado Hemp Honey - show demo change requests
+                if (calendarManager.selectedClient.name && 
+                    calendarManager.selectedClient.name.toLowerCase().includes('colorado hemp')) {
+                    // Show demo change requests for Colorado Hemp Honey
+                    if (pendingChanges.length === 0) {
+                        pendingChanges = [
+                            { type: 'schedule_change', title: 'Move Labor Day Sale', description: 'Client wants to start the campaign 2 days earlier', date: new Date().toISOString(), completed: false },
+                            { type: 'content_update', title: 'Update Product Images', description: 'Use new honey jar photos in September campaigns', date: new Date().toISOString(), completed: false },
+                            { type: 'segment_change', title: 'Add VIP Segment', description: 'Include VIP customers in the fall promotion', date: new Date().toISOString(), completed: false }
+                        ];
+                    }
+                } else {
+                    // For other clients, start with no changes
+                    if (!window.changeRequestsLoaded) {
+                        pendingChanges = [];
+                    }
+                }
+                updateNotificationBadges();
+                
+                // Check approval status (demo)
+                const approvalKey = `celebrated-${approvalId}`;
+                if (Math.random() > 0.9 && !localStorage.getItem(approvalKey)) {
+                    setTimeout(() => {
+                        showCelebration();
+                        localStorage.setItem(approvalKey, 'true');
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.log('No changes found or connection issue:', error.message);
+            }
+        }
+        
+        function updateNotificationBadges() {
+            const clientBadge = document.getElementById('clientNotificationBadge');
+            const fabBadge = document.getElementById('fabNotificationBadge');
+            const commandFab = document.getElementById('commandFab');
+            
+            if (pendingChanges.length > 0) {
+                // Show badges
+                if (clientBadge) {
+                    clientBadge.style.display = 'block';
+                    clientBadge.textContent = pendingChanges.length;
+                }
+                if (fabBadge) {
+                    fabBadge.style.display = 'block';
+                    fabBadge.textContent = pendingChanges.length;
+                }
+                if (commandFab) {
+                    commandFab.classList.add('has-changes');
+                }
+            } else {
+                // Hide badges
+                if (clientBadge) clientBadge.style.display = 'none';
+                if (fabBadge) fabBadge.style.display = 'none';
+                if (commandFab) commandFab.classList.remove('has-changes');
+            }
+        }
+        
+        function showChangesPanel() {
+            const panel = document.getElementById('changesPanel');
+            const changesList = document.getElementById('changesList');
+            
+            // Only show panel if there are changes or a client is selected
+            if (!calendarManager.selectedClient || pendingChanges.length === 0) {
+                hideChangesPanel();
+                showToast('No pending changes to show', 'info');
+                return;
+            }
+            
+            changesList.innerHTML = pendingChanges.map((change, index) => `
+                    <div class="change-item" data-change-id="${index}">
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" 
+                                   id="change-${index}" 
+                                   class="mt-1 cursor-pointer" 
+                                   onchange="toggleChangeComplete(${index})"
+                                   ${change.completed ? 'checked' : ''}>
+                            <span class="text-lg">${getChangeIcon(change.type)}</span>
+                            <div class="flex-1">
+                                <div class="font-semibold text-sm">${change.title}</div>
+                                <div class="text-xs opacity-70 mt-1">${change.description}</div>
+                                <div class="text-xs opacity-50 mt-2">${formatDate(change.date)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            
+            panel.style.display = 'block';
+            panel.classList.add('show');
+        }
+        
+        function hideChangesPanel() {
+            const panel = document.getElementById('changesPanel');
+            panel.classList.remove('show');
+            setTimeout(() => {
+                panel.style.display = 'none';
+            }, 300); // Wait for animation to complete
+        }
+        
+        function getChangeIcon(type) {
+            switch(type) {
+                case 'campaign_added': return '➕';
+                case 'campaign_modified': return '✏️';
+                case 'campaign_removed': return '🗑️';
+                case 'date_changed': return '📅';
+                case 'budget_updated': return '💰';
+                case 'approval_needed': return '⏳';
+                default: return '📝';
+            }
+        }
+        
+        function formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function markAllChangesRead() {
+            pendingChanges = [];
+            updateNotificationBadges();
+            hideChangesPanel();
+            showToast('📋 All changes marked as read');
+        }
+        
+        function toggleChangeComplete(index) {
+            const checkbox = document.getElementById(`change-${index}`);
+            const changeItem = document.querySelector(`[data-change-id="${index}"]`);
+            
+            if (checkbox.checked) {
+                changeItem.style.opacity = '0.5';
+                changeItem.style.textDecoration = 'line-through';
+                pendingChanges[index].completed = true;
+                showToast(`✅ "${pendingChanges[index].title}" completed`);
+            } else {
+                changeItem.style.opacity = '1';
+                changeItem.style.textDecoration = 'none';
+                pendingChanges[index].completed = false;
+            }
+            
+            // Update badges to show only incomplete items
+            const incompleteCount = pendingChanges.filter(change => !change.completed).length;
+            const clientBadge = document.getElementById('clientNotificationBadge');
+            const fabBadge = document.getElementById('fabNotificationBadge');
+            
+            if (incompleteCount > 0) {
+                if (clientBadge) {
+                    clientBadge.style.display = 'block';
+                    clientBadge.textContent = incompleteCount;
+                }
+                if (fabBadge) {
+                    fabBadge.style.display = 'block';
+                    fabBadge.textContent = incompleteCount;
+                }
+            } else {
+                if (clientBadge) clientBadge.style.display = 'none';
+                if (fabBadge) fabBadge.style.display = 'none';
+                // All completed - show celebration
+                if (pendingChanges.length > 0) {
+                    setTimeout(() => {
+                        showToast('🎉 All changes completed! Great work!');
+                        setTimeout(() => {
+                            pendingChanges = [];
+                            updateNotificationBadges();
+                            hideChangesPanel();
+                        }, 2000);
+                    }, 500);
+                }
+            }
+        }
+        
+        function approveAllChanges() {
+            showCelebration();
+            showToast('🎆 All changes approved! Celebration time!');
+            setTimeout(() => {
+                pendingChanges = [];
+                updateNotificationBadges();
+                hideChangesPanel();
+            }, 2000);
+        }
+        
+        function showCelebration() {
+            const overlay = document.getElementById('celebrationOverlay');
+            overlay.classList.add('show');
+            
+            // Add some extra fireworks dynamically
+            setTimeout(() => {
+                for (let i = 0; i < 3; i++) {
+                    const extraFireworks = document.createElement('div');
+                    extraFireworks.className = 'fireworks';
+                    const randomTop = Math.random() * 80 + 10;
+                    const randomLeft = Math.random() * 80 + 10;
+                    const randomDelay = Math.random() * 2;
+                    extraFireworks.style.cssText = `top: ${randomTop}%; left: ${randomLeft}%; animation-delay: ${randomDelay}s;`;
+                    extraFireworks.textContent = ['🎆', '✨', '🎇'][i % 3];
+                    overlay.appendChild(extraFireworks);
+                    
+                    // Remove after animation
+                    setTimeout(() => {
+                        if (extraFireworks.parentNode) {
+                            extraFireworks.remove();
+                        }
+                    }, 3000 + randomDelay * 1000);
+                }
+            }, 500);
+            
+            // Auto-hide after 8 seconds if user doesn't click
+            setTimeout(() => {
+                if (overlay.classList.contains('show')) {
+                    hideCelebration();
+                }
+            }, 8000);
+        }
+        
+        function hideCelebration() {
+            document.getElementById('celebrationOverlay').classList.remove('show');
+        }
+        
+        // Initialize Calendar Manager (make it global for debugging)
+        console.log('Creating CalendarManager instance...');
+        const calendarManager = new CalendarManager();
+        window.calendarManager = calendarManager; // Make accessible globally
+        console.log('CalendarManager created successfully');
+        
+        // Ensure clean state on initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            // Start with clean state - no changes panel showing
+            pendingChanges = [];
+            updateNotificationBadges();
+            hideChangesPanel();
+
+            // Initialize file upload drag-and-drop functionality
+            initializeFileUpload();
+
+            // Ensure calendar is rendered on load
+            if (calendarManager) {
+                console.log('Initial calendar render...');
+                calendarManager.renderCalendar();
+                calendarManager.updateStats();
+            }
+        });
+        
+        function initializeFileUpload() {
+            const fileUploadArea = document.getElementById('fileUploadArea');
+            
+            if (fileUploadArea) {
+                // Prevent default drag behaviors
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    fileUploadArea.addEventListener(eventName, preventDefaults, false);
+                    document.body.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                // Highlight drop area when dragging over it
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    fileUploadArea.addEventListener(eventName, highlight, false);
+                });
+                
+                // Unhighlight when dragging leaves
+                ['dragleave', 'drop'].forEach(eventName => {
+                    fileUploadArea.addEventListener(eventName, unhighlight, false);
+                });
+                
+                // Handle dropped files
+                fileUploadArea.addEventListener('drop', handleDrop, false);
+                
+                // Handle clicks to open file dialog
+                fileUploadArea.addEventListener('click', function() {
+                    document.getElementById('fileInput').click();
+                });
+            }
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            function highlight(e) {
+                fileUploadArea.classList.add('dragover');
+            }
+            
+            function unhighlight(e) {
+                fileUploadArea.classList.remove('dragover');
+            }
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (files.length > 0) {
+                    document.getElementById('fileInput').files = files;
+                    handleFileSelect({ target: { files: files } });
+                }
+            }
+        }
+        
+        // Calendar Grading System
+        let currentGradingData = null;
+        let originalCalendarState = null;
+        
+        // Initialize engaging elements for the grade button
+        function initializeGradeEngagement() {
+            const gradeCard = document.querySelector('.grade-card');
+            const curiosityBadge = document.getElementById('curiosityBadge');
+            const hoverHint = document.getElementById('gradeHoverHint');
+            const gradeLabel = document.getElementById('gradeLabel');
+            
+            if (!gradeCard) return;
+            
+            // Badge message - simplified to just "NEW!"
+            const badgeMessage = 'NEW!';
+            
+            // Array of hover hints
+            const hoverHints = [
+                'Discover your score!',
+                'How good is your calendar?',
+                'Get AI-powered insights!',
+                'See your optimization score',
+                'Unlock performance metrics',
+                'Grade your email strategy',
+                'Get expert feedback',
+                'Analyze campaign performance',
+                'Find hidden opportunities'
+            ];
+            
+            // Array of teasing labels
+            const teasingLabels = [
+                'Mystery Score',
+                'Hidden Grade',
+                'Secret Rating',
+                'Performance',
+                'AI Analysis',
+                'Score Unknown',
+                'Grade Pending'
+            ];
+            
+            let hintIndex = 0;
+            let hasBeenClicked = localStorage.getItem('gradeButtonClicked') === 'true';
+            
+            // If never clicked, make it extra enticing
+            if (!hasBeenClicked) {
+                // Show the NEW! badge
+                if (curiosityBadge) {
+                    curiosityBadge.textContent = badgeMessage;
+                    curiosityBadge.style.display = 'block';
+                }
+                
+                // Rotate hover hints
+                if (hoverHint) {
+                    setInterval(() => {
+                        hintIndex = (hintIndex + 1) % hoverHints.length;
+                        if (!gradeCard.classList.contains('has-grade')) {
+                            hoverHint.textContent = hoverHints[hintIndex];
+                        }
+                    }, 3000);
+                }
+                
+                // Add a random teasing label
+                if (gradeLabel && !gradeCard.classList.contains('has-grade')) {
+                    const randomLabel = teasingLabels[Math.floor(Math.random() * teasingLabels.length)];
+                    gradeLabel.textContent = randomLabel;
+                }
+                
+                // Show a nudge after 5 seconds of inactivity
+                setTimeout(() => {
+                    if (!hasBeenClicked && !gradeCard.classList.contains('has-grade')) {
+                        showGradeNudge();
+                    }
+                }, 5000);
+                
+                // Add mouse tracking effect
+                let mouseNearCount = 0;
+                document.addEventListener('mousemove', (e) => {
+                    const rect = gradeCard.getBoundingClientRect();
+                    const distance = Math.sqrt(
+                        Math.pow(e.clientX - (rect.left + rect.width/2), 2) +
+                        Math.pow(e.clientY - (rect.top + rect.height/2), 2)
+                    );
+                    
+                    if (distance < 150 && !gradeCard.classList.contains('has-grade')) {
+                        mouseNearCount++;
+                        if (mouseNearCount === 3) {
+                            // After hovering near 3 times, make it pulse more
+                            gradeCard.style.animation = 'attention-pulse 1s ease-in-out infinite';
+                        }
+                    }
+                });
+            } else {
+                // If clicked before, hide the badge
+                if (curiosityBadge) {
+                    curiosityBadge.style.display = 'none';
+                }
+            }
+            
+            // Track when grade button is clicked
+            const originalGradeCalendar = window.gradeCalendar;
+            window.gradeCalendar = async function() {
+                localStorage.setItem('gradeButtonClicked', 'true');
+                hasBeenClicked = true;
+                
+                // Hide curiosity badge when clicked
+                if (curiosityBadge) {
+                    curiosityBadge.style.display = 'none';
+                }
+                
+                // Call original function
+                return originalGradeCalendar.apply(this, arguments);
+            };
+        }
+        
+        // Show a nudge tooltip
+        function showGradeNudge() {
+            const gradeCard = document.querySelector('.grade-card');
+            if (!gradeCard || gradeCard.classList.contains('has-grade')) return;
+            
+            // Create nudge tooltip
+            const nudge = document.createElement('div');
+            nudge.style.cssText = `
+                position: absolute;
+                top: -40px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, #ff0080, #ff8c00);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 700;
+                white-space: nowrap;
+                z-index: 100;
+                animation: nudge-bounce 2s ease-in-out;
+                pointer-events: none;
+            `;
+            nudge.textContent = '👆 Grade your calendar for AI insights!';
+            
+            // Add animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes nudge-bounce {
+                    0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0; }
+                    20%, 80% { opacity: 1; }
+                    30%, 50%, 70% { transform: translateX(-50%) translateY(-5px); }
+                    40%, 60% { transform: translateX(-50%) translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            gradeCard.appendChild(nudge);
+            
+            // Remove after animation
+            setTimeout(() => {
+                nudge.remove();
+            }, 2000);
+        }
+        
+        async function gradeCalendar() {
+            // Mark that the grade button has been clicked
+            localStorage.setItem('gradeButtonClicked', 'true');
+            
+            // Hide the NEW! badge
+            const curiosityBadge = document.getElementById('curiosityBadge');
+            if (curiosityBadge) {
+                curiosityBadge.style.display = 'none';
+            }
+            
+            if (!calendarManager.selectedClient) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+            
+            if (calendarManager.campaigns.length === 0) {
+                showToast('No campaigns to grade. Add some campaigns first!', 'warning');
+                return;
+            }
+            
+            // Store original state for comparison
+            originalCalendarState = JSON.parse(JSON.stringify(calendarManager.campaigns));
+            
+            // Show loading state
+            document.getElementById('gradingModal').classList.add('show');
+            document.getElementById('gradingResults').innerHTML = `
+                <div class="text-center py-12">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-lime-400 border-t-transparent"></div>
+                    <p class="mt-4 text-white/60">Analyzing calendar performance...</p>
+                </div>
+            `;
+            
+            try {
+                // Prepare request data
+                const requestData = {
+                    campaigns: calendarManager.campaigns,
+                    revenue_goal: calendarManager.currentMonthGoal || 50000,
+                    client_name: calendarManager.selectedClient.name,
+                    client_id: calendarManager.selectedClient.id,
+                    industry_type: calendarManager.selectedClient.industry || 'e-commerce',
+                    audience_segments: calendarManager.affinitySegments.map(s => s.name)
+                };
+                
+                // Call grading API
+                const response = await fetch('/api/calendar/grade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                if (!response.ok) throw new Error('Failed to grade calendar');
+                
+                const gradingData = await response.json();
+                currentGradingData = gradingData;
+                
+                // Render grading results
+                renderGradingResults(gradingData);
+                
+                // Update the FAB with the grade
+                updateGradeFAB(gradingData.overall_grade, gradingData.score);
+                
+            } catch (error) {
+                console.error('Grading error:', error);
+                showToast('Failed to grade calendar', 'error');
+                document.getElementById('gradingResults').innerHTML = `
+                    <div class="text-center py-12">
+                        <p class="text-red-400">Failed to analyze calendar. Please try again.</p>
+                        <p class="text-sm text-white/50 mt-2">${error.message || 'Unknown error occurred'}</p>
+                    </div>
+                `;
+                // Don't try to update the FAB on error
+                return;
+            }
+        }
+        
+        function renderGradingResults(data) {
+            const gradeColors = {
+                'A+': '#00FF00',
+                'A': '#7FFF00',
+                'B': '#FFFF00',
+                'C': '#FFA500',
+                'D': '#FF4500',
+                'F': '#FF0000'
+            };
+            
+            const gradeColor = gradeColors[data.overall_grade] || '#FFFFFF';
+            
+            let html = `
+                <div class="grade-header text-center mb-8">
+                    <div class="inline-block">
+                        <div class="text-6xl font-black mb-2" style="color: ${gradeColor}; text-shadow: 0 0 20px ${gradeColor};">
+                            ${data.overall_grade}
+                        </div>
+                        <div class="text-2xl text-white/80">${data.score}/100 points</div>
+                    </div>
+                </div>
+                
+                <!-- Score Breakdown -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    ${renderScoreSection('📊 Revenue Alignment', data.revenue_score)}
+                    ${renderScoreSection('⏰ Timing & Spacing', data.timing_score)}
+                    ${renderScoreSection('😴 Audience Fatigue', data.fatigue_score)}
+                    ${renderScoreSection('📈 Historical Alignment', data.historical_score)}
+                </div>
+                
+                <!-- Top Recommendations -->
+                <div class="glass-card p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-4 gradient-text">🎯 Top Recommendations</h3>
+                    <div class="space-y-3">
+                        ${data.recommendations.map(rec => `
+                            <div class="flex items-start gap-3">
+                                <span class="text-${rec.impact === 'high' ? 'red' : rec.impact === 'medium' ? 'yellow' : 'blue'}-400">
+                                    ${rec.impact === 'high' ? '🔴' : rec.impact === 'medium' ? '🟡' : '🔵'}
+                                </span>
+                                <div class="flex-1">
+                                    <div class="text-sm text-white/60">${rec.category}</div>
+                                    <div class="text-white">${rec.recommendation}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- AI Insights -->
+                ${data.insights.length > 0 ? `
+                    <div class="glass-card p-6">
+                        <h3 class="text-xl font-bold mb-4 gradient-text">💡 AI Insights</h3>
+                        <div class="space-y-2">
+                            ${data.insights.map(insight => `
+                                <div class="text-white/80">• ${insight}</div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+            
+            document.getElementById('gradingResults').innerHTML = html;
+        }
+        
+        function renderScoreSection(title, scoreData) {
+            const percentage = (scoreData.points / scoreData.max_points) * 100;
+            const barColor = percentage >= 80 ? '#00FF00' : percentage >= 60 ? '#FFFF00' : percentage >= 40 ? '#FFA500' : '#FF0000';
+            
+            return `
+                <div class="glass-card p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold">${title}</span>
+                        <span class="text-white/60">${scoreData.points}/${scoreData.max_points}</span>
+                    </div>
+                    <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div class="h-full transition-all duration-500" style="width: ${percentage}%; background: ${barColor};"></div>
+                    </div>
+                    ${scoreData.issues && scoreData.issues.length > 0 ? `
+                        <div class="mt-2 text-xs text-red-400">
+                            ${scoreData.issues[0]}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        function closeGradingModal() {
+            document.getElementById('gradingModal').classList.remove('show');
+            currentGradingData = null;
+        }
+        
+        // Grade calendar silently (just update the grade card, no modal)
+        async function gradeCalendarSilent() {
+            if (!calendarManager.selectedClient || calendarManager.campaigns.length === 0) {
+                return;
+            }
+            
+            try {
+                const requestData = {
+                    campaigns: calendarManager.campaigns,
+                    revenue_goal: calendarManager.currentMonthGoal || 50000,
+                    client_name: calendarManager.selectedClient.name,
+                    client_id: calendarManager.selectedClient.id,
+                    industry_type: calendarManager.selectedClient.industry || 'e-commerce',
+                    audience_segments: calendarManager.affinitySegments.map(s => s.name)
+                };
+                
+                const response = await fetch('/api/calendar/grade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                if (response.ok) {
+                    const gradingData = await response.json();
+                    // Just update the grade display, no modal
+                    updateGradeFAB(gradingData.overall_grade, gradingData.score);
+                    showToast(`📊 New grade: ${gradingData.overall_grade} (${gradingData.score}/100)`, 'info');
+                }
+            } catch (error) {
+                console.error('Silent grading error:', error);
+            }
+        }
+        
+        // Grade calendar and return full data (for internal use, updates modal)
+        async function gradeCalendarFull() {
+            if (!calendarManager.selectedClient || calendarManager.campaigns.length === 0) {
+                return null;
+            }
+            
+            try {
+                const requestData = {
+                    campaigns: calendarManager.campaigns,
+                    revenue_goal: calendarManager.currentMonthGoal || 50000,
+                    client_name: calendarManager.selectedClient.name,
+                    client_id: calendarManager.selectedClient.id,
+                    industry_type: calendarManager.selectedClient.industry || 'e-commerce',
+                    audience_segments: calendarManager.affinitySegments.map(s => s.name),
+                    original_campaigns: originalCalendarState // Include for comparison
+                };
+                
+                const response = await fetch('/api/calendar/grade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                if (response.ok) {
+                    const gradingData = await response.json();
+                    currentGradingData = gradingData;
+                    return gradingData;
+                }
+            } catch (error) {
+                console.error('Grading error:', error);
+            }
+            return null;
+        }
+        
+        // Update the Grade display with the current grade
+        function updateGradeFAB(grade, score) {
+            // Update the stat card
+            const gradeCard = document.querySelector('.grade-card');
+            const gradeDisplay = document.getElementById('gradeDisplay');
+            const curiosityBadge = document.getElementById('curiosityBadge');
+            const hoverHint = document.getElementById('gradeHoverHint');
+            
+            // Check if elements exist
+            if (!gradeCard || !gradeDisplay) {
+                console.error('Grade card elements not found');
+                return;
+            }
+            
+            // Remove all grade classes first
+            gradeCard.className = gradeCard.className.replace(/grade-[a-f]-?[a-z]*/g, '');
+            
+            // Remove the needs-grading animation and curiosity badge
+            gradeCard.classList.remove('needs-grading');
+            if (curiosityBadge) curiosityBadge.style.display = 'none';
+            if (hoverHint) hoverHint.textContent = 'Click to re-grade';
+            
+            // Add the appropriate grade class for background gradient
+            const gradeClass = {
+                'A+': 'grade-a-plus',
+                'A': 'grade-a',
+                'B': 'grade-b',
+                'B+': 'grade-b',
+                'C': 'grade-c',
+                'C+': 'grade-c',
+                'D': 'grade-d',
+                'D+': 'grade-d',
+                'F': 'grade-f'
+            }[grade] || 'grade-c';
+            
+            gradeCard.classList.add(gradeClass);
+            gradeCard.classList.add('has-grade');
+            
+            // Show the grade in the gradeDisplay element
+            gradeDisplay.textContent = grade;
+            gradeDisplay.style.fontSize = '36px'; // Match the stat-value size
+            
+            // Set color based on grade
+            const gradeColors = {
+                'A+': '#00FF00',
+                'A': '#7FFF00',
+                'B+': '#9ACD32',
+                'B': '#FFFF00',
+                'C+': '#FFD700',
+                'C': '#FFA500',
+                'D+': '#FF8C00',
+                'D': '#FF4500',
+                'F': '#FF0000'
+            };
+            
+            const color = gradeColors[grade] || '#FFFFFF';
+            gradeDisplay.style.color = color;
+            gradeDisplay.style.textShadow = `0 0 20px ${color}`;
+            
+            // Add special border glow based on grade quality
+            if (score >= 95) {
+                gradeCard.style.borderColor = 'rgba(0, 255, 0, 0.6)';
+                gradeCard.style.boxShadow = '0 0 30px rgba(0, 255, 0, 0.4), inset 0 0 20px rgba(0, 255, 0, 0.1)';
+            } else if (score >= 90) {
+                gradeCard.style.borderColor = 'rgba(127, 255, 0, 0.5)';
+                gradeCard.style.boxShadow = '0 0 25px rgba(127, 255, 0, 0.3)';
+            } else if (score >= 80) {
+                gradeCard.style.borderColor = 'rgba(255, 255, 0, 0.5)';
+                gradeCard.style.boxShadow = '0 0 20px rgba(255, 255, 0, 0.3)';
+            } else if (score >= 70) {
+                gradeCard.style.borderColor = 'rgba(255, 215, 0, 0.5)';
+                gradeCard.style.boxShadow = '0 0 20px rgba(255, 215, 0, 0.3)';
+            } else if (score >= 60) {
+                gradeCard.style.borderColor = 'rgba(255, 165, 0, 0.5)';
+                gradeCard.style.boxShadow = '0 0 20px rgba(255, 165, 0, 0.3)';
+            } else {
+                gradeCard.style.borderColor = 'rgba(255, 69, 0, 0.5)';
+                gradeCard.style.boxShadow = '0 0 20px rgba(255, 69, 0, 0.3)';
+            }
+        }
+        
+        async function applyGradeRecommendations() {
+            if (!currentGradingData) return;
+            
+            showToast('✨ Applying AI recommendations...', 'info');
+            
+            // Show processing state
+            const resultsDiv = document.getElementById('gradingResults');
+            const originalContent = resultsDiv.innerHTML;
+            
+            resultsDiv.innerHTML += `
+                <div class="mt-6 p-4 glass-card">
+                    <div class="flex items-center gap-3">
+                        <div class="animate-spin rounded-full h-6 w-6 border-2 border-lime-400 border-t-transparent"></div>
+                        <span class="text-white/80">Optimizing calendar with AI workflow...</span>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                // Call the campaign optimizer workflow
+                const optimizationRequest = {
+                    grading_data: currentGradingData,
+                    current_campaigns: calendarManager.campaigns,
+                    revenue_goal: calendarManager.currentMonthGoal || 50000,
+                    client_context: {
+                        client_id: calendarManager.selectedClient.id,
+                        client_name: calendarManager.selectedClient.name,
+                        industry: calendarManager.selectedClient.industry || 'e-commerce',
+                        segments: calendarManager.affinitySegments
+                    },
+                    optimization_level: 'balanced' // Can be aggressive, balanced, or conservative
+                };
+                
+                // Execute optimizations directly on the calendar
+                const optimizations = await executeOptimizations(currentGradingData);
+                
+                // Apply each optimization with visual feedback
+                let appliedCount = 0;
+                for (const optimization of optimizations) {
+                    await applyOptimization(optimization);
+                    appliedCount++;
+                    showToast(`Applied ${appliedCount}/${optimizations.length} optimizations...`, 'info');
+                }
+                
+                // Update calendar display
+                calendarManager.renderCalendar();
+                calendarManager.updateStats();
+                
+                // Show success and update grade indicator
+                showToast(`✅ Applied ${appliedCount} AI optimizations successfully!`, 'success');
+                
+                // Re-grade the calendar silently to update the main dashboard
+                await gradeCalendarSilent();
+                
+                // Save changes to Firestore
+                calendarManager.saveToCloud();
+                
+                // Also update the modal to show new grade
+                resultsDiv.innerHTML = `
+                    <div class="glass-card p-6 text-center">
+                        <div class="text-6xl mb-4">🎉</div>
+                        <h3 class="text-2xl font-bold text-lime-400 mb-2">Optimizations Applied!</h3>
+                        <p class="text-white/60 mb-4">Your calendar has been improved. Recalculating grade...</p>
+                        <div class="animate-spin rounded-full h-8 w-8 border-2 border-lime-400 border-t-transparent mx-auto"></div>
+                    </div>
+                `;
+                
+                // Re-grade to show improvement in the modal
+                setTimeout(async () => {
+                    const newGradingData = await gradeCalendarFull();
+                    if (newGradingData) {
+                        renderGradingResults(newGradingData);
+                        // Update the main dashboard again with the final grade
+                        updateGradeFAB(newGradingData.overall_grade, newGradingData.score);
+                        
+                        setTimeout(() => {
+                            closeGradingModal();
+                        }, 2000);
+                    }
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Optimization error:', error);
+                showToast('Failed to apply optimizations', 'error');
+                resultsDiv.innerHTML = originalContent;
+            }
+        }
+        
+        // Execute optimizations based on grading data
+        async function executeOptimizations(gradingData) {
+            const optimizations = [];
+            
+            // 1. Fix timing issues
+            if (gradingData.timing_score.points < 15) {
+                optimizations.push(...generateSpacingOptimizations());
+            }
+            
+            // 2. Fix revenue issues
+            if (gradingData.revenue_score.points < 30) {
+                optimizations.push(...generateRevenueOptimizations(gradingData.revenue_score));
+            }
+            
+            // 3. Fix audience fatigue
+            if (gradingData.fatigue_score.points < 15) {
+                optimizations.push(...generateFatigueOptimizations(gradingData.fatigue_score));
+            }
+            
+            return optimizations;
+        }
+        
+        // Generate spacing optimizations
+        function generateSpacingOptimizations() {
+            const optimizations = [];
+            const sortedCampaigns = [...calendarManager.campaigns].sort((a, b) => a.date - b.date);
+            
+            for (let i = 0; i < sortedCampaigns.length - 1; i++) {
+                const current = sortedCampaigns[i];
+                const next = sortedCampaigns[i + 1];
+                const daysDiff = Math.floor((next.date - current.date) / (1000 * 60 * 60 * 24));
+                
+                // If campaigns are too close, move the second one
+                if (daysDiff < 3) {
+                    const newDate = new Date(current.date);
+                    newDate.setDate(newDate.getDate() + 3);
+                    
+                    optimizations.push({
+                        type: 'move',
+                        campaign: next,
+                        oldDate: next.date,
+                        newDate: newDate,
+                        reason: 'Improve campaign spacing'
+                    });
+                }
+            }
+            
+            return optimizations;
+        }
+        
+        // Generate revenue optimizations
+        function generateRevenueOptimizations(revenueScore) {
+            const optimizations = [];
+            const gap = revenueScore.gap;
+            
+            if (gap > 0) {
+                // Calculate how many campaigns to add
+                const campaignsNeeded = Math.min(3, Math.ceil(gap / 8000));
+                
+                // Find best dates to add campaigns
+                const availableDates = findAvailableDates();
+                
+                for (let i = 0; i < campaignsNeeded && i < availableDates.length; i++) {
+                    optimizations.push({
+                        type: 'add',
+                        campaign: {
+                            name: `Revenue Booster ${i + 1}`,
+                            type: 'promotional',
+                            date: availableDates[i],
+                            channel: i % 2 === 0 ? 'email' : 'sms',
+                            segment: calendarManager.affinitySegments[i % calendarManager.affinitySegments.length]?.name || 'all',
+                            metrics: { revenue: 8000, openRate: 0.28, clickRate: 0.08 }
+                        },
+                        reason: 'Close revenue gap'
+                    });
+                }
+            }
+            
+            return optimizations;
+        }
+        
+        // Generate audience fatigue optimizations
+        function generateFatigueOptimizations(fatigueScore) {
+            const optimizations = [];
+            const segmentCounts = fatigueScore.segment_distribution || {};
+            
+            // Find over-used segments
+            for (const [segment, count] of Object.entries(segmentCounts)) {
+                if (count > 4) {
+                    // Find campaigns using this segment and change some
+                    const overusedCampaigns = calendarManager.campaigns
+                        .filter(c => c.segment === segment)
+                        .slice(2); // Keep first 2, change the rest
+                    
+                    for (const campaign of overusedCampaigns) {
+                        const newSegment = calendarManager.affinitySegments.find(s => s.name !== segment)?.name || 'engaged_users';
+                        optimizations.push({
+                            type: 'change_segment',
+                            campaign: campaign,
+                            oldSegment: segment,
+                            newSegment: newSegment,
+                            reason: 'Reduce audience fatigue'
+                        });
+                    }
+                }
+            }
+            
+            // Add SMS if missing
+            const channelCounts = fatigueScore.channel_distribution || {};
+            if (channelCounts.sms === 0 && calendarManager.campaigns.length > 4) {
+                // Convert some emails to SMS
+                const emailCampaigns = calendarManager.campaigns.filter(c => c.channel === 'email').slice(0, 2);
+                for (const campaign of emailCampaigns) {
+                    optimizations.push({
+                        type: 'change_channel',
+                        campaign: campaign,
+                        oldChannel: 'email',
+                        newChannel: 'sms',
+                        reason: 'Add channel diversity'
+                    });
+                }
+            }
+            
+            return optimizations;
+        }
+        
+        // Find available dates for new campaigns
+        function findAvailableDates() {
+            const occupiedDates = new Set(calendarManager.campaigns.map(c => c.date.toDateString()));
+            const availableDates = [];
+            const currentMonth = calendarManager.selectedDate.getMonth();
+            const currentYear = calendarManager.selectedDate.getFullYear();
+            
+            // Check each day of the month
+            for (let day = 1; day <= 31; day++) {
+                const date = new Date(currentYear, currentMonth, day);
+                if (date.getMonth() !== currentMonth) break; // Went to next month
+                
+                // Skip weekends for B2B
+                if (date.getDay() === 0 || date.getDay() === 6) continue;
+                
+                // Check if date is available and has good spacing
+                if (!occupiedDates.has(date.toDateString())) {
+                    // Check spacing from other campaigns
+                    let hasGoodSpacing = true;
+                    for (const campaign of calendarManager.campaigns) {
+                        const daysDiff = Math.abs(Math.floor((campaign.date - date) / (1000 * 60 * 60 * 24)));
+                        if (daysDiff < 3) {
+                            hasGoodSpacing = false;
+                            break;
+                        }
+                    }
+                    
+                    if (hasGoodSpacing) {
+                        availableDates.push(date);
+                    }
+                }
+            }
+            
+            return availableDates;
+        }
+        
+        // Apply a single optimization to the calendar
+        async function applyOptimization(optimization) {
+            calendarManager.saveState(); // Save for undo
+            
+            switch (optimization.type) {
+                case 'move':
+                    // Find the actual campaign in the manager and update its date
+                    const moveTarget = calendarManager.campaigns.find(c => c.id === optimization.campaign.id);
+                    if (moveTarget) {
+                        moveTarget.date = new Date(optimization.newDate);
+                        // Campaign moved
+                    }
+                    break;
+                    
+                case 'add':
+                    const newCampaign = {
+                        id: `ai-${Date.now()}`,
+                        name: optimization.campaign.name || 'AI Suggested Campaign',
+                        type: optimization.campaign.type || 'promotional',
+                        segment: optimization.campaign.segment || 'all',
+                        channel: optimization.campaign.channel || 'email',
+                        date: new Date(optimization.campaign.date),
+                        metrics: optimization.campaign.metrics || { revenue: 5000, openRate: 0.25, clickRate: 0.05 },
+                        gradient: calendarManager.getTypeGradient(optimization.campaign.type || 'promotional'),
+                        emoji: calendarManager.getTypeEmoji(optimization.campaign.type || 'promotional')
+                    };
+                    calendarManager.campaigns.push(newCampaign);
+                    // Campaign added
+                    break;
+                    
+                case 'change_segment':
+                    const segmentTarget = calendarManager.campaigns.find(c => c.id === optimization.campaign.id);
+                    if (segmentTarget) {
+                        segmentTarget.segment = optimization.newSegment;
+                        // Segment changed
+                    }
+                    break;
+                    
+                case 'change_channel':
+                    const channelTarget = calendarManager.campaigns.find(c => c.id === optimization.campaign.id);
+                    if (channelTarget) {
+                        channelTarget.channel = optimization.newChannel;
+                        // Channel changed
+                    }
+                    break;
+                    
+                case 'delete':
+                    const deleteIndex = calendarManager.campaigns.findIndex(c => c.id === optimization.campaign.id);
+                    if (deleteIndex > -1) {
+                        const deleted = calendarManager.campaigns.splice(deleteIndex, 1)[0];
+                        // Campaign deleted
+                    }
+                    break;
+            }
+            
+            // Small delay for visual effect
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        // Helper Functions
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show';
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function showSaveStatus(type, message) {
+            const status = document.getElementById('saveStatus');
+            const text = document.getElementById('saveStatusText');
+            
+            status.className = `save-status ${type} show`;
+            text.textContent = message;
+            
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Multi-Day Campaign Functions
+        function openMultiDayCampaignModal() {
+            if (!calendarManager.selectedClient) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+            
+            const modal = document.getElementById('multiDayCampaignModal');
+            modal.classList.add('show');
+            
+            // Set default dates
+            const today = new Date();
+            const nextWeek = new Date(today);
+            nextWeek.setDate(today.getDate() + 7);
+            
+            document.getElementById('multiDayStartDate').value = today.toISOString().split('T')[0];
+            document.getElementById('multiDayEndDate').value = nextWeek.toISOString().split('T')[0];
+            
+            updateMultiDayPreview();
+        }
+        
+        function closeMultiDayCampaignModal() {
+            const modal = document.getElementById('multiDayCampaignModal');
+            modal.classList.remove('show');
+            
+            // Clear form
+            document.getElementById('multiDayCampaignForm').reset();
+            document.getElementById('multiDayPreview').textContent = 'Select dates to see duration';
+        }
+        
+        function updateMultiDayPreview() {
+            const startDate = document.getElementById('multiDayStartDate').value;
+            const endDate = document.getElementById('multiDayEndDate').value;
+            const preview = document.getElementById('multiDayPreview');
+            
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                
+                if (end >= start) {
+                    const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    
+                    preview.innerHTML = `
+                        <span class="text-lime-400">${duration} day${duration > 1 ? 's' : ''}</span>
+                        <span class="text-white/60 text-sm ml-2">(${startStr} - ${endStr})</span>
+                    `;
+                } else {
+                    preview.innerHTML = '<span class="text-red-400">End date must be after start date</span>';
+                }
+            } else {
+                preview.textContent = 'Select dates to see duration';
+            }
+        }
+        
+        function createMultiDayCampaign(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('multiDayName').value;
+            const startDate = document.getElementById('multiDayStartDate').value;
+            const endDate = document.getElementById('multiDayEndDate').value;
+            const type = document.getElementById('multiDayType').value;
+            const description = document.getElementById('multiDayDescription').value;
+            
+            // Validate dates
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            if (end < start) {
+                showToast('End date must be after start date', 'error');
+                return;
+            }
+            
+            // Create the multi-day campaign
+            calendarManager.addMultiDayCampaign(startDate, endDate, name, type, description);
+            
+            // Close modal
+            closeMultiDayCampaignModal();
+        }
+        
+        function showMultiDayCampaignDetails(campaignId) {
+            const campaign = calendarManager.multiDayCampaigns.find(c => c.id === campaignId);
+            if (!campaign) return;
+            
+            const duration = Math.ceil((new Date(campaign.endDate) - new Date(campaign.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+            const startStr = new Date(campaign.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+            const endStr = new Date(campaign.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            
+            const modal = document.getElementById('campaignModal');
+            const details = document.getElementById('campaignDetails');
+            
+            details.innerHTML = `
+                <h3 class="text-2xl font-black gradient-text mb-4">${campaign.emoji || '📅'} ${campaign.name}</h3>
+                <div class="space-y-3">
+                    <div class="detail-row">
+                        <span class="detail-label">Duration:</span>
+                        <span class="detail-value">${duration} days</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Dates:</span>
+                        <span class="detail-value">${startStr} - ${endStr}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Type:</span>
+                        <span class="detail-value">${campaign.type}</span>
+                    </div>
+                    ${campaign.description ? `
+                        <div class="detail-row">
+                            <span class="detail-label">Description:</span>
+                            <span class="detail-value">${campaign.description}</span>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button onclick="deleteMultiDayCampaign('${campaign.id}')" class="glow-button text-red-400 border-red-400/50">
+                        Delete Campaign
+                    </button>
+                </div>
+            `;
+            
+            modal.classList.add('show');
+        }
+        
+        function deleteMultiDayCampaign(campaignId) {
+            if (confirm('Are you sure you want to delete this multi-day campaign?')) {
+                calendarManager.multiDayCampaigns = calendarManager.multiDayCampaigns.filter(c => c.id !== campaignId);
+                calendarManager.renderCalendar();
+                calendarManager.saveToCloud();
+                closeCampaignModal();
+                showToast('Multi-day campaign deleted');
+            }
+        }
+        
+        function showClientModal() {
+            document.getElementById('clientModal').classList.add('show');
+        }
+        
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('show');
+        }
+        
+        function selectClient(clientId) {
+            calendarManager.selectClient(clientId);
+        }
+        
+        function generateWithAI() {
+            // Show context modal first
+            const modal = document.getElementById('contextModal');
+            if (modal) {
+                modal.classList.add('show');
+                setTimeout(() => {
+                    const contextInput = document.getElementById('additionalContext');
+                    if (contextInput) contextInput.focus();
+                }, 100);
+            } else {
+                // Fallback to direct generation if modal not found
+                console.warn('Context modal not found, generating directly');
+                calendarManager.generateWithAI();
+            }
+        }
+        
+        function createSingleCampaign() {
+            // Placeholder for future functionality
+            if (!calendarManager.selectedClient) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+            
+            // For now, just open the create campaign modal
+            // In the future, this will integrate with a campaign creation workflow
+            showToast('Campaign creation coming soon!', 'info');
+            
+            // You can uncomment this to open the modal for a specific day
+            // calendarManager.openCreateCampaignModal(new Date().getDate());
+        }
+        
+        function closeContextModal() {
+            const modal = document.getElementById('contextModal');
+            if (modal) {
+                modal.classList.remove('show');
+                const contextInput = document.getElementById('additionalContext');
+                if (contextInput) contextInput.value = '';
+            }
+        }
+        
+        function submitContextAndGenerate() {
+            const contextInput = document.getElementById('additionalContext');
+            const additionalContext = contextInput ? contextInput.value.trim() : '';
+            
+            // Close the modal
+            closeContextModal();
+            
+            // Pass the context to the calendar manager
+            calendarManager.generateWithAI(additionalContext);
+        }
+
+        // New CRUD Functions
+        function duplicateCampaign(campaignId) {
+            calendarManager.duplicateCampaign(campaignId);
+        }
+
+        function editCampaign(campaignId) {
+            calendarManager.editCampaign(campaignId);
+        }
+
+        function confirmDeleteCampaign(campaignId) {
+            calendarManager.confirmDeleteCampaign(campaignId);
+        }
+
+        // Handle list view button actions with proper event handling
+        function handleListAction(event, action, campaignId) {
+            // Prevent event from bubbling up to parent elements
+            event.stopPropagation();
+            event.preventDefault();
+            
+            // Execute the appropriate action
+            switch(action) {
+                case 'duplicate':
+                    duplicateCampaign(campaignId);
+                    break;
+                case 'edit':
+                    editCampaign(campaignId);
+                    break;
+                case 'delete':
+                    confirmDeleteCampaign(campaignId);
+                    break;
+                default:
+                    console.error('Unknown action:', action);
+            }
+            
+            // Prevent any default behavior
+            return false;
+        }
+
+        async function createApprovalPage() {
+            if (!calendarManager.selectedClient) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+            
+            if (calendarManager.campaigns.length === 0) {
+                showToast('No campaigns to share. Add some campaigns first!', 'warning');
+                return;
+            }
+            
+            // Show the aviation loading animation
+            showAviationLoader();
+            
+            // First save the calendar data
+            await calendarManager.saveToCloud();
+            
+            const client = calendarManager.selectedClient;
+            const date = calendarManager.selectedDate;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+            
+            // Generate approval page ID and URL
+            const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
+            // Use relative URL for development, can be changed to production URL later
+            const baseUrl = window.location.origin;
+            const approvalUrl = `${baseUrl}/calendar-approval/${approvalId}`;
+            
+            try {
+                // Store approval page data in Firestore
+                const response = await fetch('/api/calendar/approval/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        approval_id: approvalId,
+                        client_id: client.id,
+                        client_name: client.name,
+                        client_slug: client.client_slug,
+                        year: year,
+                        month: month,
+                        month_name: monthName,
+                        campaigns: calendarManager.campaigns.map(c => ({
+                            ...c,
+                            date: c.date.toISOString()
+                        })),
+                        created_at: new Date().toISOString(),
+                        status: 'pending',
+                        editable: true
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to create approval page');
+                
+                const result = await response.json();
+                
+                // Hide loader and show success modal with the URL
+                hideAviationLoader();
+                showApprovalPageModal(approvalUrl, client.name, monthName, year);
+                
+                // Update approval status badge immediately
+                checkApprovalStatus();
+                
+            } catch (error) {
+                console.error('Error creating approval page:', error);
+                hideAviationLoader();
+                showToast('Failed to create approval page', 'error');
+            }
+        }
+        
+        // Check and display approval status
+        async function checkApprovalStatus() {
+            if (!calendarManager.selectedClient) return;
+            
+            const client = calendarManager.selectedClient;
+            const date = calendarManager.selectedDate;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
+            
+            try {
+                const response = await fetch(`/api/calendar/approval/${approvalId}`);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    const status = result.data.status || 'pending';
+                    updateApprovalStatusBadge(status, result.data);
+                } else {
+                    // No approval exists yet
+                    hideApprovalStatusBadge();
+                }
+            } catch (error) {
+                console.error('Error checking approval status:', error);
+                hideApprovalStatusBadge();
+            }
+        }
+        
+        function updateApprovalStatusBadge(status, approvalData) {
+            const statusBar = document.getElementById('approvalStatusBar');
+            const statusText = document.getElementById('approvalStatusText');
+            const unapproveBtn = document.getElementById('unapproveBtn');
+            
+            if (!statusBar || !statusText) return;
+            
+            // Hide for pending status only
+            if (status === 'pending') {
+                statusBar.classList.add('hidden');
+                return;
+            }
+            
+            // Show the status bar
+            statusBar.classList.remove('hidden');
+            
+            // Format dates
+            let statusDate = '';
+            if (status === 'approved' && approvalData?.approved_at) {
+                const date = new Date(approvalData.approved_at.seconds * 1000);
+                statusDate = date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                });
+            } else if (status === 'changes_requested' && approvalData?.updated_at) {
+                const date = new Date(approvalData.updated_at.seconds * 1000);
+                statusDate = date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric' 
+                });
+            }
+            
+            // Update content based on status
+            if (status === 'approved') {
+                // Approved status - green and prominent
+                statusText.innerHTML = `
+                    <span class="inline-flex items-center px-3 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                        <span class="text-base mr-1">✓</span>
+                        <span class="font-semibold">Client Approved</span>
+                        ${statusDate ? `<span class="text-green-300/70 ml-2 text-xs">${statusDate}</span>` : ''}
+                    </span>
+                `;
+                // Show unapprove button for approved status
+                if (unapproveBtn) {
+                    unapproveBtn.style.display = 'inline';
+                }
+            } else if (status === 'changes_requested') {
+                // Changes requested - orange and prominent
+                statusText.innerHTML = `
+                    <span class="inline-flex items-center px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                        <span class="text-base mr-1">⚠</span>
+                        <span class="font-semibold">Changes Requested</span>
+                        ${statusDate ? `<span class="text-orange-300/70 ml-2 text-xs">${statusDate}</span>` : ''}
+                    </span>
+                `;
+                // Hide unapprove button for changes requested
+                if (unapproveBtn) {
+                    unapproveBtn.style.display = 'none';
+                }
+            }
+            
+            // Store approval data for unapprove function
+            if (unapproveBtn) {
+                unapproveBtn.dataset.approvalId = approvalData?.id || '';
+            }
+        }
+        
+        function hideApprovalStatusBadge() {
+            const statusBar = document.getElementById('approvalStatusBar');
+            if (statusBar) statusBar.classList.add('hidden');
+        }
+        
+        // New function to unapprove calendar (global)
+        window.unapproveCalendar = async function() {
+            if (!confirm('Remove approval status from this calendar?')) return;
+            
+            const client = calendarManager.selectedClient;
+            const date = calendarManager.selectedDate;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
+            
+            try {
+                // Update the approval document to remove approved status
+                const response = await fetch(`/api/calendar/approval/${approvalId}/unapprove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    hideApprovalStatusBadge();
+                    showToast('Approval status removed');
+                    // Refresh approval status
+                    checkApprovalStatus();
+                } else {
+                    showToast('Failed to remove approval', 'error');
+                }
+            } catch (error) {
+                console.error('Error removing approval:', error);
+                showToast('Failed to remove approval', 'error');
+            }
+        }
+        
+        function showApprovalStatusModal(status, approvalData) {
+            const client = calendarManager.selectedClient;
+            const date = calendarManager.selectedDate;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+            const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
+            const approvalUrl = `${window.location.origin}/calendar-approval/${approvalId}`;
+            
+            let statusInfo = '';
+            let statusColor = '';
+            
+            switch (status) {
+                case 'approved':
+                    statusInfo = 'Your calendar has been approved by the client and is ready for execution.';
+                    statusColor = 'text-green-400';
+                    break;
+                case 'pending':
+                    statusInfo = 'The calendar has been shared with the client and is awaiting their review and approval.';
+                    statusColor = 'text-yellow-400';
+                    break;
+                case 'changes_requested':
+                    statusInfo = 'The client has requested changes to the calendar. Check the approval page for details.';
+                    statusColor = 'text-orange-400';
+                    break;
+            }
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-backdrop';
+            modal.innerHTML = `
+                <div class="modal-content max-w-2xl">
+                    <div class="modal-header">
+                        <h2 class="text-2xl font-bold ${statusColor}">
+                            ${status === 'approved' ? '✅' : status === 'pending' ? '⏳' : '🔧'} 
+                            Calendar ${status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-4">
+                        <div class="text-white/80">${statusInfo}</div>
+                        
+                        ${approvalData.approved_at ? `
+                            <div class="glass-card p-4">
+                                <div class="text-sm text-white/50">Approved At</div>
+                                <div class="font-semibold">${new Date(approvalData.approved_at.seconds * 1000).toLocaleString()}</div>
+                            </div>
+                        ` : ''}
+                        
+                        ${approvalData.has_change_requests ? `
+                            <div class="glass-card p-4 border-orange-500/30">
+                                <div class="text-sm text-orange-400 font-semibold">⚠️ Client has requested changes</div>
+                                <div class="text-white/70 mt-1">Check the approval page for details</div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="glass-card p-4">
+                            <div class="text-sm text-white/50 mb-2">Public Approval URL</div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" value="${approvalUrl}" readonly 
+                                    class="flex-1 bg-black/30 text-white/80 px-3 py-2 rounded text-sm border border-white/10 focus:outline-none">
+                                <button onclick="copyToClipboard('${approvalUrl}'); showToast('URL copied to clipboard!', 'success');" 
+                                    class="glow-button text-sm px-4 py-2">
+                                    📋 Copy
+                                </button>
+                                <button onclick="window.open('${approvalUrl}', '_blank')" 
+                                    class="glow-button primary text-sm px-4 py-2">
+                                    🔗 Open
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button onclick="this.closest('.modal-backdrop').remove()" class="glow-button w-full">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            modal.onclick = (e) => {
+                if (e.target === modal) modal.remove();
+            };
+            
+            document.body.appendChild(modal);
+        }
+        
+        // Show change requests for the current selected month
+        async function showCurrentMonthChangeRequests() {
+            if (!calendarManager.selectedClient) {
+                showToast('Please select a client first', 'error');
+                return;
+            }
+            
+            // Load change requests for the current month
+            await calendarManager.loadChangeRequests();
+            
+            // Check if the change requests section is visible
+            const section = document.getElementById('changeRequestsSection');
+            if (section && !section.classList.contains('hidden')) {
+                // Scroll to the change requests section
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                showToast('Change requests displayed above', 'info');
+            } else {
+                showToast('No change requests for this month', 'info');
+            }
+        }
+        
+        // Change Requests Management (Admin Panel)
+        async function showChangeRequestsPanel() {
+            try {
+                const response = await fetch('/api/calendar/admin/change-requests?status=all&limit=100');
+                if (!response.ok) throw new Error('Failed to load change requests');
+                
+                const result = await response.json();
+                const requests = result.change_requests || [];
+                
+                const modal = document.createElement('div');
+                modal.className = 'modal-backdrop';
+                modal.id = 'changeRequestsModal';
+                
+                const pendingRequests = requests.filter(r => r.status === 'pending');
+                const inProgressRequests = requests.filter(r => r.status === 'in_progress');
+                const completedRequests = requests.filter(r => r.status === 'completed');
+                const rejectedRequests = requests.filter(r => r.status === 'rejected');
+                
+                modal.innerHTML = `
+                    <div class="modal-content max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div class="modal-header">
+                            <h2 class="text-3xl font-bold">
+                                <span class="text-2xl mr-2">🔧</span>
+                                Change Requests Management
+                            </h2>
+                            <div class="flex items-center gap-4 text-sm">
+                                <span class="bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full">
+                                    ${pendingRequests.length} Pending
+                                </span>
+                                <span class="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full">
+                                    ${inProgressRequests.length} In Progress
+                                </span>
+                                <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full">
+                                    ${completedRequests.length} Completed
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6 flex-1 overflow-y-auto">
+                            ${requests.length === 0 ? `
+                                <div class="text-center py-12">
+                                    <div class="text-6xl mb-4">📭</div>
+                                    <div class="text-xl text-white/60">No change requests yet</div>
+                                    <div class="text-sm text-white/40 mt-2">Clients can request changes through approval pages</div>
+                                </div>
+                            ` : `
+                                <!-- Pending Requests -->
+                                ${pendingRequests.length > 0 ? `
+                                    <div class="mb-8">
+                                        <h3 class="text-xl font-bold text-orange-400 mb-4 flex items-center gap-2">
+                                            <span>⏳</span> Pending Requests (${pendingRequests.length})
+                                        </h3>
+                                        <div class="grid gap-4">
+                                            ${pendingRequests.map(request => renderChangeRequest(request)).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- In Progress Requests -->
+                                ${inProgressRequests.length > 0 ? `
+                                    <div class="mb-8">
+                                        <h3 class="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+                                            <span>🔄</span> In Progress (${inProgressRequests.length})
+                                        </h3>
+                                        <div class="grid gap-4">
+                                            ${inProgressRequests.map(request => renderChangeRequest(request)).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Completed Requests -->
+                                ${completedRequests.length > 0 ? `
+                                    <div class="mb-8">
+                                        <h3 class="text-xl font-bold text-green-400 mb-4 flex items-center gap-2">
+                                            <span>✅</span> Completed (${completedRequests.length})
+                                        </h3>
+                                        <div class="grid gap-4">
+                                            ${completedRequests.map(request => renderChangeRequest(request)).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Rejected Requests -->
+                                ${rejectedRequests.length > 0 ? `
+                                    <div class="mb-8">
+                                        <h3 class="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
+                                            <span>❌</span> Rejected (${rejectedRequests.length})
+                                        </h3>
+                                        <div class="grid gap-4">
+                                            ${rejectedRequests.map(request => renderChangeRequest(request)).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            `}
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button onclick="document.getElementById('changeRequestsModal').remove()" class="glow-button w-full">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                modal.onclick = (e) => {
+                    if (e.target === modal) modal.remove();
+                };
+                
+                document.body.appendChild(modal);
+                
+            } catch (error) {
+                console.error('Error loading change requests:', error);
+                showToast('Failed to load change requests', 'error');
+            }
+        }
+        
+        function renderChangeRequest(request) {
+            const createdDate = new Date(request.created_at).toLocaleString();
+            const requestedDate = request.requested_at ? new Date(request.requested_at).toLocaleString() : 'N/A';
+            
+            const statusColors = {
+                'pending': 'border-orange-500/30 bg-orange-500/10',
+                'in_progress': 'border-blue-500/30 bg-blue-500/10', 
+                'completed': 'border-green-500/30 bg-green-500/10',
+                'rejected': 'border-red-500/30 bg-red-500/10'
+            };
+            
+            const statusIcons = {
+                'pending': '⏳',
+                'in_progress': '🔄',
+                'completed': '✅', 
+                'rejected': '❌'
+            };
+            
+            return `
+                <div class="glass-card p-6 border ${statusColors[request.status] || statusColors.pending}">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <div class="text-lg font-bold text-white">
+                                ${request.client_name || 'Unknown Client'}
+                            </div>
+                            <div class="text-sm text-white/60">
+                                Approval ID: ${request.approval_id}
+                            </div>
+                            <div class="text-sm text-white/50">
+                                Requested: ${requestedDate} • Created: ${createdDate}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl">${statusIcons[request.status]}</span>
+                            <select onchange="updateChangeRequestStatus('${request.id}', this.value)" 
+                                class="bg-black/30 text-white px-3 py-1 rounded border border-white/20 text-sm">
+                                <option value="pending" ${request.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                <option value="in_progress" ${request.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="completed" ${request.status === 'completed' ? 'selected' : ''}>Completed</option>
+                                <option value="rejected" ${request.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="text-sm text-white/50 mb-2">Client Request:</div>
+                        <div class="bg-black/20 p-4 rounded-lg text-white/90 whitespace-pre-wrap">
+                            ${request.change_request || 'No description provided'}
+                        </div>
+                    </div>
+                    
+                    ${request.tasks && request.tasks.length > 0 ? `
+                        <div class="mb-4">
+                            <div class="text-sm text-white/50 mb-2">Parsed Tasks:</div>
+                            <div class="space-y-2">
+                                ${request.tasks.map((task, index) => `
+                                    <div class="flex items-center gap-2 text-sm">
+                                        <span class="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center text-xs">
+                                            ${index + 1}
+                                        </span>
+                                        <span class="flex-1">${task.description}</span>
+                                        <span class="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">
+                                            ${task.type}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="flex gap-2">
+                        <button onclick="viewApprovalPage('${request.approval_id}')" 
+                            class="glow-button text-sm px-4 py-2">
+                            🔗 View Approval Page
+                        </button>
+                        <button onclick="copyToClipboard('${window.location.origin}/calendar-approval/${request.approval_id}'); showToast('URL copied!', 'success');"
+                            class="glow-button text-sm px-4 py-2">
+                            📋 Copy URL
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function updateChangeRequestStatus(requestId, newStatus) {
+            try {
+                const response = await fetch(`/api/calendar/admin/change-requests/${requestId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
+                if (!response.ok) throw new Error('Failed to update status');
+                
+                showToast(`Status updated to ${newStatus}`, 'success');
+                
+                // Refresh the panel
+                document.getElementById('changeRequestsModal').remove();
+                showChangeRequestsPanel();
+                
+            } catch (error) {
+                console.error('Error updating change request status:', error);
+                showToast('Failed to update status', 'error');
+            }
+        }
+        
+        function viewApprovalPage(approvalId) {
+            const url = `${window.location.origin}/calendar-approval/${approvalId}`;
+            window.open(url, '_blank');
+        }
+        
+        function showAviationLoader() {
+            const loader = document.createElement('div');
+            loader.id = 'aviationLoader';
+            loader.className = 'modal-backdrop';
+            loader.style.cssText = 'display: flex; z-index: 10000; background: radial-gradient(ellipse at center, rgba(15, 15, 30, 0.95) 0%, rgba(0, 0, 0, 0.98) 100%);';
+            
+            loader.innerHTML = `
+                <div class="modal-content" style="max-width: 500px; background: transparent; border: none; overflow: visible;">
+                    <div class="text-center" style="position: relative;">
+                        <!-- Sky and clouds background -->
+                        <div style="position: absolute; inset: -100px; pointer-events: none;">
+                            <div class="cloud cloud-1">☁️</div>
+                            <div class="cloud cloud-2">☁️</div>
+                            <div class="cloud cloud-3">☁️</div>
+                            <div class="stars">✨</div>
+                            <div class="stars stars-2">⭐</div>
+                            <div class="stars stars-3">🌟</div>
+                        </div>
+                        
+                        <!-- Main animation container -->
+                        <div style="position: relative; z-index: 10;">
+                            <!-- Rocket/Plane animation -->
+                            <div class="rocket-container">
+                                <div class="rocket">🚀</div>
+                                <div class="trail">
+                                    <span>📅</span>
+                                    <span>📊</span>
+                                    <span>📈</span>
+                                    <span>💰</span>
+                                </div>
+                            </div>
+                            
+                            <!-- EmailPilot branding -->
+                            <h2 class="text-4xl font-black gradient-text mb-4 mt-8">EmailPilot</h2>
+                            <p class="text-xl text-white/80 mb-2">Preparing for Takeoff!</p>
+                            
+                            <!-- Loading messages that cycle -->
+                            <div class="loading-messages" id="loadingMessage">
+                                <p class="text-white/60">✈️ Fueling up your calendar...</p>
+                            </div>
+                            
+                            <!-- Progress bar -->
+                            <div class="mt-6 bg-white/10 rounded-full h-2 overflow-hidden">
+                                <div class="progress-bar bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-full rounded-full"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <style>
+                    @keyframes fly {
+                        0% {
+                            transform: translateX(-50px) translateY(0) rotate(-5deg);
+                        }
+                        25% {
+                            transform: translateX(0) translateY(-30px) rotate(0deg);
+                        }
+                        50% {
+                            transform: translateX(50px) translateY(-60px) rotate(5deg);
+                        }
+                        75% {
+                            transform: translateX(0) translateY(-90px) rotate(0deg);
+                        }
+                        100% {
+                            transform: translateX(-50px) translateY(-120px) rotate(-5deg) scale(0.5);
+                            opacity: 0;
+                        }
+                    }
+                    
+                    @keyframes float-cloud {
+                        0% { transform: translateX(-100px); opacity: 0; }
+                        10% { opacity: 1; }
+                        90% { opacity: 1; }
+                        100% { transform: translateX(600px); opacity: 0; }
+                    }
+                    
+                    @keyframes twinkle {
+                        0%, 100% { opacity: 0; transform: scale(0.5); }
+                        50% { opacity: 1; transform: scale(1); }
+                    }
+                    
+                    @keyframes trail {
+                        0% { opacity: 0; transform: translateY(0) scale(1); }
+                        50% { opacity: 1; transform: translateY(10px) scale(0.8); }
+                        100% { opacity: 0; transform: translateY(30px) scale(0.5); }
+                    }
+                    
+                    @keyframes progress {
+                        0% { width: 0%; }
+                        100% { width: 100%; }
+                    }
+                    
+                    .rocket-container {
+                        position: relative;
+                        height: 150px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    
+                    .rocket {
+                        font-size: 64px;
+                        animation: fly 3s ease-in-out infinite;
+                        filter: drop-shadow(0 0 20px rgba(138, 108, 247, 0.8));
+                    }
+                    
+                    .trail {
+                        position: absolute;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        top: 80px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                    }
+                    
+                    .trail span {
+                        font-size: 20px;
+                        animation: trail 1s ease-in-out infinite;
+                        animation-delay: calc(var(--i) * 0.1s);
+                    }
+                    
+                    .trail span:nth-child(1) { --i: 0; }
+                    .trail span:nth-child(2) { --i: 1; }
+                    .trail span:nth-child(3) { --i: 2; }
+                    .trail span:nth-child(4) { --i: 3; }
+                    
+                    .cloud {
+                        position: absolute;
+                        font-size: 48px;
+                        opacity: 0.6;
+                        animation: float-cloud 15s linear infinite;
+                    }
+                    
+                    .cloud-1 {
+                        top: 20px;
+                        animation-delay: 0s;
+                    }
+                    
+                    .cloud-2 {
+                        top: 80px;
+                        animation-delay: 5s;
+                        font-size: 36px;
+                    }
+                    
+                    .cloud-3 {
+                        top: 140px;
+                        animation-delay: 10s;
+                        font-size: 42px;
+                    }
+                    
+                    .stars {
+                        position: absolute;
+                        font-size: 24px;
+                        animation: twinkle 2s ease-in-out infinite;
+                    }
+                    
+                    .stars {
+                        top: 10px;
+                        right: 50px;
+                        animation-delay: 0s;
+                    }
+                    
+                    .stars-2 {
+                        top: 60px;
+                        left: 40px;
+                        animation-delay: 0.5s;
+                    }
+                    
+                    .stars-3 {
+                        top: 100px;
+                        right: 80px;
+                        animation-delay: 1s;
+                    }
+                    
+                    .progress-bar {
+                        animation: progress 3s ease-out forwards;
+                    }
+                    
+                    .loading-messages {
+                        min-height: 24px;
+                        margin: 16px 0;
+                    }
+                </style>
+            `;
+            
+            document.body.appendChild(loader);
+            
+            // Cycle through fun loading messages
+            const messages = [
+                "✈️ Fueling up your calendar...",
+                "🚁 Loading campaign cargo...",
+                "🛸 Engaging hyperdrive...",
+                "🎯 Calibrating email trajectories...",
+                "📡 Establishing cloud connection...",
+                "🌤️ Clearing the runway...",
+                "🚀 Initiating launch sequence...",
+                "⭐ Navigating to the cloud...",
+                "🛩️ EmailPilot ready for departure!"
+            ];
+            
+            let messageIndex = 0;
+            const messageElement = document.getElementById('loadingMessage');
+            
+            const messageInterval = setInterval(() => {
+                messageIndex = (messageIndex + 1) % messages.length;
+                if (messageElement) {
+                    messageElement.innerHTML = `<p class="text-white/60">${messages[messageIndex]}</p>`;
+                }
+            }, 800);
+            
+            // Store interval ID for cleanup
+            loader.messageInterval = messageInterval;
+        }
+        
+        function hideAviationLoader() {
+            const loader = document.getElementById('aviationLoader');
+            if (loader) {
+                // Clear the message interval
+                if (loader.messageInterval) {
+                    clearInterval(loader.messageInterval);
+                }
+                
+                // Add fade out animation
+                loader.style.animation = 'fadeOut 0.5s ease';
+                setTimeout(() => {
+                    loader.remove();
+                }, 500);
+            }
+        }
+        
+        function showApprovalPageModal(url, clientName, monthName, year) {
+            const modal = document.createElement('div');
+            modal.className = 'modal-backdrop';
+            modal.id = 'approvalPageModal';
+            modal.style.cssText = 'display: flex; z-index: 10000;';
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="text-center">
+                        <div class="text-6xl mb-4">✅</div>
+                        <h2 class="text-3xl font-black gradient-text mb-4">Approval Page Created!</h2>
+                        <p class="text-white/80 mb-6">
+                            The calendar for <strong>${clientName}</strong> - ${monthName} ${year} 
+                            is now available for client review and approval.
+                        </p>
+                        
+                        <div class="glass-card p-4 mb-6">
+                            <div class="text-sm text-white/60 mb-2">Shareable Link:</div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="approvalUrlInput" value="${url}" 
+                                       class="flex-1 bg-black/30 text-white px-3 py-2 rounded-lg" readonly>
+                                <button onclick="copyApprovalUrl('${url}')" class="glow-button primary px-4">
+                                    📋 Copy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="text-sm text-white/60 mb-6">
+                            <p>✓ Client can view the full calendar</p>
+                            <p>✓ Client can make edit requests</p>
+                            <p>✓ Client can approve with one click</p>
+                        </div>
+                        
+                        <div class="flex gap-3 justify-center">
+                            <button onclick="window.open('${url}', '_blank')" class="glow-button primary">
+                                🔗 Open Preview
+                            </button>
+                            <button onclick="closeApprovalModal()" class="glow-button">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function copyApprovalUrl(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('URL copied to clipboard!', 'success');
+            });
+        }
+        
+        function closeApprovalModal() {
+            const modal = document.getElementById('approvalPageModal');
+            if (modal) modal.remove();
+        }
+        
+        function saveToCloud() {
+            calendarManager.saveToCloud();
+        }
+        
+        // Dismiss change requests section
+        function dismissChangeRequests() {
+            document.getElementById('changeRequestsSection').classList.add('hidden');
+        }
+        
+        // Update individual task status
+        async function updateTaskStatus(requestId, taskIndex, completed) {
+            // This would update the task status in Firestore
+            // For now, just update the UI
+            const checkbox = document.getElementById(`task-${requestId}-${taskIndex}`);
+            const label = checkbox.nextElementSibling;
+            
+            if (completed) {
+                label.classList.add('line-through', 'opacity-50');
+            } else {
+                label.classList.remove('line-through', 'opacity-50');
+            }
+            
+            showToast(completed ? 'Task marked as complete' : 'Task marked as pending', 'success');
+        }
+        
+        // Update task status (global) - called from checkbox onchange
+        window.updateTaskStatus = function(requestId, taskIndex, completed) {
+            // Update visual state
+            const label = document.querySelector(`label[for="task-${requestId}-${taskIndex}"]`);
+            if (label) {
+                if (completed) {
+                    label.classList.add('line-through', 'opacity-50');
+                } else {
+                    label.classList.remove('line-through', 'opacity-50');
+                }
+            }
+            
+            // Store the completion state (could be saved to Firestore if needed)
+            const taskKey = `task_${requestId}_${taskIndex}`;
+            localStorage.setItem(taskKey, completed ? 'completed' : 'pending');
+            
+            showToast(completed ? 'Task marked as complete' : 'Task marked as pending', 'success');
+        }
+        
+        // Mark all tasks as complete (global)
+        window.markAllTasksComplete = function() {
+            const checkboxes = document.querySelectorAll('#changeRequestsList input[type="checkbox"]:not(:checked)');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                
+                // Get the label using the checkbox ID
+                const label = document.querySelector(`label[for="${checkbox.id}"]`);
+                if (label) {
+                    label.classList.add('line-through', 'opacity-50');
+                }
+                
+                // Store completion state using data attributes or parse from ID
+                const idParts = checkbox.id.split('-');
+                if (idParts.length >= 3) {
+                    const requestId = idParts.slice(1, -1).join('-'); // Handle IDs with dashes
+                    const taskIndex = idParts[idParts.length - 1];
+                    const taskKey = `task_${requestId}_${taskIndex}`;
+                    localStorage.setItem(taskKey, 'completed');
+                }
+            });
+            showToast('All tasks marked as complete', 'success');
+        }
+
+        function undoLastChange() {
+            calendarManager.undoLastChange();
+        }
+        
+        // Fullscreen toggle functionality
+        let isFullscreen = false;
+        
+        function toggleFullscreen() {
+            const calendarSection = document.querySelector('.glass-card.p-6.mb-8.fade-in');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const body = document.body;
+            
+            if (!calendarSection) {
+                console.error('Calendar section not found');
+                return;
+            }
+            
+            isFullscreen = !isFullscreen;
+            
+            if (isFullscreen) {
+                // Enter fullscreen
+                calendarSection.classList.add('calendar-fullscreen');
+                body.classList.add('calendar-is-fullscreen');
+                fullscreenBtn.innerHTML = '⤦'; // Reduce icon
+                fullscreenBtn.title = 'Exit Fullscreen';
+                
+                // Store scroll position
+                window.calendarScrollPosition = window.scrollY;
+                
+                // Focus on calendar
+                calendarSection.scrollIntoView({ behavior: 'smooth' });
+                
+                // Add ESC key listener
+                document.addEventListener('keydown', handleFullscreenEsc);
+                
+                showToast('Press ESC to exit fullscreen', 'info');
+            } else {
+                // Exit fullscreen
+                calendarSection.classList.remove('calendar-fullscreen');
+                body.classList.remove('calendar-is-fullscreen');
+                fullscreenBtn.innerHTML = '⛶'; // Expand icon
+                fullscreenBtn.title = 'Fullscreen';
+                
+                // Restore scroll position
+                if (window.calendarScrollPosition !== undefined) {
+                    window.scrollTo(0, window.calendarScrollPosition);
+                }
+                
+                // Remove ESC key listener
+                document.removeEventListener('keydown', handleFullscreenEsc);
+            }
+            
+            // Re-render calendar to adjust to new dimensions
+            if (calendarManager) {
+                setTimeout(() => {
+                    calendarManager.renderCalendar();
+                    // Also re-render week/list view if active
+                    const activeView = document.querySelector('.view-btn.active');
+                    if (activeView && activeView.dataset.view !== 'month') {
+                        setView(activeView.dataset.view);
+                    }
+                }, 100);
+            }
+        }
+        
+        function handleFullscreenEsc(e) {
+            if (e.key === 'Escape' && isFullscreen) {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+        }
+
+        // Campaign Creation Functions
+        function closeCreateCampaignModal() {
+            document.getElementById('createCampaignModal').classList.remove('show');
+            document.getElementById('campaignForm').reset();
+            delete document.getElementById('campaignForm').dataset.editingId;
+        }
+
+        function createCampaign(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const isEditing = form.dataset.editingId;
+            
+            const campaignData = {
+                id: isEditing || 'campaign-' + Date.now(),
+                name: document.getElementById('campaignName').value,
+                type: document.getElementById('campaignType').value,
+                date: new Date(document.getElementById('campaignDate').value),
+                time: document.getElementById('campaignTime').value,
+                subject_lines: document.getElementById('campaignSubjects').value
+                    .split(',').map(s => s.trim()).filter(s => s),
+                target_segment: document.getElementById('campaignSegment').value,
+                gradient: calendarManager.getTypeGradient(document.getElementById('campaignType').value),
+                emoji: calendarManager.getTypeEmoji(document.getElementById('campaignType').value)
+            };
+            
+            if (isEditing) {
+                // Update existing campaign
+                calendarManager.saveState();
+                const index = calendarManager.campaigns.findIndex(c => c.id === isEditing);
+                if (index !== -1) {
+                    calendarManager.campaigns[index] = campaignData;
+                    showToast('Campaign updated successfully!');
+                }
+            } else {
+                // Add new campaign
+                calendarManager.saveState();
+                calendarManager.campaigns.push(campaignData);
+                showToast('Campaign created successfully!');
+            }
+            
+            calendarManager.renderCalendar();
+            calendarManager.updateStats();
+            closeCreateCampaignModal();
+        }
+
+        // Confirmation Modal Functions
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            calendarManager.pendingAction = null;
+        }
+        
+        // File Import Functions
+        function openFileImportModal() {
+            if (!calendarManager.selectedClient) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+            document.getElementById('fileImportModal').classList.add('show');
+        }
+        
+        function closeFileImportModal() {
+            document.getElementById('fileImportModal').classList.remove('show');
+            clearSelectedFile();
+            document.getElementById('fileType').value = 'json';
+            updateFileInputAccept();
+        }
+        
+        function updateFileInputAccept() {
+            const fileType = document.getElementById('fileType').value;
+            const fileInput = document.getElementById('fileInput');
+            const acceptMap = {
+                'json': '.json',
+                'csv': '.csv',
+                'xlsx': '.xlsx,.xls',
+                'ics': '.ics'
+            };
+            fileInput.accept = acceptMap[fileType] || '.json';
+            document.getElementById('csvPreview').classList.toggle('hidden', fileType !== 'csv' && fileType !== 'xlsx');
+        }
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            displaySelectedFile(file);
+            previewFile(file);
+        }
+        
+        function displaySelectedFile(file) {
+            document.getElementById('selectedFile').classList.remove('hidden');
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            document.getElementById('importBtn').disabled = false;
+        }
+        
+        function clearSelectedFile() {
+            document.getElementById('selectedFile').classList.add('hidden');
+            document.getElementById('fileInput').value = '';
+            document.getElementById('importBtn').disabled = true;
+            document.getElementById('filePreview').classList.add('hidden');
+            document.getElementById('csvPreview').classList.add('hidden');
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function previewFile(file) {
+            const fileType = document.getElementById('fileType').value;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const content = e.target.result;
+                
+                try {
+                    if (fileType === 'json') {
+                        const jsonData = JSON.parse(content);
+                        showFilePreview(JSON.stringify(jsonData, null, 2));
+                    } else if (fileType === 'csv') {
+                        parseCsvAndShowPreview(content);
+                    } else if (fileType === 'ics') {
+                        showFilePreview(content.substring(0, 1000) + (content.length > 1000 ? '...' : ''));
+                    }
+                } catch (error) {
+                    showToast('Error reading file: ' + error.message, 'error');
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        function parseCsvAndShowPreview(csvContent) {
+            const lines = csvContent.split('\n').filter(line => line.trim());
+            if (lines.length === 0) return;
+            
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            populateColumnMappings(headers);
+            
+            // Show first few rows as preview
+            const previewLines = lines.slice(0, 6);
+            showFilePreview(previewLines.join('\n'));
+            document.getElementById('csvPreview').classList.remove('hidden');
+        }
+        
+        function populateColumnMappings(headers) {
+            const mappingSelects = ['titleColumn', 'dateColumn', 'typeColumn', 'contentColumn'];
+            
+            mappingSelects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">-- Select Column --</option>';
+                headers.forEach((header, index) => {
+                    select.innerHTML += `<option value="${index}">${header}</option>`;
+                });
+            });
+            
+            // Auto-detect common column mappings
+            headers.forEach((header, index) => {
+                const headerLower = header.toLowerCase();
+                if (headerLower.includes('title') || headerLower.includes('name') || headerLower.includes('campaign')) {
+                    document.getElementById('titleColumn').value = index;
+                } else if (headerLower.includes('date') || headerLower.includes('time')) {
+                    document.getElementById('dateColumn').value = index;
+                } else if (headerLower.includes('type') || headerLower.includes('category')) {
+                    document.getElementById('typeColumn').value = index;
+                } else if (headerLower.includes('description') || headerLower.includes('content') || headerLower.includes('note')) {
+                    document.getElementById('contentColumn').value = index;
+                }
+            });
+        }
+        
+        function showFilePreview(content) {
+            document.getElementById('previewContent').textContent = content;
+            document.getElementById('filePreview').classList.remove('hidden');
+        }
+        
+        async function processFileImport() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return;
+            
+            const fileType = document.getElementById('fileType').value;
+            const importBtn = document.getElementById('importBtn');
+            
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<span class="mr-2">⏳</span>Processing...';
+            
+            try {
+                let events = [];
+                const reader = new FileReader();
+                
+                reader.onload = async function(e) {
+                    const content = e.target.result;
+                    
+                    try {
+                        if (fileType === 'json') {
+                            events = await parseJsonFile(content);
+                        } else if (fileType === 'csv') {
+                            events = await parseCsvFile(content);
+                        } else if (fileType === 'ics') {
+                            events = await parseIcsFile(content);
+                        }
+                        
+                        if (events.length === 0) {
+                            showToast('No valid events found in file', 'warning');
+                            return;
+                        }
+                        
+                        // Import the events
+                        await importEventsToCalendar(events);
+                        showToast(`Successfully imported ${events.length} events`, 'success');
+                        closeFileImportModal();
+                        
+                    } catch (error) {
+                        console.error('Import error:', error);
+                        showToast('Error importing file: ' + error.message, 'error');
+                    } finally {
+                        importBtn.disabled = false;
+                        importBtn.innerHTML = '<span class="mr-2">📥</span>Import Events';
+                    }
+                };
+                
+                reader.readAsText(file);
+                
+            } catch (error) {
+                console.error('File processing error:', error);
+                showToast('Error processing file: ' + error.message, 'error');
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<span class="mr-2">📥</span>Import Events';
+            }
+        }
+        
+        async function parseJsonFile(content) {
+            const data = JSON.parse(content);
+            
+            // Handle different JSON structures
+            if (Array.isArray(data)) {
+                return data.map(event => normalizeEventData(event));
+            } else if (data.events && Array.isArray(data.events)) {
+                return data.events.map(event => normalizeEventData(event));
+            } else if (data.calendar && Array.isArray(data.calendar)) {
+                return data.calendar.map(event => normalizeEventData(event));
+            } else {
+                throw new Error('Unrecognized JSON format. Expected array or object with events/calendar property.');
+            }
+        }
+        
+        async function parseCsvFile(content) {
+            const lines = content.split('\n').filter(line => line.trim());
+            if (lines.length <= 1) throw new Error('CSV file must contain headers and data');
+            
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const titleCol = parseInt(document.getElementById('titleColumn').value);
+            const dateCol = parseInt(document.getElementById('dateColumn').value);
+            const typeCol = parseInt(document.getElementById('typeColumn').value);
+            const contentCol = parseInt(document.getElementById('contentColumn').value);
+            
+            if (isNaN(titleCol) || isNaN(dateCol)) {
+                throw new Error('Title and Date columns must be selected');
+            }
+            
+            const events = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cells = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
+                
+                if (cells[titleCol] && cells[dateCol]) {
+                    const event = {
+                        title: cells[titleCol],
+                        date: cells[dateCol],
+                        event_type: !isNaN(typeCol) ? cells[typeCol] : 'email',
+                        content: !isNaN(contentCol) ? cells[contentCol] : ''
+                    };
+                    events.push(normalizeEventData(event));
+                }
+            }
+            
+            return events;
+        }
+        
+        async function parseIcsFile(content) {
+            const events = [];
+            const lines = content.split('\n');
+            let currentEvent = null;
+            
+            for (let line of lines) {
+                line = line.trim();
+                
+                if (line === 'BEGIN:VEVENT') {
+                    currentEvent = {};
+                } else if (line === 'END:VEVENT' && currentEvent) {
+                    if (currentEvent.summary && currentEvent.dtstart) {
+                        events.push(normalizeEventData({
+                            title: currentEvent.summary,
+                            date: currentEvent.dtstart,
+                            content: currentEvent.description || '',
+                            event_type: 'email'
+                        }));
+                    }
+                    currentEvent = null;
+                } else if (currentEvent && line.includes(':')) {
+                    const [key, ...valueParts] = line.split(':');
+                    const value = valueParts.join(':');
+                    
+                    if (key === 'SUMMARY') {
+                        currentEvent.summary = value;
+                    } else if (key.startsWith('DTSTART')) {
+                        // Parse iCal date format (YYYYMMDDTHHMMSS)
+                        const dateStr = value.replace(/T.*/, ''); // Remove time part
+                        const year = dateStr.substring(0, 4);
+                        const month = dateStr.substring(4, 6);
+                        const day = dateStr.substring(6, 8);
+                        currentEvent.dtstart = `${year}-${month}-${day}`;
+                    } else if (key === 'DESCRIPTION') {
+                        currentEvent.description = value.replace(/\\n/g, '\n');
+                    }
+                }
+            }
+            
+            return events;
+        }
+        
+        function normalizeEventData(event) {
+            // Normalize date format
+            let date = event.date || event.event_date || event.send_date || event.dtstart;
+            if (date) {
+                // Handle various date formats
+                const dateObj = new Date(date);
+                if (!isNaN(dateObj.getTime())) {
+                    date = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD format
+                }
+            }
+            
+            // Determine type and add emoji
+            let type = event.event_type || event.type || event.category || 'email';
+            let emoji = '';
+            if (type.toLowerCase().includes('sms')) {
+                emoji = '💬 ';
+            } else if (type.toLowerCase().includes('push')) {
+                emoji = '📱 ';
+            } else {
+                emoji = '✉️ ';
+            }
+            
+            // Build enhanced title with emoji
+            let title = event.title || event.name || event.summary || event.subject_line_a || 'Imported Event';
+            if (emoji) {
+                title = emoji + title;
+            }
+            
+            // Build comprehensive description
+            let description = event.description || event.content || '';
+            
+            // Add all the extra fields if they exist
+            const extraFields = [];
+            if (event.week_number) extraFields.push(`Week #${event.week_number}`);
+            if (event.send_time) extraFields.push(`Send Time: ${event.send_time}`);
+            if (event.segments || event.segment) extraFields.push(`Segment: ${event.segments || event.segment}`);
+            if (event.subject_line_a) extraFields.push(`Subject A: ${event.subject_line_a}`);
+            if (event.subject_line_b) extraFields.push(`Subject B: ${event.subject_line_b}`);
+            if (event.preview_text) extraFields.push(`Preview: ${event.preview_text}`);
+            if (event.hero_h1) extraFields.push(`H1: ${event.hero_h1}`);
+            if (event.sub_head) extraFields.push(`Subhead: ${event.sub_head}`);
+            if (event.hero_image) extraFields.push(`Hero Image: ${event.hero_image}`);
+            if (event.cta_copy) extraFields.push(`CTA: ${event.cta_copy}`);
+            if (event.offer) extraFields.push(`Offer: ${event.offer}`);
+            if (event.ab_test_idea) extraFields.push(`A/B Test: ${event.ab_test_idea}`);
+            if (event.secondary_message || event.sms_variant) {
+                extraFields.push(`Secondary/SMS: ${event.secondary_message || event.sms_variant}`);
+            }
+            
+            // Append extra fields to description
+            if (extraFields.length > 0) {
+                if (description) description += '\n\n';
+                description += extraFields.join('\n');
+            }
+            
+            return {
+                id: event.id || 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                name: title,
+                type: type,
+                date: date ? new Date(date) : new Date(),
+                description: description,
+                color: event.color || getColorForType(type),
+                segment: event.segments || event.segment || '',
+                imported: true,
+                // Store original fields for reference
+                originalData: {
+                    week_number: event.week_number,
+                    send_time: event.send_time,
+                    subject_line_a: event.subject_line_a,
+                    subject_line_b: event.subject_line_b,
+                    preview_text: event.preview_text,
+                    hero_h1: event.hero_h1,
+                    sub_head: event.sub_head,
+                    hero_image: event.hero_image,
+                    cta_copy: event.cta_copy,
+                    offer: event.offer,
+                    ab_test_idea: event.ab_test_idea,
+                    secondary_message: event.secondary_message,
+                    sms_variant: event.sms_variant
+                }
+            };
+        }
+        
+        function getColorForType(type) {
+            const colorMap = {
+                'email': 'bg-blue-200 text-blue-800',
+                'sms': 'bg-orange-200 text-orange-800',
+                'flash sale': 'bg-red-300 text-red-800',
+                'promotional': 'bg-red-300 text-red-800',
+                'nurturing': 'bg-green-100 text-green-800',
+                'cheese club': 'bg-green-200 text-green-800',
+                'rrb': 'bg-red-300 text-red-800',
+                'seasonal': 'bg-purple-200 text-purple-800'
+            };
+            return colorMap[type.toLowerCase()] || 'bg-gray-200 text-gray-800';
+        }
+        
+        async function importEventsToCalendar(events) {
+            // Add events to the calendar manager
+            events.forEach(event => {
+                calendarManager.campaigns.push(event);
+            });
+            
+            // Save to cloud if auto-save is enabled
+            await calendarManager.saveToCloud();
+            
+            // Refresh the calendar display
+            calendarManager.renderCalendar();
+            calendarManager.updateStats();
+            
+            // Save state for undo functionality
+            calendarManager.saveState();
+        }
+
+        function confirmAction() {
+            if (calendarManager.pendingAction) {
+                calendarManager.pendingAction();
+                calendarManager.pendingAction = null;
+            }
+            closeConfirmModal();
+        }
+
+        // AI Chat Functions
+        async function sendChatMessage() {
+            // Check if a client is selected first
+            if (!window.calendarManager || !window.calendarManager.selectedClient) {
+                showToast('Please select a client first before using the AI Assistant', 'warning');
+                return;
+            }
+            
+            const input = document.getElementById('chatInput');
+            if (!input) {
+                console.error('Chat input not found');
+                alert('Chat input not found. Please refresh the page.');
+                return;
+            }
+            
+            const message = input.value.trim();
+            if (!message) {
+                console.log('Empty message, skipping');
+                return;
+            }
+            
+            console.log('Sending message:', message);
+            
+            // Clear input immediately
+            input.value = '';
+            
+            // Add user message to chat
+            const chatHistory = document.getElementById('chatHistory');
+            if (chatHistory) {
+                const userMsg = document.createElement('div');
+                userMsg.className = 'user-message';
+                userMsg.innerHTML = `
+                    <div class="text-sm text-lime-400 mb-1">You</div>
+                    <div class="text-white/90">${message}</div>
+                `;
+                chatHistory.appendChild(userMsg);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+            
+            // Send to AI if calendar manager exists
+            if (window.calendarManager && typeof calendarManager.sendChatMessage === 'function') {
+                await calendarManager.sendChatMessage(message);
+            } else {
+                console.error('Calendar manager not initialized or sendChatMessage not found');
+            }
+        }
+        
+        function showCampaignDetails(campaignId) {
+            const campaign = calendarManager.campaigns.find(c => c.id === campaignId);
+            if (!campaign) return;
+
+            const modal = document.getElementById('campaignModal');
+            const details = document.getElementById('campaignDetails');
+
+            // Get channel emoji
+            let channelEmoji = '📧';
+            if (campaign.channel === 'sms') channelEmoji = '📱';
+            else if (campaign.channel === 'push') channelEmoji = '💻';
+            else if (campaign.emoji) channelEmoji = campaign.emoji;
+
+            // Format audience/segments
+            const segments = campaign.segments || campaign.segment || campaign.audience || [];
+            const segmentsList = Array.isArray(segments) ? segments : [segments];
+            const audienceDisplay = segmentsList.filter(s => s).join(', ') || 'All Subscribers';
+
+            details.innerHTML = `
+                <h3 class="text-2xl font-black gradient-text mb-4">${channelEmoji} ${campaign.name}</h3>
+
+                <!-- Campaign Status Bar -->
+                ${campaign.status ? `
+                <div class="glass-card p-3 mb-4 border-l-4 ${
+                    campaign.status === 'sent' ? 'border-green-500' :
+                    campaign.status === 'scheduled' ? 'border-blue-500' :
+                    campaign.status === 'draft' ? 'border-yellow-500' : 'border-gray-500'
+                }">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold ${
+                            campaign.status === 'sent' ? 'text-green-400' :
+                            campaign.status === 'scheduled' ? 'text-blue-400' :
+                            campaign.status === 'draft' ? 'text-yellow-400' : 'text-gray-400'
+                        }">
+                            ${campaign.status.toUpperCase()}
+                        </span>
+                        ${campaign.sentAt ? `<span class="text-xs text-white/50">Sent: ${new Date(campaign.sentAt).toLocaleString()}</span>` : ''}
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Core Details -->
+                    <div class="glass-card p-4">
+                        <div class="text-xs text-purple-400 font-semibold mb-3 uppercase tracking-wider">Campaign Details</div>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-white/50">Date</span>
+                                <span class="font-semibold">${campaign.date.toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                })}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-white/50">Time</span>
+                                <span class="font-semibold">${campaign.time || '10:00 AM'}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-white/50">Channel</span>
+                                <span class="font-semibold capitalize">${campaign.channel || 'Email'}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-white/50">Type</span>
+                                <div class="campaign-pill ${campaign.gradient || campaign.type} inline-block px-3 py-1">
+                                    ${campaign.type || 'General'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Audience & Targeting -->
+                    <div class="glass-card p-4">
+                        <div class="text-xs text-green-400 font-semibold mb-3 uppercase tracking-wider">Audience & Targeting</div>
+                        <div class="space-y-3">
+                            <div>
+                                <span class="text-sm text-white/50 block mb-1">Target Segments</span>
+                                <div class="flex flex-wrap gap-2">
+                                    ${segmentsList.filter(s => s).map(seg => `
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-white/10 rounded-md text-xs">
+                                            🎯 ${seg}
+                                        </span>
+                                    `).join('') || '<span class="text-xs text-white/50">All Subscribers</span>'}
+                                </div>
+                            </div>
+                            ${campaign.audience_size ? `
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-white/50">Audience Size</span>
+                                <span class="font-semibold">${campaign.audience_size.toLocaleString()}</span>
+                            </div>
+                            ` : ''}
+                            ${campaign.location ? `
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-white/50">Location</span>
+                                <span class="font-semibold">${campaign.location}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics -->
+                <div class="glass-card p-4 mt-4">
+                    <div class="text-xs text-cyan-400 font-semibold mb-3 uppercase tracking-wider">Expected Performance</div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="text-center p-3 bg-white/5 rounded-lg">
+                            <div class="text-2xl font-bold gradient-text">
+                                ${((campaign.metrics?.openRate || campaign.expected_metrics?.open_rate || 0.2) * 100).toFixed(1)}%
+                            </div>
+                            <div class="text-xs text-white/50 mt-1">Open Rate</div>
+                        </div>
+                        <div class="text-center p-3 bg-white/5 rounded-lg">
+                            <div class="text-2xl font-bold gradient-text">
+                                ${((campaign.metrics?.clickRate || campaign.expected_metrics?.click_rate || 0.03) * 100).toFixed(1)}%
+                            </div>
+                            <div class="text-xs text-white/50 mt-1">Click Rate</div>
+                        </div>
+                        <div class="text-center p-3 bg-white/5 rounded-lg">
+                            <div class="text-2xl font-bold gradient-text">
+                                $${Math.round(campaign.metrics?.revenue || campaign.expected_metrics?.revenue || 5000).toLocaleString()}
+                            </div>
+                            <div class="text-xs text-white/50 mt-1">Est. Revenue</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Content -->
+                ${campaign.description || campaign.subject_line || campaign.preview_text ? `
+                <div class="glass-card p-4 mt-4">
+                    <div class="text-xs text-yellow-400 font-semibold mb-3 uppercase tracking-wider">Content Preview</div>
+                    <div class="space-y-3">
+                        ${campaign.subject_line ? `
+                        <div>
+                            <span class="text-sm text-white/50 block mb-1">Subject Line</span>
+                            <div class="font-semibold">${campaign.subject_line}</div>
+                        </div>
+                        ` : ''}
+                        ${campaign.preview_text ? `
+                        <div>
+                            <span class="text-sm text-white/50 block mb-1">Preview Text</span>
+                            <div class="text-sm">${campaign.preview_text}</div>
+                        </div>
+                        ` : ''}
+                        ${campaign.description ? `
+                        <div>
+                            <span class="text-sm text-white/50 block mb-1">Description</span>
+                            <div class="text-sm leading-relaxed">${campaign.description}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Goals & KPIs -->
+                ${campaign.goals || campaign.kpis ? `
+                <div class="glass-card p-4 mt-4">
+                    <div class="text-xs text-indigo-400 font-semibold mb-3 uppercase tracking-wider">Goals & KPIs</div>
+                    <div class="space-y-2">
+                        ${campaign.goals ? campaign.goals.map(goal => `
+                            <div class="flex items-center gap-2">
+                                <span class="text-green-400">✓</span>
+                                <span class="text-sm">${goal}</span>
+                            </div>
+                        `).join('') : ''}
+                        ${campaign.kpis ? `
+                            <div class="grid grid-cols-2 gap-2 mt-3">
+                                ${Object.entries(campaign.kpis).map(([key, value]) => `
+                                    <div class="flex justify-between p-2 bg-white/5 rounded">
+                                        <span class="text-xs text-white/50">${key}</span>
+                                        <span class="text-xs font-bold">${value}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Tags & Labels -->
+                ${campaign.tags || campaign.labels ? `
+                <div class="glass-card p-4 mt-4">
+                    <div class="text-xs text-pink-400 font-semibold mb-3 uppercase tracking-wider">Tags & Labels</div>
+                    <div class="flex flex-wrap gap-2">
+                        ${(campaign.tags || campaign.labels || []).map(tag => `
+                            <span class="inline-flex items-center px-2 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full text-xs">
+                                #${tag}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 mt-6">
+                    <button onclick="calendarManager.editCampaign('${campaignId}'); closeCampaignModal();"
+                            class="glow-button flex-1">
+                        ✏️ Edit Campaign
+                    </button>
+                    <button onclick="calendarManager.duplicateCampaign('${campaignId}'); closeCampaignModal();"
+                            class="glow-button flex-1">
+                        📋 Duplicate
+                    </button>
+                    <button onclick="if(confirm('Delete this campaign?')) { calendarManager.deleteCampaign('${campaignId}'); closeCampaignModal(); }"
+                            class="glow-button flex-1 bg-red-500/20 border-red-500/50 hover:bg-red-500/30">
+                        🗑️ Delete
+                    </button>
+                </div>
+            `;
+
+            modal.classList.add('show');
+        }
+        
+        function closeCampaignModal() {
+            document.getElementById('campaignModal').classList.remove('show');
+        }
+        
+        let isAnimating = false; // Prevent rapid clicking during animation
+        
+        async function previousMonth() {
+            if (isAnimating) return;
+            isAnimating = true;
+            
+            const container = document.getElementById('calendarContainer');
+            if (!container) {
+                isAnimating = false;
+                return;
+            }
+            
+            // Create wrapper for transition if it doesn't exist
+            if (!container.classList.contains('calendar-transition-container')) {
+                container.classList.add('calendar-transition-container');
+            }
+            
+            // Clone current calendar
+            const currentCalendar = container.innerHTML;
+            const currentWrapper = document.createElement('div');
+            currentWrapper.className = 'calendar-grid-wrapper calendar-slide-out-right';
+            currentWrapper.innerHTML = currentCalendar;
+            
+            // Update date and render new calendar
+            calendarManager.selectedDate.setMonth(calendarManager.selectedDate.getMonth() - 1);
+            updateMonthDisplay();
+            
+            // Create new calendar off-screen
+            const newWrapper = document.createElement('div');
+            newWrapper.className = 'calendar-grid-wrapper calendar-slide-in-left';
+            
+            // Temporarily render new calendar
+            container.style.visibility = 'hidden';
+            calendarManager.renderCalendar();
+            newWrapper.innerHTML = container.innerHTML;
+            container.style.visibility = 'visible';
+            
+            // Clear container and add both calendars
+            container.innerHTML = '';
+            container.appendChild(currentWrapper);
+            container.appendChild(newWrapper);
+            container.classList.add('calendar-animating');
+            
+            // Clean up after animation
+            setTimeout(async () => {
+                container.innerHTML = newWrapper.innerHTML;
+                container.classList.remove('calendar-animating');
+                isAnimating = false;
+                
+                // Load events for the new month from Firestore
+                await calendarManager.loadFromCloud();
+                // Check approval status for the new month
+                checkApprovalStatus();
+            }, 400);
+        }
+        
+        async function nextMonth() {
+            if (isAnimating) return;
+            isAnimating = true;
+            
+            const container = document.getElementById('calendarContainer');
+            if (!container) {
+                isAnimating = false;
+                return;
+            }
+            
+            // Create wrapper for transition if it doesn't exist
+            if (!container.classList.contains('calendar-transition-container')) {
+                container.classList.add('calendar-transition-container');
+            }
+            
+            // Clone current calendar
+            const currentCalendar = container.innerHTML;
+            const currentWrapper = document.createElement('div');
+            currentWrapper.className = 'calendar-grid-wrapper calendar-slide-out-left';
+            currentWrapper.innerHTML = currentCalendar;
+            
+            // Update date and render new calendar
+            calendarManager.selectedDate.setMonth(calendarManager.selectedDate.getMonth() + 1);
+            updateMonthDisplay();
+            
+            // Create new calendar off-screen
+            const newWrapper = document.createElement('div');
+            newWrapper.className = 'calendar-grid-wrapper calendar-slide-in-right';
+            
+            // Temporarily render new calendar
+            container.style.visibility = 'hidden';
+            calendarManager.renderCalendar();
+            newWrapper.innerHTML = container.innerHTML;
+            container.style.visibility = 'visible';
+            
+            // Clear container and add both calendars
+            container.innerHTML = '';
+            container.appendChild(currentWrapper);
+            container.appendChild(newWrapper);
+            container.classList.add('calendar-animating');
+            
+            // Clean up after animation
+            setTimeout(async () => {
+                container.innerHTML = newWrapper.innerHTML;
+                container.classList.remove('calendar-animating');
+                isAnimating = false;
+                
+                // Load events for the new month from Firestore
+                await calendarManager.loadFromCloud();
+                // Check approval status for the new month
+                checkApprovalStatus();
+            }, 400);
+        }
+        
+        function updateMonthDisplay() {
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            const month = calendarManager.selectedDate.getMonth();
+            const year = calendarManager.selectedDate.getFullYear();
+            document.getElementById('currentMonth').textContent = `${months[month]} ${year}`;
+        }
+        
+        function setView(view) {
+            calendarManager.currentView = view;
+            
+            // Update active button
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.remove('primary');
+                btn.classList.remove('active');
+                if (btn.dataset.view === view) {
+                    btn.classList.add('primary');
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Re-render based on view
+            if (view === 'list') {
+                renderListView();
+            } else if (view === 'week') {
+                renderWeekView();
+            } else if (view === 'month') {
+                calendarManager.renderCalendar();
+            } else {
+                // Default to month view
+                calendarManager.renderCalendar();
+            }
+        }
+        
+        function renderListView() {
+            const container = document.getElementById('calendarContainer');
+            container.className = 'calendar-list-view glass-card p-6';
+            
+            const sortedCampaigns = [...calendarManager.campaigns].sort((a, b) => a.date - b.date);
+            
+            // Group campaigns by week
+            const weeks = {};
+            sortedCampaigns.forEach(c => {
+                const weekStart = new Date(c.date);
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+                const weekKey = weekStart.toISOString().split('T')[0];
+                if (!weeks[weekKey]) weeks[weekKey] = [];
+                weeks[weekKey].push(c);
+            });
+            
+            container.innerHTML = `
+                <h3 class="text-xl font-black gradient-text mb-4">📋 Campaign List View</h3>
+                <div class="space-y-4">
+                    ${Object.entries(weeks).map(([weekStart, campaigns]) => {
+                        const weekDate = new Date(weekStart);
+                        const weekEnd = new Date(weekDate);
+                        weekEnd.setDate(weekEnd.getDate() + 6);
+                        const totalRevenue = campaigns.reduce((sum, c) => sum + (c.metrics?.revenue || c.expected_metrics?.revenue || 0), 0);
+                        
+                        return `
+                            <div class="glass-card p-4">
+                                <div class="flex justify-between items-center mb-3 text-white/60 text-sm">
+                                    <span class="font-semibold">Week of ${weekDate.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}</span>
+                                    <span class="text-lime-400 font-bold">$${totalRevenue.toLocaleString()} expected</span>
+                                </div>
+                                <div class="space-y-2">
+                                    ${campaigns.map(c => {
+                                        const revenue = c.metrics?.revenue || c.expected_metrics?.revenue || 0;
+                                        const openRate = (c.metrics?.openRate || c.expected_metrics?.open_rate || 0.2) * 100;
+                                        const clickRate = (c.metrics?.clickRate || c.expected_metrics?.click_rate || 0.05) * 100;
+                                        
+                                        return `
+                                            <div class="glass-card p-3 hover:border-purple-500/50 transition-all">
+                                                <div class="flex justify-between items-start">
+                                                    <div class="flex-1 cursor-pointer" onclick="showCampaignDetails('${c.id}')">
+                                                        <div class="flex items-center gap-2 mb-1">
+                                                            <span class="text-lg">${c.emoji || '📧'}</span>
+                                                            <span class="font-bold">${c.name}</span>
+                                                            <div class="campaign-pill ${c.gradient || c.type} inline-block">
+                                                                ${c.type}
+                                                            </div>
+                                                            ${(() => {
+                                                                const dateStr = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}-${String(c.date.getDate()).padStart(2, '0')}`;
+                                                                const holidays = calendarManager.holidays[dateStr] || [];
+                                                                const klaviyoEvents = calendarManager.klaviyoEvents[dateStr] || [];
+                                                                const allEvents = [...holidays, ...klaviyoEvents];
+                                                                if (calendarManager.showHolidays && allEvents.length > 0) {
+                                                                    return allEvents.map(h => `
+                                                                        <span class="holiday-indicator ${h.category || h.type}" style="font-size: 10px; padding: 2px 4px;" title="${h.name}">
+                                                                            ${h.emoji || '📅'} ${h.name.length > 12 ? h.name.substring(0, 12) + '..' : h.name}
+                                                                        </span>
+                                                                    `).join('');
+                                                                }
+                                                                return '';
+                                                            })()}
+                                                        </div>
+                                                        <div class="text-sm text-white/50 mb-2">
+                                                            ${c.date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                                            • ${c.segment || 'All Segments'}
+                                                            • ${c.channel === 'sms' ? '📱 SMS' : '📧 Email'}
+                                                        </div>
+                                                        <div class="flex gap-4 text-xs">
+                                                            <span class="text-green-400">💰 $${revenue.toLocaleString()}</span>
+                                                            <span class="text-blue-400">📧 ${openRate.toFixed(1)}% open</span>
+                                                            <span class="text-purple-400">🖱️ ${clickRate.toFixed(1)}% click</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="list-view-actions" style="z-index: 10; position: relative;">
+                                                        <button type="button" class="pill-action copy" onclick="handleListAction(event, 'duplicate', '${c.id}')" title="Duplicate Campaign">
+                                                            <i class="fas fa-copy"></i>
+                                                        </button>
+                                                        <button type="button" class="pill-action edit" onclick="handleListAction(event, 'edit', '${c.id}')" title="Edit Campaign">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        <button type="button" class="pill-action delete" onclick="handleListAction(event, 'delete', '${c.id}')" title="Delete Campaign">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                    ${sortedCampaigns.length === 0 ? '<div class="text-center text-white/50 py-8">No campaigns scheduled</div>' : ''}
+                </div>
+            `;
+        }
+        
+        function renderWeekView() {
+            const container = document.getElementById('calendarContainer');
+            container.className = 'calendar-week-timeline';
+
+            // Get the selected date from calendar manager
+            const selectedDate = new Date(calendarManager.selectedDate);
+            // Find the start of the week (Sunday)
+            const weekStart = new Date(selectedDate);
+            weekStart.setDate(selectedDate.getDate() - selectedDate.getDay());
+
+            // Create 7 days (Sunday - Saturday)
+            const weekDays = [];
+            for (let d = 0; d < 7; d++) {
+                const day = new Date(weekStart);
+                day.setDate(day.getDate() + d);
+
+                const dayCampaigns = calendarManager.campaigns.filter(c =>
+                    c.date.getFullYear() === day.getFullYear() &&
+                    c.date.getMonth() === day.getMonth() &&
+                    c.date.getDate() === day.getDate()
+                );
+
+                weekDays.push({
+                    date: new Date(day),
+                    campaigns: dayCampaigns,
+                    isToday: day.toDateString() === today.toDateString()
+                });
+            }
+
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            // Calculate total revenue for the week
+            const weekRevenue = weekDays.reduce((sum, day) =>
+                sum + day.campaigns.reduce((s, c) => s + (c.metrics?.revenue || c.expected_metrics?.revenue || 0), 0), 0
+            );
+
+            // Create hourly timeline
+            const hours = [];
+            for (let h = 0; h < 24; h++) {
+                hours.push({
+                    hour: h,
+                    label: h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`
+                });
+            }
+
+            container.innerHTML = `
+                <div class="week-timeline-header">
+                    <h3 class="text-xl font-black gradient-text mb-2">📅 Week View</h3>
+                    <div class="text-sm text-white/60 mb-4">
+                        ${weekDays[0].date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} -
+                        ${weekDays[6].date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        <span class="text-lime-400 ml-4">$${weekRevenue.toLocaleString()} expected</span>
+                    </div>
+                </div>
+
+                <div class="week-timeline-container">
+                    <!-- Time labels column -->
+                    <div class="week-timeline-times">
+                        <div class="week-timeline-corner"></div>
+                        ${hours.map(h => `
+                            <div class="week-timeline-time-label">${h.label}</div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Days grid -->
+                    <div class="week-timeline-grid">
+                        <!-- Day headers -->
+                        <div class="week-timeline-days-header">
+                            ${weekDays.map((day, idx) => `
+                                <div class="week-timeline-day-header ${day.isToday ? 'is-today' : ''}">
+                                    <div class="day-name">${dayNames[idx]}</div>
+                                    <div class="day-date">${monthNames[day.date.getMonth()]} ${day.date.getDate()}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <!-- Hour rows -->
+                        ${hours.map(hour => `
+                            <div class="week-timeline-hour-row">
+                                ${weekDays.map((day, dayIdx) => {
+                                    const dayKey = `${day.date.getFullYear()}-${day.date.getMonth()}-${day.date.getDate()}`;
+                                    return `
+                                        <div class="week-timeline-cell ${day.isToday ? 'is-today-col' : ''}"
+                                             data-day="${dayIdx}"
+                                             data-hour="${hour.hour}"
+                                             data-date="${dayKey}"
+                                             ondrop="handleTimelineDrop(event)"
+                                             ondragover="handleTimelineDragOver(event)">
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `).join('')}
+
+                        <!-- Campaign blocks (positioned absolutely) -->
+                        <div class="week-timeline-campaigns">
+                            ${weekDays.map((day, dayIdx) =>
+                                day.campaigns.map(campaign => {
+                                    // Parse send time
+                                    const sendTime = campaign.send_time || campaign.time || '10:00';
+                                    const [hourStr, minStr] = sendTime.split(':');
+                                    let hour = parseInt(hourStr);
+                                    const isPM = sendTime.toLowerCase().includes('pm');
+                                    const isAM = sendTime.toLowerCase().includes('am');
+
+                                    if (isPM && hour !== 12) hour += 12;
+                                    if (isAM && hour === 12) hour = 0;
+
+                                    const minute = parseInt(minStr) || 0;
+                                    const topPosition = (hour * 60 + minute) / (24 * 60) * 100;
+                                    const leftPosition = dayIdx * (100 / 7);
+                                    const width = 100 / 7;
+
+                                    const revenue = campaign.metrics?.revenue || campaign.expected_metrics?.revenue || 0;
+
+                                    return `
+                                        <div class="week-timeline-campaign ${campaign.gradient || campaign.type}"
+                                             data-campaign-id="${campaign.id}"
+                                             style="top: ${topPosition}%; left: ${leftPosition}%; width: calc(${width}% - 4px);"
+                                             draggable="true"
+                                             ondragstart="handleCampaignDragStart(event, '${campaign.id}')"
+                                             onclick="showCampaignDetails('${campaign.id}')">
+                                            <div class="campaign-time">${sendTime}</div>
+                                            <div class="campaign-name">${campaign.emoji || '📧'} ${campaign.name}</div>
+                                            ${revenue > 0 ? `<div class="campaign-revenue">$${revenue.toLocaleString()}</div>` : ''}
+                                        </div>
+                                    `;
+                                }).join('')
+                            ).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add current time indicator if today is in view
+            const todayIdx = weekDays.findIndex(d => d.isToday);
+            if (todayIdx !== -1) {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const currentMinute = now.getMinutes();
+                const topPosition = (currentHour * 60 + currentMinute) / (24 * 60) * 100;
+
+                const indicator = document.createElement('div');
+                indicator.className = 'week-timeline-now-indicator';
+                indicator.style.top = `${topPosition}%`;
+                indicator.innerHTML = `<div class="now-line"></div><div class="now-dot"></div>`;
+
+                const campaignsContainer = container.querySelector('.week-timeline-campaigns');
+                if (campaignsContainer) {
+                    campaignsContainer.appendChild(indicator);
+                }
+            }
+        }
+
+        // Drag and drop handlers for week timeline
+        let draggedCampaignId = null;
+
+        function handleCampaignDragStart(event, campaignId) {
+            draggedCampaignId = campaignId;
+            event.dataTransfer.effectAllowed = 'move';
+            event.target.style.opacity = '0.5';
+        }
+
+        function handleTimelineDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            event.currentTarget.classList.add('drag-over');
+        }
+
+        function handleTimelineDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('drag-over');
+
+            if (!draggedCampaignId) return;
+
+            const cell = event.currentTarget;
+            const dayIdx = parseInt(cell.dataset.day);
+            const hour = parseInt(cell.dataset.hour);
+
+            // Find the campaign
+            const campaign = calendarManager.campaigns.find(c => c.id === draggedCampaignId);
+            if (!campaign) return;
+
+            // Calculate new date
+            const weekStart = new Date(calendarManager.selectedDate);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            const newDate = new Date(weekStart);
+            newDate.setDate(newDate.getDate() + dayIdx);
+
+            // Format new time
+            const isPM = hour >= 12;
+            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            const newTime = `${displayHour}:00 ${isPM ? 'PM' : 'AM'}`;
+
+            // Update campaign
+            const oldDate = campaign.date;
+            const oldTime = campaign.send_time || campaign.time || '10:00 AM';
+
+            campaign.date = newDate;
+            campaign.send_time = newTime;
+            campaign.time = newTime;
+
+            // Track change
+            pendingChanges.push({
+                id: Date.now(),
+                type: 'time_change',
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                field: 'Send Time & Date',
+                oldValue: `${oldDate.toLocaleDateString()} at ${oldTime}`,
+                newValue: `${newDate.toLocaleDateString()} at ${newTime}`,
+                timestamp: new Date()
+            });
+
+            updatePendingChangesUI();
+
+            // Re-render week view
+            renderWeekView();
+
+            // Show toast
+            showToast(`📅 ${campaign.name} moved to ${newDate.toLocaleDateString()} at ${newTime}`);
+
+            draggedCampaignId = null;
+        }
+
+        // Clean up drag state on drag end
+        document.addEventListener('dragend', (event) => {
+            if (event.target.classList.contains('week-timeline-campaign')) {
+                event.target.style.opacity = '1';
+            }
+            document.querySelectorAll('.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+        });
+        
+        function openCommandPalette() {
+            // Create modal for command palette
+            const existingModal = document.getElementById('commandPaletteModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            const modal = document.createElement('div');
+            modal.id = 'commandPaletteModal';
+            modal.className = 'modal-backdrop';
+            const isLight = document.body.classList.contains('light-mode');
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 420px;">
+                    <h3 class="text-2xl font-black gradient-text mb-6">Quick Actions ${pendingChanges.length > 0 ? '<span class="text-orange-400">(' + pendingChanges.length + ' changes)</span>' : ''}</h3>
+                    <div class="space-y-2">
+                        ${pendingChanges.length > 0 ? `<button onclick="showChangesPanel(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-orange-500/50 transition-all flex items-center gap-3" style="background: linear-gradient(135deg, rgba(255, 140, 0, 0.2), rgba(255, 0, 128, 0.2)); border-color: rgba(255, 140, 0, 0.5);">
+                            <span class="text-2xl">📋</span>
+                            <div class="flex-1">
+                                <div class="font-semibold">View Pending Changes</div>
+                                <div class="text-xs opacity-70">${pendingChanges.length} items need your attention</div>
+                            </div>
+                            <div class="notification-badge" style="position: static; margin: 0;">${pendingChanges.length}</div>
+                        </button>` : ''}
+                        <button onclick="toggleTheme(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-yellow-500/50 transition-all flex items-center gap-3" style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 165, 0, 0.1)); border-color: rgba(255, 215, 0, 0.3); position: relative;">
+                            <span class="text-2xl">${isLight ? '☀️' : '🌙'}</span>
+                            <div class="flex-1">
+                                <div class="font-semibold">Toggle Theme</div>
+                                <div class="text-xs opacity-70">Switch to ${isLight ? 'Dark' : 'Light'} Mode</div>
+                            </div>
+                            <div class="text-xs opacity-50 bg-black/20 px-2 py-1 rounded">⌘T</div>
+                        </button>
+                        <button onclick="createApprovalPage(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-purple-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">📄</span>
+                            <span class="font-semibold">Create Client Approval Page</span>
+                        </button>
+                        <button onclick="showCurrentMonthChangeRequests(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-orange-500/50 transition-all flex items-center gap-3" style="background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 193, 7, 0.1)); border-color: rgba(255, 152, 0, 0.3);">
+                            <span class="text-2xl">🔧</span>
+                            <span class="font-semibold">View Change Requests</span>
+                        </button>
+                        <button onclick="calendarManager.undo(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-purple-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">↶</span>
+                            <span class="font-semibold">Undo Last Change</span>
+                        </button>
+                        <button onclick="calendarManager.renderCalendar(); calendarManager.updateStats(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-blue-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">🔄</span>
+                            <span class="font-semibold">Refresh Calendar</span>
+                        </button>
+                        <button onclick="openHolidayManager(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-yellow-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">📅</span>
+                            <span class="font-semibold">Holiday & Event Management</span>
+                        </button>
+                        <button onclick="showToast('${calendarManager.campaigns.length} campaigns, $' + Math.round(calendarManager.campaigns.reduce((s,c) => s + (c.metrics?.revenue || c.expected_metrics?.revenue || 0), 0)).toLocaleString() + ' expected revenue'); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-green-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">📊</span>
+                            <span class="font-semibold">View Stats</span>
+                        </button>
+                        ${pendingChanges.length > 0 ? `<button onclick="approveAllChanges(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-green-500/50 transition-all flex items-center gap-3" style="background: linear-gradient(135deg, rgba(0, 255, 0, 0.1), rgba(127, 255, 0, 0.1)); border-color: rgba(0, 255, 0, 0.3);">
+                            <span class="text-2xl">✅</span>
+                            <span class="font-semibold">Approve All Changes</span>
+                        </button>` : ''}
+                        <button onclick="if(confirm('Clear all campaigns for this month?')) { calendarManager.clearCurrentMonth(); } document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-red-500/50 transition-all flex items-center gap-3">
+                            <span class="text-2xl">🗑️</span>
+                            <span class="font-semibold">Clear This Month</span>
+                        </button>
+                    </div>
+                    <button onclick="document.getElementById('commandPaletteModal').remove()" class="glow-button w-full mt-6">Cancel</button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Show modal with animation
+            setTimeout(() => {
+                modal.classList.add('show');
+            }, 10);
+        }
+        
+        
+        // Global keyboard shortcuts - attach to window for better capture
+        window.addEventListener('keydown', (e) => {
+            // Toggle theme with Ctrl+T or Cmd+T
+            if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleTheme();
+                return;
+            }
+            
+            // Command palette with Cmd+K or Ctrl+K
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                e.stopPropagation();
+                showCommandPalette();
+                return;
+            }
+            
+            // Quick month navigation with Alt+Arrow keys (when not in input)
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                if (e.key === 'ArrowLeft' && e.altKey) {
+                    e.preventDefault();
+                    previousMonth();
+                    return;
+                } else if (e.key === 'ArrowRight' && e.altKey) {
+                    e.preventDefault();
+                    nextMonth();
+                    return;
+                }
+            }
+            
+        }, true);
+        
+        // Initialize on load
+        window.addEventListener('load', async () => {
+            console.log('Calendar Master: Page loaded, initializing...');
+            
+            // Initialize theme
+            initTheme();
+            
+            await calendarManager.loadClients();
+            updateMonthDisplay();
+            calendarManager.renderCalendar();
+            
+            // Set up periodic change checking
+            setInterval(() => {
+                if (calendarManager.selectedClient) {
+                    checkForChanges();
+                }
+            }, 30000); // Check every 30 seconds
+            
+            // Add fade-in animations
+            document.querySelectorAll('.fade-in').forEach((el, i) => {
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0)';
+                }, i * 100);
+            });
+            
+            // Initialize engaging grade button features
+            initializeGradeEngagement();
+            
+            // Fix Performance box to show teacher emoji and "Grade" text with NEW badge
+            setTimeout(() => {
+                const gradeDisplay = document.getElementById('gradeDisplay');
+                const gradeLabel = document.getElementById('gradeLabel');
+                const gradeCard = document.querySelector('.grade-card');
+                const curiosityBadge = document.getElementById('curiosityBadge');
+                
+                // Ensure the grade display shows the teacher emoji and Grade text
+                if (gradeDisplay) {
+                    gradeDisplay.textContent = '🧑‍🏫 Grade';
+                }
+                
+                // Ensure the label shows Performance
+                if (gradeLabel) {
+                    gradeLabel.textContent = 'Performance';
+                }
+                
+                // Remove any has-grade class that might interfere
+                if (gradeCard) {
+                    gradeCard.classList.remove('has-grade');
+                    gradeCard.classList.add('needs-grading');
+                }
+                
+                // Show the NEW! badge if user hasn't clicked before
+                if (curiosityBadge) {
+                    const hasBeenClicked = localStorage.getItem('gradeButtonClicked') === 'true';
+                    if (!hasBeenClicked) {
+                        curiosityBadge.style.display = 'block';
+                        curiosityBadge.textContent = 'NEW!';
+                    }
+                }
+            }, 200);
+            
+            // Initialize AI chat input with multiple fallbacks
+            function initializeChatInput() {
+                const chatInput = document.getElementById('chatInput');
+                const aiSection = document.getElementById('aiChatSection');
+                const chatHistory = document.getElementById('chatHistory');
+                
+                if (!chatInput) {
+                    console.error('Chat input not found!');
+                    return;
+                }
+                
+                // Check if client is selected and update AI Assistant accordingly
+                if (!window.calendarManager || !window.calendarManager.selectedClient) {
+                    // Disable input and show message
+                    chatInput.disabled = true;
+                    chatInput.placeholder = 'Select a client above to use AI Assistant';
+                    
+                    if (chatHistory) {
+                        chatHistory.innerHTML = `
+                            <div class="ai-message">
+                                <div class="text-sm text-yellow-400 mb-1">⚠️ Client Required</div>
+                                <div class="text-white/90">Please select a client from the dropdown above to use the AI Assistant.</div>
+                                <div class="text-white/60 text-sm mt-2">Once you select a client, I can help you:</div>
+                                <ul class="text-white/50 text-sm mt-2 ml-4 list-disc">
+                                    <li>Add and manage email campaigns</li>
+                                    <li>Analyze your calendar performance</li>
+                                    <li>Generate AI-powered campaign suggestions</li>
+                                </ul>
+                            </div>
+                        `;
+                    }
+                } else {
+                    // Enable input when client is selected
+                    chatInput.disabled = false;
+                    chatInput.placeholder = 'Ask me anything about your calendar...';
+                }
+                
+                // Clear all potential blockers
+                chatInput.removeAttribute('disabled');
+                chatInput.removeAttribute('readonly');
+                chatInput.style.cssText += 'pointer-events: auto !important; opacity: 1 !important; z-index: 9999 !important; position: relative !important;';
+                
+                // Add multiple event handlers
+                chatInput.onclick = function(e) {
+                    e.stopPropagation();
+                    this.focus();
+                };
+                
+                chatInput.onfocus = function() {
+                    console.log('Chat input focused');
+                };
+                
+                chatInput.onkeydown = function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        console.log('Enter pressed, sending message');
+                        sendChatMessage();
+                    }
+                };
+                
+                if (aiSection) {
+                    aiSection.style.cssText += 'opacity: 1 !important; pointer-events: auto !important;';
+                }
+                
+                // Test that it works
+                chatInput.placeholder = 'Ask me to add, move, or delete campaigns...';
+                console.log('Chat input initialized successfully');
+            }
+            
+            // Try multiple times to ensure it works
+            setTimeout(initializeChatInput, 100);
+            setTimeout(initializeChatInput, 500);
+            setTimeout(initializeChatInput, 1000);
+        });
+        // Holiday Management Functions (in global scope)
+        window.deleteHoliday = async function(holidayId) {
+            if (!confirm('Delete this holiday?')) return;
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/custom/${holidayId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await window.calendarManager.loadHolidaysAndEvents();
+                    window.calendarManager.renderCalendar();
+                    loadCurrentHolidays();
+                }
+            } catch (error) {
+                console.error('Error deleting holiday:', error);
+            }
+        }
+        
+        function toggleHolidays() {
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            manager.showHolidays = !manager.showHolidays;
+            const toggle = document.getElementById('holidayToggle');
+            
+            if (manager.showHolidays) {
+                toggle.classList.add('active');
+                toggle.title = 'Hide Holidays';
+            } else {
+                toggle.classList.remove('active');
+                toggle.title = 'Show Holidays';
+            }
+            
+            manager.renderCalendar();
+        }
+        
+        window.openHolidayManager = function() {
+            document.getElementById('holidayModal').classList.add('active');
+            loadCurrentHolidays();
+        }
+        
+        window.closeHolidayManager = function() {
+            document.getElementById('holidayModal').classList.remove('active');
+        }
+        
+        window.loadCurrentHolidays = async function() {
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            const year = manager.selectedDate.getFullYear();
+            const month = manager.selectedDate.getMonth() + 1;
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/?year=${year}&month=${month}`);
+                const data = await response.json();
+                
+                const listDiv = document.getElementById('holidayList');
+                listDiv.innerHTML = data.holidays.map(h => {
+                    // Show delete button for all holidays (they're all in Firestore now)
+                    // If no ID, use a combination of date and name as identifier
+                    const holidayId = h.id || `${h.date}_${h.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                    const canDelete = true; // All holidays can be deleted from Firestore
+                    
+                    return `
+                        <div class="flex items-center justify-between p-2 hover:bg-white/5 rounded">
+                            <div class="flex items-center gap-2">
+                                <span>${h.emoji || '📅'}</span>
+                                <span class="text-sm">${h.name}</span>
+                                <span class="text-xs opacity-60">${h.date}</span>
+                                <span class="holiday-indicator ${h.category}">${h.type}</span>
+                            </div>
+                            ${canDelete ? `<button onclick="window.deleteHoliday('${holidayId}')" class="text-red-500 hover:text-red-300 text-xl px-2">×</button>` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading holidays:', error);
+            }
+        }
+        
+        window.addCustomHoliday = async function() {
+            const date = document.getElementById('holidayDate').value;
+            const name = document.getElementById('holidayName').value;
+            const type = document.getElementById('holidayType').value;
+            const category = document.getElementById('holidayCategory').value;
+            const emoji = document.getElementById('holidayEmoji').value || '📅';
+            
+            if (!date || !name) {
+                alert('Please enter a date and name');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/calendar/holidays/custom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, name, type, category, emoji, admin_only: true })
+                });
+                
+                if (response.ok) {
+                    // Clear form
+                    document.getElementById('holidayDate').value = '';
+                    document.getElementById('holidayName').value = '';
+                    document.getElementById('holidayEmoji').value = '';
+                    
+                    // Reload holidays
+                    await window.calendarManager.loadHolidaysAndEvents();
+                    window.calendarManager.renderCalendar();
+                    loadCurrentHolidays();
+                }
+            } catch (error) {
+                console.error('Error adding holiday:', error);
+                alert('Failed to add holiday');
+            }
+        }
+        
+        window.exportHolidays = async function() {
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            const year = manager.selectedDate.getFullYear();
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/?year=${year}`);
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data.holidays, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `holidays_${year}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error exporting holidays:', error);
+            }
+        }
+        
+        window.importHolidays = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const holidays = JSON.parse(text);
+                
+                for (const holiday of holidays) {
+                    if (!holiday.date || !holiday.name) continue;
+                    
+                    await fetch('/api/calendar/holidays/custom', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            date: holiday.date,
+                            name: holiday.name,
+                            type: holiday.type || 'custom',
+                            category: holiday.category || 'custom',
+                            emoji: holiday.emoji || '📅',
+                            admin_only: true
+                        })
+                    });
+                }
+                
+                await window.calendarManager.loadHolidaysAndEvents();
+                window.calendarManager.renderCalendar();
+                loadCurrentHolidays();
+                alert('Holidays imported successfully!');
+            } catch (error) {
+                console.error('Error importing holidays:', error);
+                alert('Failed to import holidays. Please check the file format.');
+            }
+        }
+        
+        window.resetHolidays = async function() {
+            if (!confirm('This will re-initialize all holidays for the current year. Continue?')) return;
+            
+            const manager = window.calendarManager;
+            if (!manager) return;
+            
+            const year = manager.selectedDate.getFullYear();
+            
+            try {
+                const response = await fetch(`/api/calendar/holidays/initialize/${year}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                alert(data.message);
+                
+                await window.calendarManager.loadHolidaysAndEvents();
+                window.calendarManager.renderCalendar();
+                loadCurrentHolidays();
+            } catch (error) {
+                console.error('Error resetting holidays:', error);
+            }
+        }
