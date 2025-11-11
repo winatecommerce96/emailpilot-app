@@ -263,10 +263,22 @@
         
         body.light-mode .campaign-pill {
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(0, 0, 0, 0.15);
+            color: rgba(0, 0, 0, 0.9);
+        }
+
+        body.light-mode .campaign-pill-text {
+            color: rgba(0, 0, 0, 0.95);
+        }
+
+        body.light-mode .campaign-pill-meta {
+            color: rgba(0, 0, 0, 0.7);
         }
 
         body.light-mode .campaign-pill-meta-badge {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.1);
+            color: rgba(0, 0, 0, 0.8);
         }
 
         /* Studio Lights Theme Toggle */
@@ -665,7 +677,7 @@
         .campaign-pill {
             padding: 10px 14px;
             margin: 4px 0;
-            border-radius: 12px;
+            border-radius: 8px;
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
@@ -677,7 +689,17 @@
             max-width: 100%;
             min-height: 44px;
             letter-spacing: 0.2px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #8A6CF7;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .campaign-pill.is-resend {
+            border-style: dashed;
+            border-left-width: 4px;
+            border-left-style: solid;
         }
 
         /* Text content inside pill */
@@ -751,53 +773,45 @@
         } */
         
         .campaign-pill.promotional {
-            background: linear-gradient(135deg, #ff0080, #ff8c00);
+            border-left-color: #F43F5E;
         }
-        
+
         .campaign-pill.content {
-            background: linear-gradient(135deg, #3369DC, #8A6CF7);
+            border-left-color: #3B82F6;
         }
-        
+
         .campaign-pill.engagement {
-            background: linear-gradient(135deg, #8A6CF7, #C5FF75);
-            color: #000000;
+            border-left-color: #A855F7;
         }
-        
+
         .campaign-pill.seasonal {
-            background: linear-gradient(135deg, #C5FF75, #8BED4F);
-            color: #000000;
+            border-left-color: #22C55E;
         }
-        
+
         .campaign-pill.gradient-purple,
         .campaign-pill.special {
-            background: linear-gradient(135deg, #9F7AEA, #EC4899);
-            color: #FFFFFF;
+            border-left-color: #EC4899;
         }
-        
+
         /* SMS Campaign Pills - Different shades for SMS channel */
         .campaign-pill.sms-promotional {
-            background: linear-gradient(135deg, #FF6B6B, #FF8C42);
-            color: #FFFFFF;
+            border-left-color: #FF6B6B;
         }
-        
+
         .campaign-pill.sms-content {
-            background: linear-gradient(135deg, #4ECDC4, #44A08D);
-            color: #FFFFFF;
+            border-left-color: #4ECDC4;
         }
-        
+
         .campaign-pill.sms-engagement {
-            background: linear-gradient(135deg, #667EEA, #764BA2);
-            color: #FFFFFF;
+            border-left-color: #667EEA;
         }
-        
+
         .campaign-pill.sms-seasonal {
-            background: linear-gradient(135deg, #F093FB, #F5576C);
-            color: #FFFFFF;
+            border-left-color: #F093FB;
         }
-        
+
         .campaign-pill.sms-special {
-            background: linear-gradient(135deg, #FA709A, #FEE140);
-            color: #000000;
+            border-left-color: #FEE140;
         }
         
         /* Holiday and Event Indicators */
