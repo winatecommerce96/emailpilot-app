@@ -16,7 +16,7 @@ from pathlib import Path
 from google.cloud import firestore
 
 # Import authentication dependency
-from app.api.auth_v2 import get_current_user
+from app.api.clerk_auth import verify_clerk_session
 from app.deps.firestore import get_db
 
 logger = logging.getLogger(__name__)
@@ -238,7 +238,7 @@ async def execute_workflow_background(
 
 @router.get("/health")
 async def calendar_health(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Health check endpoint for calendar API.
@@ -259,7 +259,7 @@ async def calendar_health(
 async def run_workflow(
     request: WorkflowRequest,
     background_tasks: BackgroundTasks,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict = Depends(verify_clerk_session),
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -375,7 +375,7 @@ async def run_workflow(
 @router.get("/jobs/{job_id}")
 async def get_job_status(
     job_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: dict = Depends(verify_clerk_session),
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -424,7 +424,7 @@ async def get_job_status(
 @router.get("/prompts/{prompt_name}")
 async def get_prompt(
     prompt_name: str,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Get a prompt template by name.
@@ -463,7 +463,7 @@ async def get_prompt(
 async def update_prompt(
     prompt_name: str,
     request: PromptRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Update a prompt template.
@@ -503,7 +503,7 @@ async def update_prompt(
 @router.post("/rag/data")
 async def fetch_rag_data(
     request: RAGRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Fetch RAG (Retrieval-Augmented Generation) data for a client.
@@ -534,7 +534,7 @@ async def fetch_rag_data(
 @router.post("/mcp/data")
 async def fetch_mcp_data(
     request: MCPRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Fetch Klaviyo data via MCP (Model Context Protocol) servers.
@@ -566,7 +566,7 @@ async def fetch_mcp_data(
 async def get_workflow_outputs(
     output_type: str,
     client_name: Optional[str] = None,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Retrieve workflow outputs (calendars, summaries, etc.).
@@ -644,7 +644,7 @@ async def get_workflow_outputs(
 
 @router.get("/cache")
 async def view_cache(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     View MCP cache statistics.
@@ -674,7 +674,7 @@ async def view_cache(
 
 @router.delete("/cache")
 async def clear_cache(
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: dict = Depends(verify_clerk_session)
 ):
     """
     Clear MCP cache.
