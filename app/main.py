@@ -15,8 +15,10 @@ app.add_middleware(
     max_age=86400 * 7  # 7 days
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
+# Mount static files if frontend directory exists (optional for API-only deployment)
+frontend_dir = "frontend/public"
+if os.path.exists(frontend_dir):
+    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
 # Register authentication routes
 app.include_router(auth_v2.router, prefix="/api/auth/v2", tags=["authentication"])
@@ -29,8 +31,19 @@ app.include_router(admin_clients.router, tags=["admin"])
 
 @app.get("/")
 async def root():
-    """Serve the main calendar interface at root path"""
-    return FileResponse('frontend/public/calendar_master.html')
+    """Serve the main calendar interface at root path or API info"""
+    frontend_file = 'frontend/public/calendar_master.html'
+    if os.path.exists(frontend_file):
+        return FileResponse(frontend_file)
+    return {
+        "message": "EmailPilot API",
+        "status": "running",
+        "endpoints": {
+            "calendar": "/api/calendar/workflow",
+            "auth": "/api/auth/v2/login",
+            "health": "/health"
+        }
+    }
 
 @app.get("/health")
 def health():
@@ -41,11 +54,17 @@ def get_goals(user_id: str, db = Depends(get_db)):
     docs = db.collection("goals").where("userId", "==", user_id).stream()
     return [d.to_dict() | {"id": d.id} for d in docs]
 
-# Serve calendar approval page
+# Serve calendar approval page (only if frontend exists)
 @app.get("/calendar-approval.html")
 async def serve_calendar_approval():
-    return FileResponse('frontend/public/calendar-approval.html')
+    frontend_file = 'frontend/public/calendar-approval.html'
+    if os.path.exists(frontend_file):
+        return FileResponse(frontend_file)
+    return {"error": "Frontend not deployed", "message": "This is an API-only deployment"}
 
 @app.get("/static/calendar-approval.html")
 async def serve_static_approval():
-    return FileResponse('frontend/public/static/calendar-approval.html')
+    frontend_file = 'frontend/public/static/calendar-approval.html'
+    if os.path.exists(frontend_file):
+        return FileResponse(frontend_file)
+    return {"error": "Frontend not deployed", "message": "This is an API-only deployment"}
