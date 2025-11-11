@@ -1,26 +1,30 @@
+# EmailPilot App - Unified Calendar and Authentication System
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for potential database connections
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-COPY requirements_firestore.txt .
-RUN pip install --no-cache-dir -r requirements_firestore.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
 # Set environment variables
 ENV PYTHONPATH=/app
+ENV PORT=8000
 
-EXPOSE 8080
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5)"
+    CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=5)"
 
-CMD ["uvicorn", "main_firestore:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300"]
+# Run the unified FastAPI application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "1200"]

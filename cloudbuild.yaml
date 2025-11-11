@@ -1,20 +1,31 @@
-# Cloud Build configuration for EmailPilot with Secret Manager integration
+# Cloud Build configuration for EmailPilot with Calendar Workflow and Authentication
 steps:
-  # Build the container image
+  # Step 1: Build the container image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
       - '-t'
+      - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
+      - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
       - '.'
-    
-  # Push the container image to Container Registry
+    id: 'build-image'
+
+  # Step 2: Push the image with BUILD_ID tag
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
+    id: 'push-image-sha'
+
+  # Step 3: Push the latest tag
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
-  
-  # Deploy to Cloud Run with Secret Manager integration
+    id: 'push-image-latest'
+
+  # Step 4: Deploy to Cloud Run with Secret Manager integration
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -22,14 +33,14 @@ steps:
       - 'deploy'
       - 'emailpilot-api'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
+      - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
       - '--region'
       - 'us-central1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--port'
-      - '8080'
+      - '8000'
       - '--memory'
       - '2Gi'
       - '--cpu'
@@ -37,19 +48,25 @@ steps:
       - '--max-instances'
       - '10'
       - '--min-instances'
-      - '1'
+      - '0'
       - '--timeout'
-      - '300'
+      - '1200'
       # Environment variables (non-sensitive)
       - '--set-env-vars'
-      - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=emailpilot-438321,SECRET_MANAGER_ENABLED=true,DEBUG=false'
+      - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
       # Secret Manager secrets (sensitive values)
-      - '--set-secrets'
-      - 'DATABASE_URL=emailpilot-database-url:latest,SECRET_KEY=emailpilot-secret-key:latest,KLAVIYO_API_KEY=emailpilot-klaviyo-api-key:latest,SLACK_WEBHOOK_URL=emailpilot-slack-webhook-url:latest,GEMINI_API_KEY=emailpilot-gemini-api-key:latest'
+      - '--update-secrets'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,SECRET_KEY=emailpilot-secret-key:latest,CLERK_SECRET_KEY=clerk-secret-key:latest'
+    id: 'deploy-to-cloud-run'
 
+# Images to be pushed to Container Registry
 images:
+  - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
   - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
 
+# Build configuration options
 options:
+  machineType: 'N1_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1200s'
