@@ -4,11 +4,13 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '-f'
+      - 'emailpilot-app/Dockerfile'
       - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
       - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
-      - '.'
+      - 'emailpilot-app'
     id: 'build-image'
 
   # Step 2: Push the image with BUILD_ID tag
