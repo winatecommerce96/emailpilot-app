@@ -18,8 +18,9 @@ from google.cloud import firestore
 
 # Try to import Clerk, but make it optional
 try:
-    from clerk_backend_api import Clerk
-    from clerk_backend_api.exceptions import ClerkAPIError
+    from clerk_backend_api import Clerk, models
+    # In v4.0.0+, errors are in the models module
+    ClerkAPIError = models.ClerkBaseError
     CLERK_AVAILABLE = True
 except ImportError as e:
     Clerk = None
