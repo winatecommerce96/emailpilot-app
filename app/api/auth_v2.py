@@ -127,11 +127,11 @@ def verify_token(
     db: firestore.Client = Depends(get_db)
 ) -> Dict[str, Any]:
     """Verify JWT token or API key with multi-tenant support"""
-    
+
     # Check API key first
     if api_key:
         return verify_api_key(api_key, db)
-    
+
     # Check bearer token
     if not credentials:
         raise HTTPException(
@@ -139,39 +139,60 @@ def verify_token(
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     try:
         token = credentials.credentials
+        logger.info(f"[AUTH] Attempting to decode token (first 20 chars): {token[:20]}...")
+
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        
+        logger.info(f"[AUTH] Token decoded successfully for user: {payload.get('sub')}")
+
         # Verify token type
-        if payload.get("type") != "access":
+        token_type = payload.get("type")
+        logger.info(f"[AUTH] Token type: {token_type}")
+        if token_type != "access":
+            logger.warning(f"[AUTH] Invalid token type: {token_type} (expected 'access')")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token type"
             )
-        
+
         # Check if token is revoked
-        if is_token_revoked(payload.get("sub"), db):
+        user_sub = payload.get("sub")
+        logger.info(f"[AUTH] Checking revocation status for user: {user_sub}")
+        if is_token_revoked(user_sub, db):
+            logger.warning(f"[AUTH] Token has been revoked for user: {user_sub}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked"
             )
-        
+        logger.info(f"[AUTH] Token revocation check passed")
+
         # Get user data with tenant info
-        user_data = get_user_with_tenant(payload.get("sub"), payload.get("tenant_id"), db)
-        
+        tenant_id = payload.get("tenant_id")
+        logger.info(f"[AUTH] Retrieving user data for: {user_sub}, tenant: {tenant_id}")
+        user_data = get_user_with_tenant(user_sub, tenant_id, db)
+        logger.info(f"[AUTH] User data retrieved successfully")
+
         return user_data
-        
-    except jwt.ExpiredSignatureError:
+
+    except jwt.ExpiredSignatureError as e:
+        logger.error(f"[AUTH] Token has expired: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired"
         )
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.error(f"[AUTH] Invalid token error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
+        )
+    except Exception as e:
+        logger.error(f"[AUTH] Unexpected error during token verification: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed"
         )
 
 def verify_api_key(api_key: str, db: firestore.Client) -> Dict[str, Any]:
