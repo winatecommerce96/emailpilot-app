@@ -16,7 +16,6 @@ COPY . .
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV PORT=8080
 
 EXPOSE 8080
 
