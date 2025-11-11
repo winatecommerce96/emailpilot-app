@@ -217,6 +217,29 @@ async def _store_client_klaviyo_key_legacy(key_resolver: ClientKeyResolver, clie
 # ----------------------------
 # Admin/Utility endpoints
 # ----------------------------
+
+@router.get("/login")
+async def admin_login(request: Request, password: str = ""):
+    """Simple admin login that sets session. For internal use only."""
+    # Check password against environment variable or default
+    expected_password = os.getenv("ADMIN_PASSWORD", "emailpilot2025")
+
+    if password != expected_password:
+        raise HTTPException(status_code=401, detail="Invalid password")
+
+    # Set session
+    request.session["user"] = {
+        "email": "admin@emailpilot.ai",
+        "name": "Admin User",
+        "role": "admin"
+    }
+
+    return {
+        "success": True,
+        "message": "Logged in successfully",
+        "user": request.session["user"]
+    }
+
 @router.get("/environment")
 async def get_environment_info(settings: Settings = Depends(get_settings)):
     try:
