@@ -16,7 +16,12 @@ COPY . .
 
 # Set environment variables
 ENV PYTHONPATH=/app
+ENV PORT=8080
 
 EXPOSE 8080
 
-CMD ["uvicorn", "main_firestore:app", "--host", "0.0.0.0", "--port", "8080"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5)"
+
+CMD ["uvicorn", "main_firestore:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300"]

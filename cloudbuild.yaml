@@ -33,12 +33,16 @@ steps:
       - '--memory'
       - '2Gi'
       - '--cpu'
-      - '1'
+      - '2'
       - '--max-instances'
       - '10'
+      - '--min-instances'
+      - '1'
+      - '--timeout'
+      - '300'
       # Environment variables (non-sensitive)
       - '--set-env-vars'
-      - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=emailpilot-438321,SECRET_MANAGER_ENABLED=true,DEBUG=false'
+      - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=emailpilot-438321,SECRET_MANAGER_ENABLED=true,DEBUG=false,PORT=8080'
       # Secret Manager secrets (sensitive values)
       - '--set-secrets'
       - 'DATABASE_URL=emailpilot-database-url:latest,SECRET_KEY=emailpilot-secret-key:latest,KLAVIYO_API_KEY=emailpilot-klaviyo-api-key:latest,SLACK_WEBHOOK_URL=emailpilot-slack-webhook-url:latest,GEMINI_API_KEY=emailpilot-gemini-api-key:latest'

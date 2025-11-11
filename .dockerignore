@@ -20,3 +20,55 @@ logs/
 *.log
 .env
 *.sqlite
+
+# Build artifacts
+dist/
+build/
+*.egg-info
+
+# Documentation
+docs/
+*.md
+!requirements*.txt
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Large backup/archive directories
+backups/
+archive/
+.backup*/
+.revert-backup-*/
+*_backup/
+*.tar.gz
+*.zip
+*.tgz
+
+# MCP and other subprojects
+mcp-*/
+emailpilot_langchain_mcp_export/
+services/klaviyo_mcp_enhanced/
+email-sms-mcp-server.deprecated/
+
+# Deployment scripts
+deploy*.sh
+*.yaml
+!cloudbuild.yaml
+
+# Other unnecessary files
+conversations/
+datasets/
+deployments/
+.gemini-clipboard/
+*.out
+*.pid
+node_modules/
