@@ -9,7 +9,6 @@ steps:
       - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
       - '.'
-    dir: 'emailpilot-app'
     id: 'build-image'
 
   # Step 2: Push the image with BUILD_ID tag
