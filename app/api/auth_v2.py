@@ -21,10 +21,11 @@ try:
     from clerk_backend_api import Clerk
     from clerk_backend_api.exceptions import ClerkAPIError
     CLERK_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     Clerk = None
     ClerkAPIError = None
     CLERK_AVAILABLE = False
+    logging.error(f"Clerk backend API import failed: {e}", exc_info=True)
     logging.warning("Clerk backend API not available. Install with: pip install clerk-backend-api")
 
 from app.deps.firestore import get_db
