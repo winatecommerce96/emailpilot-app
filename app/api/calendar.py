@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel, Field
 import uuid
 import logging
@@ -57,6 +57,43 @@ class MCPRequest(BaseModel):
     """Request model for MCP data fetching"""
     client_name: str = Field(..., description="Client name")
     data_types: List[str] = Field(default=['campaigns', 'flows'], description="Data types to fetch")
+
+# Pydantic models for calendar events CRUD
+class CalendarEventCreate(BaseModel):
+    """Request model for creating a calendar event"""
+    client_id: str = Field(..., description="Client ID")
+    title: str = Field(..., description="Event title")
+    event_date: str = Field(..., description="Event date (YYYY-MM-DD or ISO format)")
+    description: Optional[str] = Field(None, description="Event description")
+    content: Optional[str] = Field(None, description="Event content")
+    color: Optional[str] = Field("bg-gray-200 text-gray-800", description="Event color class")
+    event_type: Optional[str] = Field("campaign", description="Event type")
+    status: Optional[str] = Field("planned", description="Event status")
+    send_time: Optional[str] = Field(None, description="Send time (HH:MM)")
+    segment: Optional[str] = Field(None, description="Target segment")
+    subject_a: Optional[str] = Field(None, description="Subject line A")
+    subject_b: Optional[str] = Field(None, description="Subject line B")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional metadata")
+
+class CalendarEventUpdate(BaseModel):
+    """Request model for updating a calendar event"""
+    title: Optional[str] = None
+    event_date: Optional[str] = None
+    description: Optional[str] = None
+    content: Optional[str] = None
+    color: Optional[str] = None
+    event_type: Optional[str] = None
+    status: Optional[str] = None
+    send_time: Optional[str] = None
+    segment: Optional[str] = None
+    subject_a: Optional[str] = None
+    subject_b: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+class BulkEventsCreate(BaseModel):
+    """Request model for bulk creating events"""
+    client_id: str = Field(..., description="Client ID")
+    events: List[CalendarEventCreate] = Field(..., description="List of events to create")
 
 def standard_response(success: bool, data: Any = None, error: Optional[str] = None) -> Dict[str, Any]:
     """Standardized API response format"""
@@ -704,4 +741,226 @@ async def clear_cache(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+# ============================================================================
+# Calendar Events CRUD Endpoints (Firestore-backed, no auth required)
+# ============================================================================
+
+@router.get("/events")
+async def get_events(
+    client_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get calendar events for a client within a date range.
+
+    Query params:
+    - client_id: Required client identifier
+    - start_date: Optional start date (YYYY-MM-DD)
+    - end_date: Optional end date (YYYY-MM-DD)
+
+    Returns: Array of events directly (not wrapped in data field)
+    """
+    try:
+        # Start with base query for client
+        query = db.collection("calendar_events").where("client_id", "==", client_id)
+
+        # Add date range filters if provided
+        if start_date:
+            query = query.where("event_date", ">=", start_date)
+        if end_date:
+            query = query.where("event_date", "<=", end_date)
+
+        # Execute query
+        docs = query.stream()
+
+        # Convert to list of dicts with id field
+        events = []
+        for doc in docs:
+            event_data = doc.to_dict()
+            event_data['id'] = doc.id
+            events.append(event_data)
+
+        logger.info(f"Retrieved {len(events)} events for client {client_id}")
+
+        # Return array directly (not wrapped in standard_response)
+        return events
+
+    except Exception as e:
+        logger.error(f"Error fetching events: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch events: {str(e)}"
+        )
+
+@router.post("/events")
+async def create_event(
+    event: CalendarEventCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create a new calendar event.
+
+    Returns the created event with its ID.
+    """
+    try:
+        # Prepare event data
+        event_data = event.dict()
+        event_data['created_at'] = datetime.utcnow().isoformat()
+        event_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Create document in Firestore
+        doc_ref = db.collection("calendar_events").document()
+        doc_ref.set(event_data)
+
+        # Return created event with ID
+        event_data['id'] = doc_ref.id
+
+        logger.info(f"Created event {doc_ref.id} for client {event.client_id}")
+
+        return event_data
+
+    except Exception as e:
+        logger.error(f"Error creating event: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create event: {str(e)}"
+        )
+
+@router.put("/events/{event_id}")
+async def update_event(
+    event_id: str,
+    event_update: CalendarEventUpdate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Update an existing calendar event.
+
+    Returns the updated event.
+    """
+    try:
+        doc_ref = db.collection("calendar_events").document(event_id)
+
+        # Check if document exists
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Prepare update data (only include non-None fields)
+        update_data = {k: v for k, v in event_update.dict().items() if v is not None}
+        update_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Update document
+        doc_ref.update(update_data)
+
+        # Fetch and return updated event
+        updated_doc = doc_ref.get()
+        event_data = updated_doc.to_dict()
+        event_data['id'] = event_id
+
+        logger.info(f"Updated event {event_id}")
+
+        return event_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update event: {str(e)}"
+        )
+
+@router.delete("/events/{event_id}")
+async def delete_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Delete a calendar event.
+
+    Returns success message.
+    """
+    try:
+        doc_ref = db.collection("calendar_events").document(event_id)
+
+        # Check if document exists
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Delete document
+        doc_ref.delete()
+
+        logger.info(f"Deleted event {event_id}")
+
+        return {"success": True, "message": f"Event {event_id} deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete event: {str(e)}"
+        )
+
+@router.post("/create-bulk-events")
+async def create_bulk_events(
+    bulk_request: BulkEventsCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create multiple calendar events in a single request.
+
+    More efficient than creating events one by one.
+
+    Returns: List of created event IDs and count.
+    """
+    try:
+        created_events = []
+        batch = db.batch()
+
+        # Prepare all events for batch write
+        for event in bulk_request.events:
+            event_data = event.dict()
+            event_data['client_id'] = bulk_request.client_id  # Ensure client_id is set
+            event_data['created_at'] = datetime.utcnow().isoformat()
+            event_data['updated_at'] = datetime.utcnow().isoformat()
+
+            # Create document reference
+            doc_ref = db.collection("calendar_events").document()
+            batch.set(doc_ref, event_data)
+
+            created_events.append({
+                'id': doc_ref.id,
+                'title': event.title,
+                'event_date': event.event_date
+            })
+
+        # Commit batch
+        batch.commit()
+
+        logger.info(f"Bulk created {len(created_events)} events for client {bulk_request.client_id}")
+
+        return {
+            "success": True,
+            "count": len(created_events),
+            "events": created_events
+        }
+
+    except Exception as e:
+        logger.error(f"Error bulk creating events: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk create events: {str(e)}"
         )
