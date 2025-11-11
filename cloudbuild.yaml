@@ -1,9 +1,11 @@
 # Cloud Build configuration for EmailPilot with Calendar Workflow and Authentication
 steps:
-  # Step 1: Build the container image
+  # Step 1: Build the container image (from parent directory to include both emailpilot-app and emailpilot-simple)
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '-f'
+      - 'emailpilot-app/Dockerfile'
       - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
       - '-t'
