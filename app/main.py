@@ -19,6 +19,11 @@ app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
 # Register admin client management routes
 app.include_router(admin_clients.router, tags=["admin"])
 
+@app.get("/")
+async def root():
+    """Serve the main calendar interface at root path"""
+    return FileResponse('frontend/public/calendar_master.html')
+
 @app.get("/health")
 def health():
     return {"status": "ok", "revision": os.getenv("K_REVISION")}
