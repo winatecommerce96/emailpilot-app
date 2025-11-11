@@ -284,6 +284,41 @@
             background: linear-gradient(135deg, rgba(138, 108, 247, 0.4), rgba(123, 95, 238, 0.4));
             box-shadow: 0 8px 20px rgba(138, 108, 247, 0.3);
         }
+
+        .segment-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .segment-dot.standard {
+            background-color: #1F4E78;
+        }
+
+        .segment-dot.vip {
+            background-color: #FFC107;
+        }
+
+        .segment-dot.pet {
+            background-color: #4CAF50;
+        }
+
+        .segment-dot.urgent {
+            background-color: #F44336;
+        }
+
+        .segment-dot.subscription {
+            background-color: #9C27B0;
+        }
+
+        .segment-dot.bundle {
+            background-color: #FF9800;
+        }
+
+        .segment-dot.resend {
+            background-color: #00BCD4;
+        }
         
         .status-badge {
             position: fixed;
@@ -323,25 +358,36 @@
             </div>
         </div>
 
-        <!-- Message Type Filters -->
+        <!-- Campaign Types & Segments Filters -->
         <div class="mb-8">
-            <div class="glass-card inline-flex gap-3 p-2">
-                <button id="emailFilterBtn" onclick="toggleFilter('email')"
-                    class="filter-pill active"
-                    aria-label="Toggle email campaigns visibility"
-                    aria-pressed="true">
-                    <span class="pill-icon">📧</span>
-                    <span class="pill-label">EMAIL</span>
-                </button>
-                <button id="smsFilterBtn" onclick="toggleFilter('sms')"
-                    class="filter-pill active"
-                    aria-label="Toggle SMS campaigns visibility"
-                    aria-pressed="true">
-                    <span class="pill-icon">💬</span>
-                    <span class="pill-label">SMS</span>
-                </button>
+            <div class="mb-4">
+                <div class="text-sm text-white/70 font-semibold mb-2">Message Type</div>
+                <div class="glass-card inline-flex gap-3 p-2 flex-wrap">
+                    <button id="emailFilterBtn" onclick="toggleFilter('email')"
+                        class="filter-pill active"
+                        aria-label="Toggle email campaigns visibility"
+                        aria-pressed="true">
+                        <span class="pill-icon">📧</span>
+                        <span class="pill-label">EMAIL</span>
+                    </button>
+                    <button id="smsFilterBtn" onclick="toggleFilter('sms')"
+                        class="filter-pill active"
+                        aria-label="Toggle SMS campaigns visibility"
+                        aria-pressed="true">
+                        <span class="pill-icon">💬</span>
+                        <span class="pill-label">SMS</span>
+                    </button>
+                </div>
             </div>
-            <div class="mt-3 text-sm text-white/60">
+
+            <div class="mb-4" id="segmentFilterSection" style="display: none;">
+                <div class="text-sm text-white/70 font-semibold mb-2">Campaign Segments</div>
+                <div id="segmentFilterContainer" class="glass-card inline-flex gap-3 p-2 flex-wrap">
+                    <!-- Segment filter pills will be dynamically generated here -->
+                </div>
+            </div>
+
+            <div class="text-sm text-white/60">
                 <span id="totalCampaigns">0</span> campaigns total
             </div>
         </div>
@@ -419,8 +465,9 @@
             email: true,
             sms: true
         };
+        let activeSegmentFilters = {}; // Will be populated dynamically
 
-        // Toggle filter
+        // Toggle message type filter (Email/SMS)
         function toggleFilter(type) {
             activeFilters[type] = !activeFilters[type];
 
@@ -430,22 +477,143 @@
             btn.setAttribute('aria-pressed', activeFilters[type]);
 
             // Re-render calendar with filtered campaigns
-            if (approvalData) {
-                const filteredCampaigns = filterCampaigns(approvalData.campaigns || []);
-                renderCalendar(filteredCampaigns);
-                updateCampaignCount(filteredCampaigns.length);
-            }
+            applyAllFilters();
+        }
+
+        // Toggle segment filter
+        function toggleSegmentFilter(segment) {
+            activeSegmentFilters[segment] = !activeSegmentFilters[segment];
+
+            // Update button state
+            const btn = document.getElementById(`${segment}FilterBtn`);
+            btn.classList.toggle('active');
+            btn.setAttribute('aria-pressed', activeSegmentFilters[segment]);
+
+            // Re-render calendar with filtered campaigns
+            applyAllFilters();
+        }
+
+        // Apply all filters and re-render calendar
+        function applyAllFilters() {
+            if (!approvalData) return;
+
+            const filteredCampaigns = filterCampaigns(approvalData.campaigns || []);
+            renderCalendar(filteredCampaigns);
+            updateCampaignCount(filteredCampaigns.length);
         }
 
         // Filter campaigns based on active filters
         function filterCampaigns(campaigns) {
             return campaigns.filter(campaign => {
+                // Filter by message type (email/sms)
                 const type = (campaign.type || 'email').toLowerCase();
-                if (type === 'sms' || type === 'text') {
-                    return activeFilters.sms;
-                }
-                return activeFilters.email;
+                const isSMS = type === 'sms' || type === 'text' || type === 'mobile';
+                const passesTypeFilter = isSMS ? activeFilters.sms : activeFilters.email;
+
+                if (!passesTypeFilter) return false;
+
+                // Filter by segment
+                const segment = getSegmentKey(campaign.segment || campaign.target_segment || '');
+                const passesSegmentFilter = activeSegmentFilters[segment] !== false;
+
+                return passesSegmentFilter;
             });
+        }
+
+        // Extract unique segments from campaigns and generate filter pills
+        function generateSegmentFilters(campaigns) {
+            const segmentCounts = {};
+
+            // Count campaigns per segment
+            campaigns.forEach(campaign => {
+                const segmentText = campaign.segment || campaign.target_segment || 'all_subscribers';
+                const segmentKey = getSegmentKey(segmentText);
+
+                if (!segmentCounts[segmentKey]) {
+                    segmentCounts[segmentKey] = {
+                        count: 0,
+                        displayName: getSegmentDisplayName(segmentText),
+                        originalText: segmentText
+                    };
+                }
+                segmentCounts[segmentKey].count++;
+            });
+
+            // Sort segments by count (most common first)
+            const sortedSegments = Object.entries(segmentCounts)
+                .sort((a, b) => b[1].count - a[1].count);
+
+            // If we have segments, show the section and generate pills
+            if (sortedSegments.length > 0) {
+                document.getElementById('segmentFilterSection').style.display = 'block';
+
+                const container = document.getElementById('segmentFilterContainer');
+                container.innerHTML = sortedSegments.map(([key, data]) => {
+                    // Initialize as active
+                    activeSegmentFilters[key] = true;
+
+                    const dotClass = getSegmentDotClass(key);
+
+                    return `
+                        <button id="${key}FilterBtn" onclick="toggleSegmentFilter('${key}')"
+                            class="filter-pill active"
+                            aria-label="Toggle ${data.displayName} campaigns"
+                            aria-pressed="true">
+                            <span class="segment-dot ${dotClass}"></span>
+                            <span class="pill-label">${data.displayName}</span>
+                        </button>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Get segment key for filtering (normalized lowercase)
+        function getSegmentKey(segmentText) {
+            if (!segmentText) return 'standard';
+            const lower = segmentText.toLowerCase();
+
+            // Check for known segment types
+            if (lower.includes('vip')) return 'vip';
+            if (lower.includes('pet')) return 'pet';
+            if (lower.includes('urgent')) return 'urgent';
+            if (lower.includes('subscription')) return 'subscription';
+            if (lower.includes('bundle')) return 'bundle';
+            if (lower.includes('resend')) return 'resend';
+
+            // Return a safe key for unknown segments
+            return segmentText.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        }
+
+        // Get display name for segment
+        function getSegmentDisplayName(segmentText) {
+            if (!segmentText || segmentText === 'all_subscribers') return 'Standard';
+
+            const key = getSegmentKey(segmentText);
+
+            // Return capitalized version of known segments
+            const knownSegments = {
+                'vip': 'VIP',
+                'pet': 'Pet',
+                'urgent': 'Urgent',
+                'subscription': 'Subscription',
+                'bundle': 'Bundle',
+                'resend': 'Resend'
+            };
+
+            if (knownSegments[key]) return knownSegments[key];
+
+            // For custom segments, capitalize first letter and replace underscores
+            return segmentText
+                .replace(/_/g, ' ')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+        }
+
+        // Get CSS class for segment dot
+        function getSegmentDotClass(segmentKey) {
+            const knownSegments = ['standard', 'vip', 'pet', 'urgent', 'subscription', 'bundle', 'resend'];
+            return knownSegments.includes(segmentKey) ? segmentKey : 'standard';
         }
 
         // Update campaign count
@@ -522,14 +690,15 @@
                 document.getElementById('approvalMessage').classList.remove('hidden');
             }
 
-            // Get campaigns and apply filters
+            // Get campaigns
             const campaigns = approvalData.campaigns || [];
+
+            // Generate segment filters based on available segments in data
+            generateSegmentFilters(campaigns);
+
+            // Apply filters and render
             const filteredCampaigns = filterCampaigns(campaigns);
-
-            // Update campaign count
             updateCampaignCount(filteredCampaigns.length);
-
-            // Render calendar with filtered campaigns
             renderCalendar(filteredCampaigns);
         }
         
