@@ -5883,7 +5883,7 @@
                     const events = this.campaigns.map(campaign => ({
                         title: campaign.name,
                         // FIX: Use local date components to avoid timezone shift
-                        date: `${campaign.date.getFullYear()}-${String(campaign.date.getMonth() + 1).padStart(2, '0')}-${String(campaign.date.getDate()).padStart(2, '0')}`,
+                        event_date: `${campaign.date.getFullYear()}-${String(campaign.date.getMonth() + 1).padStart(2, '0')}-${String(campaign.date.getDate()).padStart(2, '0')}`,
                         client_id: this.selectedClient.id,
                         content: campaign.description || '',
                         color: this.getChannelColor(campaign.channel),
