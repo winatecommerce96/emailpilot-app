@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from app.deps.firestore import get_db
-from app.api import auth_v2, calendar, admin_clients, mcp_registry
+from app.api import auth_v2, calendar, admin_clients, mcp_registry, clients_public
 import os
 
 app = FastAPI()
@@ -31,6 +31,9 @@ app.include_router(admin_clients.router, tags=["admin"])
 
 # Register MCP registry routes
 app.include_router(mcp_registry.router, tags=["mcp-registry"])
+
+# Register public clients route (no auth required for calendar)
+app.include_router(clients_public.router, prefix="/api/clients", tags=["clients-public"])
 
 @app.get("/")
 async def root():

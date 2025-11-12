@@ -4856,7 +4856,8 @@
                 }, 2000);
                 
                 try {
-                    const response = await authenticatedFetch('https://app.emailpilot.ai/api/clients');
+                    // Use public endpoint - no auth required
+                    const response = await fetch('/api/clients');
                     if (response.ok) {
                         const clients = await response.json();
                         // Show all clients from shared library
