@@ -303,52 +303,8 @@ async def get_environment_info(settings: Settings = Depends(get_settings)):
         }
 
 
-@router.get("/clients")
-async def get_all_clients(
-    request: Request,
-    key_resolver: ClientKeyResolver = Depends(get_client_key_resolver)
-) -> Dict[str, Any]:
-    """Get all clients with their Klaviyo key status for calendar and admin UI"""
-    get_current_user_from_session(request)
-    try:
-        db = get_db()
-        docs = db.collection("clients").stream()
-
-        clients = []
-        for doc in docs:
-            if not doc.exists:
-                continue
-
-            data = doc.to_dict() or {}
-            client_id = doc.id
-
-            # Resolve Klaviyo key status
-            resolved_key = await key_resolver.get_client_klaviyo_key(client_id)
-
-            clients.append({
-                "id": client_id,
-                "name": data.get("name", "Unknown"),
-                "client_slug": data.get("client_slug", ""),
-                "description": data.get("description", ""),
-                "is_active": data.get("is_active", True),
-                "has_klaviyo_key": bool(resolved_key),
-                "contact_email": data.get("contact_email", ""),
-                "contact_name": data.get("contact_name", ""),
-                "website": data.get("website", ""),
-                "metric_id": data.get("metric_id", ""),
-                "klaviyo_account_id": data.get("klaviyo_account_id", ""),
-                "created_at": data.get("created_at", ""),
-                "updated_at": data.get("updated_at", ""),
-            })
-
-        return {
-            "total_clients": len(clients),
-            "clients": clients
-        }
-
-    except Exception as e:
-        logger.error(f"Error fetching clients: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Client list endpoint removed - calendar uses shared library at app.emailpilot.ai
+# See https://app.emailpilot.ai/api/clients for the authoritative client list
 
 @router.get("/clients/{client_id}")
 async def get_client_details(
