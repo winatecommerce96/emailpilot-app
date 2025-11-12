@@ -4612,12 +4612,15 @@
                 }, 2000);
                 
                 try {
-                    const response = await fetch('https://app.emailpilot.ai/api/clients');
+                    const response = await fetch('/api/admin/clients');
                     if (response.ok) {
-                        const clients = await response.json();
-                        this.clients = clients;
+                        const data = await response.json();
+                        // Filter to only show active clients with Klaviyo keys
+                        this.clients = data.clients.filter(client =>
+                            client.is_active && client.has_klaviyo_key
+                        );
                         this.renderClientList();
-                        showToast(`✈️ Cleared for landing with ${this.clients.length} clients`);
+                        showToast(`✈️ Cleared for landing with ${this.clients.length} active clients`);
                     } else {
                         // Fallback to demo clients
                         this.clients = [
