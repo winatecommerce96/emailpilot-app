@@ -19,7 +19,10 @@
     <!-- React Select -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.css">
     <script src="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.js"></script>
-    
+
+    <!-- Clerk Authentication SDK -->
+    <script crossorigin="anonymous" data-clerk-publishable-key="" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
+
     <style>
         :root {
             --brand-blue: #3369DC;
@@ -3947,6 +3950,14 @@
                         <span style="margin-right: var(--space-1);">📥</span>
                         <span>Import</span>
                     </button>
+
+                    <!-- Clerk Authentication UI -->
+                    <div id="clerk-auth-container" style="display: flex; align-items: center; gap: var(--space-2);">
+                        <!-- Clerk will mount sign-in button here when not authenticated -->
+                        <div id="clerk-sign-in"></div>
+                        <!-- Clerk will mount user button here when authenticated -->
+                        <div id="clerk-user-button"></div>
+                    </div>
                 </nav>
             </div>
         </div>
@@ -4466,6 +4477,201 @@
     
     <script>
         // ====================================================================
+        // Clerk Authentication
+        // ====================================================================
+        let clerkInstance = null;
+        let clerkPublishableKey = null;
+        let currentSessionToken = null;
+        let isAuthInitialized = false;
+
+        // Initialize Clerk on page load
+        async function initializeClerk() {
+            if (isAuthInitialized) return;
+
+            try {
+                console.log('[Auth] Initializing Clerk...');
+
+                // Fetch Clerk configuration from backend
+                const configResponse = await fetch('/api/auth/v2/clerk-config');
+                if (!configResponse.ok) {
+                    throw new Error(`Failed to fetch Clerk config: ${configResponse.status}`);
+                }
+
+                const config = await configResponse.json();
+                console.log('[Auth] Clerk config loaded:', config.configured ? 'Configured' : 'Not configured');
+
+                if (config.publishable_key) {
+                    clerkPublishableKey = config.publishable_key;
+
+                    // Initialize Clerk with the publishable key
+                    const Clerk = window.Clerk;
+                    if (!Clerk) {
+                        throw new Error('Clerk SDK not loaded');
+                    }
+
+                    clerkInstance = new Clerk(clerkPublishableKey);
+                    await clerkInstance.load();
+
+                    console.log('[Auth] Clerk SDK loaded successfully');
+                    isAuthInitialized = true;
+
+                    // Check if user is already signed in
+                    await checkSession();
+                } else {
+                    console.error('[Auth] No publishable key in config');
+                }
+            } catch (error) {
+                console.error('[Auth] Failed to initialize Clerk:', error);
+                // Redirect to sign-in if initialization fails
+                setTimeout(() => {
+                    window.location.href = '/api/auth/v2/auth/sso/clerk';
+                }, 2000);
+            }
+        }
+
+        // Check for existing Clerk session
+        async function checkSession() {
+            if (!clerkInstance) {
+                console.log('[Auth] No Clerk instance, redirecting to sign-in...');
+                window.location.href = '/api/auth/v2/auth/sso/clerk';
+                return false;
+            }
+
+            if (clerkInstance.session) {
+                const session = clerkInstance.session;
+                const user = clerkInstance.user;
+
+                // Get session token for API calls
+                try {
+                    currentSessionToken = await session.getToken();
+                    console.log('[Auth] Session token obtained');
+
+                    // Update UI with user info
+                    updateAuthState(user);
+
+                    return true;
+                } catch (error) {
+                    console.error('[Auth] Failed to get session token:', error);
+                    window.location.href = '/api/auth/v2/auth/sso/clerk';
+                    return false;
+                }
+            } else {
+                console.log('[Auth] No active session, redirecting to sign-in...');
+                window.location.href = '/api/auth/v2/auth/sso/clerk';
+                return false;
+            }
+        }
+
+        // Update UI with authentication state
+        function updateAuthState(user) {
+            if (user) {
+                console.log('[Auth] User authenticated:', user.primaryEmailAddress?.emailAddress || user.id);
+
+                // Show user info in UI if element exists
+                const userInfoElement = document.getElementById('userInfo');
+                if (userInfoElement) {
+                    userInfoElement.textContent = user.primaryEmailAddress?.emailAddress || 'Signed In';
+                }
+
+                // Mount Clerk UserButton for authenticated users
+                mountClerkUI(true);
+            } else {
+                console.log('[Auth] User not authenticated');
+
+                // Mount Clerk SignIn button for unauthenticated users
+                mountClerkUI(false);
+            }
+        }
+
+        // Mount Clerk UI components based on authentication state
+        function mountClerkUI(isAuthenticated) {
+            if (!clerkInstance) {
+                console.warn('[Auth] Cannot mount Clerk UI - instance not available');
+                return;
+            }
+
+            const signInContainer = document.getElementById('clerk-sign-in');
+            const userButtonContainer = document.getElementById('clerk-user-button');
+
+            if (!signInContainer || !userButtonContainer) {
+                console.warn('[Auth] Clerk UI containers not found');
+                return;
+            }
+
+            try {
+                if (isAuthenticated) {
+                    // Hide sign-in button, show user button
+                    signInContainer.style.display = 'none';
+                    userButtonContainer.style.display = 'block';
+
+                    // Mount UserButton if not already mounted
+                    if (userButtonContainer.children.length === 0) {
+                        clerkInstance.mountUserButton(userButtonContainer, {
+                            afterSignOutUrl: '/calendar',
+                            appearance: {
+                                elements: {
+                                    userButtonAvatarBox: {
+                                        width: '32px',
+                                        height: '32px'
+                                    }
+                                }
+                            }
+                        });
+                        console.log('[Auth] Clerk UserButton mounted');
+                    }
+                } else {
+                    // Show sign-in button, hide user button
+                    signInContainer.style.display = 'block';
+                    userButtonContainer.style.display = 'none';
+
+                    // Mount SignIn button if not already mounted
+                    if (signInContainer.children.length === 0) {
+                        clerkInstance.mountSignIn(signInContainer, {
+                            redirectUrl: '/calendar',
+                            appearance: {
+                                elements: {
+                                    rootBox: {
+                                        display: 'inline-block'
+                                    },
+                                    card: {
+                                        boxShadow: 'none'
+                                    }
+                                }
+                            }
+                        });
+                        console.log('[Auth] Clerk SignIn button mounted');
+                    }
+                }
+            } catch (error) {
+                console.error('[Auth] Error mounting Clerk UI:', error);
+            }
+        }
+
+        // Wrapper for authenticated fetch calls
+        async function authenticatedFetch(url, options = {}) {
+            // Try to get token if available, but don't block if not
+            let token = currentSessionToken;
+
+            if (!token && clerkInstance?.session) {
+                try {
+                    token = await clerkInstance.session.getToken();
+                    currentSessionToken = token;
+                } catch (error) {
+                    console.warn('[Auth] Token not available, proceeding without auth:', error);
+                    // Don't redirect - just log and continue
+                }
+            }
+
+            // Add Authorization header only if token exists
+            const headers = { ...options.headers };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            return fetch(url, { ...options, headers });
+        }
+
+        // ====================================================================
         // Theme Cycling System - Dark → Light → Reading Mode
         // ====================================================================
 
@@ -4536,7 +4742,10 @@
         }
 
         // Apply saved theme on page load
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize Clerk authentication first
+            await initializeClerk();
+
             applyTheme(currentTheme);
 
             const studioButton = document.getElementById('studioThemeButton');
@@ -4612,7 +4821,7 @@
                 }, 2000);
                 
                 try {
-                    const response = await fetch('https://app.emailpilot.ai/api/clients');
+                    const response = await authenticatedFetch('https://app.emailpilot.ai/api/clients');
                     if (response.ok) {
                         const clients = await response.json();
                         // Show all clients from shared library
@@ -4713,7 +4922,7 @@
                     const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
                     const approvalIdPrefix = `${this.selectedClient.client_slug || this.selectedClient.id}-${year}-${month}`;
                     
-                    const response = await fetch(`/api/calendar/change-requests/${approvalIdPrefix}`);
+                    const response = await authenticatedFetch(`/api/calendar/change-requests/${approvalIdPrefix}`);
                     if (!response.ok) return;
                     
                     const result = await response.json();
@@ -4948,7 +5157,7 @@
                 
                 try {
                     const month = this.selectedDate.toISOString().slice(0, 7);
-                    const response = await fetch('/api/calendar/workflow/execute', {
+                    const response = await authenticatedFetch('/api/calendar/workflow/execute', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5340,7 +5549,7 @@
                     const currentYear = this.selectedDate.getFullYear();
                     
                     // Fetch goals for this client, year, and month
-                    const response = await fetch(`/api/goals/${this.selectedClient.id}?year=${currentYear}&month=${currentMonth}`);
+                    const response = await authenticatedFetch(`/api/goals/${this.selectedClient.id}?year=${currentYear}&month=${currentMonth}`);
                     
                     if (response.ok) {
                         const goals = await response.json();
@@ -5636,16 +5845,17 @@
                     const monthEnd = `${year}-${month}-31`;
                     
                     // Get existing events for this client and month
-                    const existingResponse = await fetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`);
+                    const existingResponse = await authenticatedFetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`);
                     
                     let existingEventIds = [];
                     if (existingResponse.ok) {
-                        const existingEvents = await existingResponse.json();
+                        const existingData = await existingResponse.json();
+                        const existingEvents = existingData.events || existingData; // Handle both wrapped and direct array
                         existingEventIds = existingEvents.map(e => e.id).filter(id => id);
                         
                         // Delete old events in batch (more efficient)
-                        const deletePromises = existingEventIds.map(eventId => 
-                            fetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
+                        const deletePromises = existingEventIds.map(eventId =>
+                            authenticatedFetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
                                 .catch(err => console.warn(`Failed to delete event ${eventId}:`, err))
                         );
                         await Promise.all(deletePromises);
@@ -5673,7 +5883,7 @@
                     let saveSuccess = false;
                     
                     // Attempt bulk save
-                    const bulkResponse = await fetch('/api/calendar/create-bulk-events', {
+                    const bulkResponse = await authenticatedFetch('/api/calendar/create-bulk-events', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5686,8 +5896,8 @@
                         saveSuccess = true;
                     } else {
                         // Fall back to individual saves
-                        const savePromises = events.map(event => 
-                            fetch('/api/calendar/events', {
+                        const savePromises = events.map(event =>
+                            authenticatedFetch('/api/calendar/events', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(event)
@@ -5733,7 +5943,7 @@
             // Save chat history to calendar_chat_history collection
             async saveChatHistory() {
                 try {
-                    const response = await fetch('/api/calendar/ai/save-conversation', {
+                    const response = await authenticatedFetch('/api/calendar/ai/save-conversation', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5769,13 +5979,14 @@
                     
                     // Parallel fetch for events, goals, and holidays
                     const [eventsResponse, goalsPromise, holidaysPromise] = await Promise.all([
-                        fetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`),
+                        authenticatedFetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`),
                         this.loadMonthGoal(), // Load goals in parallel
                         this.loadHolidaysAndEvents() // Load holidays in parallel
                     ]);
                     
                     if (eventsResponse.ok) {
-                        const events = await eventsResponse.json();
+                        const eventsData = await eventsResponse.json();
+                        const events = eventsData.events || eventsData; // Handle both wrapped and direct array
 
                         // Convert Firestore events to campaign format
                         this.campaigns = events.map(event => {
@@ -5839,9 +6050,9 @@
             async loadHolidaysAndEvents() {
                 const year = this.selectedDate.getFullYear();
                 const month = this.selectedDate.getMonth() + 1;
-                
+
                 try {
-                    const response = await fetch(`/api/calendar/holidays/?year=${year}&month=${month}&include_klaviyo=true&include_seasons=true`);
+                    const response = await authenticatedFetch(`/api/calendar/holidays/?year=${year}&month=${month}&include_klaviyo=true&include_seasons=true`);
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -6046,7 +6257,7 @@
             // Load chat history from calendar_conversations collection
             async loadChatHistory() {
                 try {
-                    const response = await fetch(`/api/calendar/ai/get-conversation/${this.selectedClient.id}`);
+                    const response = await authenticatedFetch(`/api/calendar/ai/get-conversation/${this.selectedClient.id}`);
                     if (response.ok) {
                         const data = await response.json();
                         this.chatHistory = data.conversation || [];
@@ -6160,7 +6371,7 @@
                 
                 try {
                     // Use the new calendar chat endpoint
-                    const response = await fetch('/api/calendar/chat', {
+                    const response = await authenticatedFetch('/api/calendar/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -7148,9 +7359,9 @@
                     industry_type: calendarManager.selectedClient.industry || 'e-commerce',
                     audience_segments: calendarManager.affinitySegments.map(s => s.name)
                 };
-                
+
                 // Call grading API
-                const response = await fetch('/api/calendar/grade', {
+                const response = await authenticatedFetch('/api/calendar/grade', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestData)
@@ -8027,7 +8238,7 @@
             
             try {
                 // Store approval page data in Firestore
-                const response = await fetch('/api/calendar/approval/create', {
+                const response = await authenticatedFetch('/api/calendar/approval/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -8054,7 +8265,7 @@
 
                 // Create Asana task with approval link (don't block on this)
                 try {
-                    const asanaResponse = await fetch('/api/calendar/approval/create-asana-task', {
+                    const asanaResponse = await authenticatedFetch('/api/calendar/approval/create-asana-task', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -8109,7 +8320,7 @@
             const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
 
             try {
-                const response = await fetch(`/api/calendar/approval/${approvalId}`);
+                const response = await authenticatedFetch(`/api/calendar/approval/${approvalId}`);
 
                 if (response.ok) {
                     const result = await response.json();
@@ -8273,7 +8484,7 @@
             
             try {
                 // Update the approval document to remove approved status
-                const response = await fetch(`/api/calendar/approval/${approvalId}/unapprove`, {
+                const response = await authenticatedFetch(`/api/calendar/approval/${approvalId}/unapprove`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -8409,7 +8620,7 @@
         // Change Requests Management (Admin Panel)
         async function showChangeRequestsPanel() {
             try {
-                const response = await fetch('/api/calendar/admin/change-requests?status=all&limit=100');
+                const response = await authenticatedFetch('/api/calendar/admin/change-requests?status=all&limit=100');
                 if (!response.ok) throw new Error('Failed to load change requests');
                 
                 const result = await response.json();
@@ -8608,7 +8819,7 @@
         
         async function updateChangeRequestStatus(requestId, newStatus) {
             try {
-                const response = await fetch(`/api/calendar/admin/change-requests/${requestId}/status`, {
+                const response = await authenticatedFetch(`/api/calendar/admin/change-requests/${requestId}/status`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: newStatus })
