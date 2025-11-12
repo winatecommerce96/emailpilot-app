@@ -31,12 +31,12 @@ def get_db() -> firestore.Client:
                 credentials_dict,
                 scopes=["https://www.googleapis.com/auth/datastore"]
             )
-            _DB_CLIENT = firestore.Client(project=project_id, credentials=credentials, database='emailpilot')
+            _DB_CLIENT = firestore.Client(project=project_id, credentials=credentials)
             return _DB_CLIENT
     except Exception as e:
         logger.warning(f"Could not load credentials from Secret Manager: {e}")
 
     # Fallback to default credentials
     logger.info("Using Application Default Credentials for Firestore")
-    _DB_CLIENT = firestore.Client(project=project_id, database='emailpilot')
+    _DB_CLIENT = firestore.Client(project=project_id)
     return _DB_CLIENT
