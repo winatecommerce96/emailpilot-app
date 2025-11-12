@@ -21,7 +21,12 @@
     <script src="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.js"></script>
 
     <!-- Clerk Authentication SDK - Initialized dynamically via JavaScript -->
-    <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
+    <script
+        crossorigin="anonymous"
+        src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+        onload="console.log('[Auth] Clerk SDK script loaded successfully')"
+        onerror="console.error('[Auth] Failed to load Clerk SDK script from CDN')">
+    </script>
 
     <style>
         :root {
@@ -4484,6 +4489,27 @@
         let currentSessionToken = null;
         let isAuthInitialized = false;
 
+        // Wait for Clerk SDK to be available
+        function waitForClerk(timeout = 5000) {
+            return new Promise((resolve, reject) => {
+                if (window.Clerk) {
+                    resolve(window.Clerk);
+                    return;
+                }
+
+                const startTime = Date.now();
+                const interval = setInterval(() => {
+                    if (window.Clerk) {
+                        clearInterval(interval);
+                        resolve(window.Clerk);
+                    } else if (Date.now() - startTime > timeout) {
+                        clearInterval(interval);
+                        reject(new Error('Clerk SDK failed to load within timeout'));
+                    }
+                }, 100);
+            });
+        }
+
         // Initialize Clerk on page load
         async function initializeClerk() {
             if (isAuthInitialized) return;
@@ -4503,11 +4529,10 @@
                 if (config.publishable_key) {
                     clerkPublishableKey = config.publishable_key;
 
-                    // Initialize Clerk with the publishable key
-                    const Clerk = window.Clerk;
-                    if (!Clerk) {
-                        throw new Error('Clerk SDK not loaded');
-                    }
+                    // Wait for Clerk SDK to be available
+                    console.log('[Auth] Waiting for Clerk SDK...');
+                    const Clerk = await waitForClerk();
+                    console.log('[Auth] Clerk SDK is available');
 
                     clerkInstance = new Clerk(clerkPublishableKey);
                     await clerkInstance.load();
@@ -4522,8 +4547,9 @@
                 }
             } catch (error) {
                 console.error('[Auth] Failed to initialize Clerk:', error);
-                // Show error message instead of redirecting
-                alert('Authentication initialization failed. Please refresh the page and try again.');
+                console.error('[Auth] Error details:', error.message, error.stack);
+                // Don't block the calendar - just log the error
+                // Calendar will load without authentication
             }
         }
 
