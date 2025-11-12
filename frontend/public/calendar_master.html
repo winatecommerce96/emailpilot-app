@@ -20,13 +20,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.css">
     <script src="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.js"></script>
 
-    <!-- Clerk Authentication SDK - Initialized dynamically via JavaScript -->
-    <script
-        crossorigin="anonymous"
-        src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
-        onload="console.log('[Auth] Clerk SDK script loaded successfully')"
-        onerror="console.error('[Auth] Failed to load Clerk SDK script from CDN')">
-    </script>
+    <!-- Clerk Authentication SDK - Loaded dynamically after config fetch to prevent auto-init errors -->
 
     <style>
         :root {
@@ -4489,24 +4483,38 @@
         let currentSessionToken = null;
         let isAuthInitialized = false;
 
-        // Wait for Clerk SDK to be available
-        function waitForClerk(timeout = 5000) {
+        // Dynamically load Clerk SDK script
+        function loadClerkScript() {
             return new Promise((resolve, reject) => {
                 if (window.Clerk) {
+                    console.log('[Auth] Clerk SDK already loaded');
                     resolve(window.Clerk);
                     return;
                 }
 
-                const startTime = Date.now();
-                const interval = setInterval(() => {
-                    if (window.Clerk) {
-                        clearInterval(interval);
-                        resolve(window.Clerk);
-                    } else if (Date.now() - startTime > timeout) {
-                        clearInterval(interval);
-                        reject(new Error('Clerk SDK failed to load within timeout'));
-                    }
-                }, 100);
+                console.log('[Auth] Loading Clerk SDK script...');
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
+                script.crossOrigin = 'anonymous';
+
+                script.onload = () => {
+                    console.log('[Auth] Clerk SDK script loaded successfully');
+                    // Wait a bit for Clerk to initialize on window
+                    setTimeout(() => {
+                        if (window.Clerk) {
+                            resolve(window.Clerk);
+                        } else {
+                            reject(new Error('Clerk SDK loaded but not available on window'));
+                        }
+                    }, 100);
+                };
+
+                script.onerror = () => {
+                    console.error('[Auth] Failed to load Clerk SDK script from CDN');
+                    reject(new Error('Failed to load Clerk SDK script'));
+                };
+
+                document.head.appendChild(script);
             });
         }
 
@@ -4528,16 +4536,18 @@
 
                 if (config.publishable_key) {
                     clerkPublishableKey = config.publishable_key;
+                    console.log('[Auth] Publishable key obtained:', clerkPublishableKey.substring(0, 20) + '...');
 
-                    // Wait for Clerk SDK to be available
-                    console.log('[Auth] Waiting for Clerk SDK...');
-                    const Clerk = await waitForClerk();
+                    // Load Clerk SDK dynamically now that we have the config
+                    const Clerk = await loadClerkScript();
                     console.log('[Auth] Clerk SDK is available');
 
+                    // Initialize Clerk with the publishable key
+                    console.log('[Auth] Initializing Clerk instance with key...');
                     clerkInstance = new Clerk(clerkPublishableKey);
                     await clerkInstance.load();
 
-                    console.log('[Auth] Clerk SDK loaded successfully');
+                    console.log('[Auth] Clerk instance loaded successfully');
                     isAuthInitialized = true;
 
                     // Check if user is already signed in
