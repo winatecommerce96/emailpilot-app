@@ -4522,18 +4522,15 @@
                 }
             } catch (error) {
                 console.error('[Auth] Failed to initialize Clerk:', error);
-                // Redirect to sign-in if initialization fails
-                setTimeout(() => {
-                    window.location.href = '/api/auth/v2/auth/sso/clerk';
-                }, 2000);
+                // Show error message instead of redirecting
+                alert('Authentication initialization failed. Please refresh the page and try again.');
             }
         }
 
         // Check for existing Clerk session
         async function checkSession() {
             if (!clerkInstance) {
-                console.log('[Auth] No Clerk instance, redirecting to sign-in...');
-                window.location.href = '/api/auth/v2/auth/sso/clerk';
+                console.log('[Auth] No Clerk instance');
                 return false;
             }
 
@@ -4552,12 +4549,14 @@
                     return true;
                 } catch (error) {
                     console.error('[Auth] Failed to get session token:', error);
-                    window.location.href = '/api/auth/v2/auth/sso/clerk';
+                    // Use Clerk's built-in sign-in redirect
+                    clerkInstance.redirectToSignIn();
                     return false;
                 }
             } else {
                 console.log('[Auth] No active session, redirecting to sign-in...');
-                window.location.href = '/api/auth/v2/auth/sso/clerk';
+                // Use Clerk's built-in sign-in redirect
+                clerkInstance.redirectToSignIn();
                 return false;
             }
         }
