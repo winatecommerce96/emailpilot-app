@@ -4856,8 +4856,8 @@
                 }, 2000);
                 
                 try {
-                    // Use public endpoint - no auth required
-                    const response = await fetch('/api/clients');
+                    // Use public endpoint - no auth required (trailing slash required)
+                    const response = await fetch('/api/clients/');
                     if (response.ok) {
                         const clients = await response.json();
                         // Show all clients from shared library
