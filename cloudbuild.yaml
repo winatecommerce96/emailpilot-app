@@ -56,7 +56,7 @@ steps:
       - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
       # Secret Manager secrets (sensitive values)
       - '--update-secrets'
-      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,SECRET_KEY=emailpilot-secret-key:latest,CLERK_SECRET_KEY=clerk-secret-key:latest'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,SECRET_KEY=emailpilot-secret-key:latest,CLERK_SECRET_KEY=clerk-secret-key:latest,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:latest'
     id: 'deploy-to-cloud-run'
 
 # Images to be pushed to Container Registry
