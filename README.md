@@ -4,7 +4,55 @@
 
 EmailPilot is a Klaviyo automation and planning platform with **Centralized AI Orchestrator**, **Multi-Agent AI Orchestration** and **Dynamic Model Selection** capabilities. It features a lightweight frontend served from `frontend/public` and a Python backend under `app/`.
 
-## 🆕 Latest Updates (2025-08-29)
+## 🆕 Latest Updates (October 2025)
+
+### 📅 Calendar UI/UX Enhancements
+
+Major improvements to the Calendar Master interface for better usability and information density:
+
+#### **Enhanced Campaign Display**
+- **Channel-Specific Emojis**: Campaigns now show 📧 (Email), 📱 (SMS), or 💻 (Push) instead of text labels
+- **Audience Segment Badges**: Replaced redundant "EMAIL" labels with actual audience segments (🎯 prefix)
+- **Expanded Single Events**: Single campaigns expand to fill the entire calendar day for better visibility
+- **Multi-Line Names**: Campaign names wrap up to 2 lines instead of truncating
+- **Smart Space Utilization**: Better use of vertical space within calendar cells
+
+#### **Improved Calendar Layout**
+- **Full Month View**: Optimized sizing fits entire month without scrolling
+- **Compact Design**: Reduced day height (140px → 110px) with maintained readability
+- **Enhanced Grid Borders**: More defined borders (15% opacity + shadow) for better visual separation
+- **Responsive Spacing**: Tighter margins while maintaining clean design
+
+#### **Holiday & Event Display**
+- **Full Names Visible**: Holiday/event names wrap to 2 lines instead of cutting off at 15 characters
+- **Scrollable Headers**: Multiple holidays scroll within constrained space
+- **Smart Truncation**: Shows up to 2 lines with ellipsis for longer names
+- **Persistent Emojis**: Holiday emojis always visible as visual indicators
+
+#### **Comprehensive Detail Modal**
+- **7+ Information Sections**: Status, details, audience, metrics, content, goals, tags
+- **Color-Coded Status Bar**: Visual indicators for Draft/Scheduled/Sent campaigns
+- **Performance Metrics**: Large, prominent display of open rate, click rate, revenue
+- **Direct Actions**: Edit, Duplicate, Delete buttons within modal
+- **Rich Content Preview**: Subject line, preview text, full description
+
+#### **List View Transformation**
+- **Drag-and-Drop Scheduling**: Move campaigns between weeks by dragging
+- **Rich Information Cards**: Expanded metrics, audience size, status indicators
+- **Collapsible Details**: Smooth animations for showing/hiding campaign details
+- **Sort & Filter Controls**: Sort by Date/Name/Revenue/Type, filter by channel or type
+- **View Persistence**: Stays in list view after delete/duplicate actions
+- **Icon-Based Actions**: Info (ℹ️), Duplicate (📋), Edit (✏️), Delete (🗑️) buttons
+
+#### **Error Handling & Performance**
+- **Graceful API Failures**: Silent fallbacks for missing endpoints
+- **Clean Console**: Debug-level logging for expected failures
+- **Browser Extension Compatibility**: Suppressed connection errors
+- **Initial Render Guarantee**: Calendar displays immediately on page load
+
+All enhancements maintain backward compatibility with existing functionality.
+
+## Previous Updates (2025-08-29)
 
 ### ✨ New Features
 
@@ -1558,3 +1606,172 @@ Prompt Systems: MCP vs AI Models
 - MCP (Model Context Protocol): deterministic tool execution over a defined interface. In EmailPilot, we wrap HTTP services (e.g., Klaviyo API and Performance API) via OpenAPI MCP, exposing tools like `GET /clients/{client_id}/revenue/last7` and `/jobs/weekly`. Use MCP when you need reliable data retrieval or to run jobs/ops with predictable inputs/outputs.
 - AI Models Service: prompt and provider management for generative tasks. Centralizes prompts in Firestore, selects providers (Gemini/Claude/OpenAI), and executes text generation. Use AI Models when you need analysis, summarization, or content (e.g., weekly insights, copy suggestions). It can call MCP tools as part of a workflow but focuses on prompt-driven outputs.
 - Together: weekly insights use MCP to fetch metrics (`services/klaviyo_api` weekly/full endpoints), then run prompts through the AI Models Service (if configured) to produce human‑readable insights and Slack summaries.
+
+## 📅 Calendar System Architecture
+
+### Overview
+The EmailPilot Calendar is a shared planning interface accessible across multiple services in the EmailPilot ecosystem. The calendar is served from the orchestrator service but uses a shared client library for consistency.
+
+### Architecture Components
+
+#### 1. Calendar UI Location
+- **Service**: EmailPilot Orchestrator (`/emailpilot-orchestrator/`)
+- **URL**: `https://app.emailpilot.ai/calendar`
+- **File**: `calendar_master.html` (root of orchestrator directory)
+- **Route**: `/calendar` endpoint in `main_fastapi.py`
+
+#### 2. Shared Client Library
+- **Service**: EmailPilot Orchestrator
+- **URL**: `https://app.emailpilot.ai/api/clients`
+- **Purpose**: Single source of truth for all client data across services
+- **Data**: Returns all 11 clients as direct JSON array
+
+#### 3. Calendar Events API
+- **Service**: EmailPilot App (`/emailpilot-app/`)
+- **URL**: `https://emailpilot-app-p3cxgvcsla-uc.a.run.app/api/calendar/events`
+- **File**: `app/api/calendar.py`
+- **Purpose**: CRUD operations for calendar events stored in Firestore
+- **Authentication**: **NO CLERK AUTH** - Calendar HTML has no authentication context
+
+### Service Relationships
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  app.emailpilot.ai (EmailPilot Orchestrator)                │
+│  ┌──────────────────┐        ┌─────────────────────────┐   │
+│  │  /calendar       │        │  /api/clients            │   │
+│  │  (HTML UI)       │───────>│  (Shared Client Library) │   │
+│  └──────────────────┘        └─────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                │
+                │ Fetches events from
+                ↓
+┌─────────────────────────────────────────────────────────────┐
+│  emailpilot-app-p3cxgvcsla-uc.a.run.app                     │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  /api/calendar/events                                 │   │
+│  │  (Calendar Events CRUD - Firestore)                   │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+#### Why Split Architecture?
+1. **Shared Client Library**: Orchestrator serves `api/clients` endpoint used by multiple services
+2. **Single Calendar UI**: One canonical calendar interface instead of duplicates
+3. **Distributed Events**: Calendar events stored in Firestore, accessed via emailpilot-app service
+
+#### Why No Authentication on Calendar Events?
+- Calendar HTML served from orchestrator has no Clerk authentication context
+- Events API must be publicly accessible (within private network)
+- Removed `Depends(verify_clerk_session)` from calendar.py endpoints (lines 743-759)
+
+### Deployment Locations
+
+#### EmailPilot Orchestrator
+- **Repository**: `/klaviyo-audit-automation/emailpilot-orchestrator/`
+- **Deploy Script**: `./deploy-cloud-run.sh`
+- **Main File**: `main_fastapi.py`
+- **Dockerfile**: `Dockerfile.cloudrun`
+- **Domain**: `app.emailpilot.ai`
+
+#### EmailPilot App
+- **Repository**: `/klaviyo-audit-automation/emailpilot-app/`
+- **Deploy Config**: `cloudbuild.yaml`
+- **Main File**: `app/main.py`
+- **Service**: `emailpilot-app` on Cloud Run
+- **Direct URL**: `https://emailpilot-app-p3cxgvcsla-uc.a.run.app`
+
+### API Endpoints Reference
+
+#### Client Library
+```
+GET https://app.emailpilot.ai/api/clients
+Response: Array of 11 client objects
+```
+
+#### Calendar Events
+```
+GET https://emailpilot-app-p3cxgvcsla-uc.a.run.app/api/calendar/events
+Parameters:
+  - client_id: string (required)
+  - start_date: string (optional, YYYY-MM-DD)
+  - end_date: string (optional, YYYY-MM-DD)
+Response: { events: [...] }
+```
+
+### Testing & Verification
+
+#### Test Calendar Access
+```bash
+# Calendar UI should load
+curl -s "https://app.emailpilot.ai/calendar" | head -20
+
+# Should contain HTML with calendar interface
+```
+
+#### Test Client Library
+```bash
+# Should return all 11 clients
+curl -s "https://app.emailpilot.ai/api/clients" | python3 -c "import sys, json; print(len(json.load(sys.stdin)))"
+
+# Expected output: 11
+```
+
+#### Test Events API
+```bash
+# Test Rogue Creamery October 2025 events
+curl -s "https://emailpilot-app-p3cxgvcsla-uc.a.run.app/api/calendar/events?client_id=rogue-creamery&start_date=2025-10-01&end_date=2025-10-31"
+
+# Should return events array for October 2025
+```
+
+### Troubleshooting
+
+#### Calendar Shows 404
+- **Issue**: `https://app.emailpilot.ai/calendar` returns 404
+- **Solution**: Redeploy orchestrator with `./deploy-cloud-run.sh` from `/emailpilot-orchestrator/`
+
+#### No Clients Loading
+- **Issue**: Calendar shows empty client list
+- **Solution**: Check `https://app.emailpilot.ai/api/clients` returns 11 clients
+- **Debug**: Verify orchestrator service is running and domain mapping is correct
+
+#### No Events Loading
+- **Issue**: Events API returns "Authorization header required"
+- **Solution**: Verify `current_user: dict = Depends(verify_clerk_session)` removed from calendar.py:743-759
+- **Redeploy**: Run `gcloud builds submit --config=cloudbuild.yaml .` from `/emailpilot-app/`
+
+#### Events Return Empty Array
+- **Issue**: API works but no events for client/date range
+- **Solution**: Verify events exist in Firestore `calendar_events` collection
+- **Check**: Use Firestore console to confirm events for client_id and date range
+
+### File Locations Quick Reference
+
+```
+/klaviyo-audit-automation/
+├── emailpilot-orchestrator/
+│   ├── main_fastapi.py         # Add /calendar route here (line 288)
+│   ├── calendar_master.html    # Calendar UI (root level)
+│   ├── deploy-cloud-run.sh     # Deploy orchestrator
+│   └── Dockerfile.cloudrun
+│
+└── emailpilot-app/
+    ├── app/main.py             # App main file
+    ├── app/api/calendar.py     # Calendar events API (remove auth lines 743-759)
+    ├── cloudbuild.yaml         # Build config for emailpilot-app
+    └── frontend/public/
+        └── calendar_master.html  # Source calendar (copy to orchestrator)
+```
+
+### Migration Notes
+
+If you need to move calendar to a different service:
+1. Copy `calendar_master.html` to new service
+2. Update `/calendar` route in service main file
+3. Update calendar HTML to fetch from correct API endpoints
+4. Redeploy both services
+5. Update documentation and DNS if needed
+
