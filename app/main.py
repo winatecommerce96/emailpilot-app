@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from app.deps.firestore import get_db
-from app.api import auth_v2, calendar, admin_clients
+from app.api import auth_v2, calendar, admin_clients, mcp_registry
 import os
 
 app = FastAPI()
@@ -29,6 +29,9 @@ app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
 # Register admin client management routes
 app.include_router(admin_clients.router, tags=["admin"])
 
+# Register MCP registry routes
+app.include_router(mcp_registry.router, tags=["mcp-registry"])
+
 @app.get("/")
 async def root():
     """Serve the main calendar interface at root path or API info"""
@@ -44,6 +47,14 @@ async def root():
             "health": "/health"
         }
     }
+
+@app.get("/calendar")
+async def serve_calendar():
+    """Serve calendar at /calendar path for load balancer routing"""
+    frontend_file = 'frontend/public/calendar_master.html'
+    if os.path.exists(frontend_file):
+        return FileResponse(frontend_file)
+    return {"error": "Calendar not found", "message": "Frontend not deployed"}
 
 @app.get("/health")
 def health():
