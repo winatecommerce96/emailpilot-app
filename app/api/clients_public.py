@@ -16,24 +16,26 @@ async def get_clients(db: firestore.Client = Depends(get_db)):
     """Get all active clients (public endpoint for calendar)"""
     try:
         clients = []
-        # Query active clients from Firestore
+        all_docs = []
+        # Query all clients from Firestore
         query = db.collection("clients").stream()
 
         for doc in query:
             data = doc.to_dict()
-            # Include client if it has necessary fields and is active
-            if data.get("name") and data.get("client_slug"):
-                clients.append({
-                    "id": doc.id,
-                    "name": data.get("name", "Unknown"),
-                    "client_slug": data.get("client_slug", doc.id),
-                    "description": data.get("description", ""),
-                    "status": data.get("status", "active"),
-                    "is_active": data.get("is_active", True)
-                })
+            all_docs.append(f"{doc.id}: name={data.get('name')}, slug={data.get('client_slug')}")
 
-        logger.info(f"Retrieved {len(clients)} clients from Firestore")
-        return sorted(clients, key=lambda x: x["name"])
+            # Include all clients with at least an ID
+            clients.append({
+                "id": doc.id,
+                "name": data.get("name", doc.id),
+                "client_slug": data.get("client_slug", doc.id),
+                "description": data.get("description", ""),
+                "status": data.get("status", "active"),
+                "is_active": data.get("is_active", True)
+            })
+
+        logger.info(f"Retrieved {len(clients)} clients from Firestore. All docs: {all_docs}")
+        return sorted(clients, key=lambda x: x.get("name", ""))
     except Exception as e:
         logger.error(f"Error fetching clients: {str(e)}")
         return []
