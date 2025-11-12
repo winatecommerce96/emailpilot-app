@@ -4826,6 +4826,11 @@
                 this.lastSyncCheck = 0;
                 this.draggedCampaignId = null;
                 this.autoSaveTimeout = null;
+                // Multi-user sync properties
+                this.syncInterval = null;
+                this.syncIntervalMs = 5000; // Check for changes every 5 seconds
+                this.lastEventHash = null; // Hash of current events for change detection
+                this.isSyncing = false; // Prevent concurrent syncs
                 // Filtering state
                 this.activeFilters = {
                     segments: [],  // Array of active segment names
@@ -4943,11 +4948,14 @@
                         </div>
                     `;
                 }
-                
+
                 // Load existing calendar data
                 this.loadFromCloud();
+
+                // Start multi-user sync polling
+                this.startSyncPolling();
             }
-            
+
             // Load change requests for the selected client
             async loadChangeRequests() {
                 if (!this.selectedClient) return;
@@ -5931,7 +5939,10 @@
                     if (response.ok) {
                         showSaveStatus('saved', 'Saved to cloud!');
                         showToast('Calendar saved to cloud successfully!');
-                        
+
+                        // Update hash after successful save
+                        this.lastEventHash = this.computeEventHash();
+
                         // Save conversation history if there's chat history
                         if (this.chatHistory && this.chatHistory.length > 0) {
                             await this.saveChatHistory();
@@ -6034,7 +6045,10 @@
                         
                         this.renderCalendar();
                         this.updateStats();
-                        
+
+                        // Update hash after loading
+                        this.lastEventHash = this.computeEventHash();
+
                         // Only show toast if we loaded events
                         if (this.campaigns.length > 0) {
                             showToast(`Loaded ${this.campaigns.length} campaigns`, 'success');
@@ -6044,8 +6058,11 @@
                         this.campaigns = [];
                         this.renderCalendar();
                         this.updateStats();
+
+                        // Update hash after clearing
+                        this.lastEventHash = this.computeEventHash();
                     }
-                    
+
                     // Load chat history in background (don't wait for it)
                     this.loadChatHistory().catch(console.error);
                     
@@ -6108,7 +6125,132 @@
                     // Continue without holidays - non-critical feature
                 }
             }
-            
+
+            // ====================================================================
+            // Multi-User Sync Methods
+            // ====================================================================
+
+            // Compute hash of current events for change detection
+            computeEventHash() {
+                if (!this.campaigns || this.campaigns.length === 0) {
+                    return 'empty';
+                }
+                // Create a simple hash based on event count, IDs, and dates
+                const hashData = this.campaigns.map(c => `${c.id}:${c.date.toISOString()}:${c.name}`).sort().join('|');
+                return hashData;
+            }
+
+            // Start polling for changes from other users
+            startSyncPolling() {
+                // Clear any existing interval
+                this.stopSyncPolling();
+
+                console.log('Multi-user sync polling started (checking every 5 seconds)');
+
+                // Set initial hash
+                this.lastEventHash = this.computeEventHash();
+
+                // Start polling
+                this.syncInterval = setInterval(() => {
+                    this.checkForChanges();
+                }, this.syncIntervalMs);
+            }
+
+            // Stop polling for changes
+            stopSyncPolling() {
+                if (this.syncInterval) {
+                    clearInterval(this.syncInterval);
+                    this.syncInterval = null;
+                    console.log('Multi-user sync polling stopped');
+                }
+            }
+
+            // Check if events have changed on server
+            async checkForChanges() {
+                // Skip if already syncing or no client selected
+                if (this.isSyncing || !this.selectedClient) {
+                    return;
+                }
+
+                this.isSyncing = true;
+
+                try {
+                    const monthStart = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-01`;
+                    const monthEnd = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-31`;
+
+                    // Fetch current events from server (silent, no loading indicator)
+                    const response = await authenticatedFetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`);
+
+                    if (response.ok) {
+                        const eventsData = await response.json();
+                        const events = eventsData.events || eventsData;
+
+                        // Convert to campaign format and compute hash
+                        const serverCampaigns = events.map(event => {
+                            const dateParts = event.date.split('-');
+                            const eventDate = new Date(
+                                parseInt(dateParts[0]),
+                                parseInt(dateParts[1]) - 1,
+                                parseInt(dateParts[2])
+                            );
+                            return {
+                                id: event.id,
+                                name: event.title,
+                                type: event.event_type || 'promotional',
+                                date: eventDate,
+                                time: event.time || '10:00',
+                                channel: event.channel || 'email',
+                                segment: event.segment || 'all',
+                                description: event.content || '',
+                                gradient: event.gradient || this.getTypeGradient(event.event_type),
+                                emoji: event.emoji || this.getTypeEmoji(event.event_type),
+                                metrics: event.expected_metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                            };
+                        });
+
+                        // Compute hash of server events
+                        const serverHash = serverCampaigns.length === 0 ? 'empty' :
+                            serverCampaigns.map(c => `${c.id}:${c.date.toISOString()}:${c.name}`).sort().join('|');
+
+                        // Compare with local hash
+                        if (serverHash !== this.lastEventHash) {
+                            console.log('Changes detected from another user, updating calendar');
+
+                            // Update local campaigns
+                            this.campaigns = serverCampaigns;
+                            this.lastEventHash = serverHash;
+
+                            // Re-render calendar
+                            if (this.currentView === 'list') {
+                                renderListView();
+                            } else if (this.currentView === 'week') {
+                                renderWeekView();
+                            } else {
+                                this.renderCalendar();
+                            }
+                            this.updateStats();
+
+                            // Show subtle notification
+                            const notification = document.createElement('div');
+                            notification.className = 'fixed top-20 right-4 bg-blue-500/90 text-white px-4 py-2 rounded-lg border border-blue-300 z-50 animate-fade-in';
+                            notification.innerHTML = '🔄 Calendar updated by another user';
+                            document.body.appendChild(notification);
+
+                            setTimeout(() => {
+                                notification.style.opacity = '0';
+                                notification.style.transition = 'opacity 0.5s';
+                                setTimeout(() => notification.remove(), 500);
+                            }, 3000);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Sync check failed:', error);
+                    // Silently fail - don't disrupt user experience
+                } finally {
+                    this.isSyncing = false;
+                }
+            }
+
             // Add drag and drop handlers
             handleDragStart(e, campaignId) {
                 this.draggedCampaignId = campaignId;
