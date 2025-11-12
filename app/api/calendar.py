@@ -763,9 +763,9 @@ async def get_events(
 
         # Add date range filters if provided
         if start_date:
-            query = query.where("event_date", ">=", start_date)
+            query = query.where("date", ">=", start_date)
         if end_date:
-            query = query.where("event_date", "<=", end_date)
+            query = query.where("date", "<=", end_date)
 
         # Execute query
         docs = query.stream()
@@ -779,8 +779,8 @@ async def get_events(
 
         logger.info(f"Retrieved {len(events)} events for client {client_id}")
 
-        # Return array directly (not wrapped in standard_response)
-        return events
+        # Return wrapped in "events" key to match original API format
+        return {"events": events}
 
     except Exception as e:
         logger.error(f"Error fetching events: {e}")
