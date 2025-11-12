@@ -296,7 +296,6 @@ async def calendar_health(
 async def run_workflow(
     request: WorkflowRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(verify_clerk_session),
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -412,7 +411,6 @@ async def run_workflow(
 @router.get("/jobs/{job_id}")
 async def get_job_status(
     job_id: str,
-    current_user: dict = Depends(verify_clerk_session),
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -460,8 +458,7 @@ async def get_job_status(
 
 @router.get("/prompts/{prompt_name}")
 async def get_prompt(
-    prompt_name: str,
-    current_user: dict = Depends(verify_clerk_session)
+    prompt_name: str
 ):
     """
     Get a prompt template by name.
@@ -499,8 +496,7 @@ async def get_prompt(
 @router.put("/prompts/{prompt_name}")
 async def update_prompt(
     prompt_name: str,
-    request: PromptRequest,
-    current_user: dict = Depends(verify_clerk_session)
+    request: PromptRequest
 ):
     """
     Update a prompt template.
@@ -539,8 +535,7 @@ async def update_prompt(
 
 @router.post("/rag/data")
 async def fetch_rag_data(
-    request: RAGRequest,
-    current_user: dict = Depends(verify_clerk_session)
+    request: RAGRequest
 ):
     """
     Fetch RAG (Retrieval-Augmented Generation) data for a client.
@@ -570,8 +565,7 @@ async def fetch_rag_data(
 
 @router.post("/mcp/data")
 async def fetch_mcp_data(
-    request: MCPRequest,
-    current_user: dict = Depends(verify_clerk_session)
+    request: MCPRequest
 ):
     """
     Fetch Klaviyo data via MCP (Model Context Protocol) servers.
@@ -602,8 +596,7 @@ async def fetch_mcp_data(
 @router.get("/outputs/{output_type}")
 async def get_workflow_outputs(
     output_type: str,
-    client_name: Optional[str] = None,
-    current_user: dict = Depends(verify_clerk_session)
+    client_name: Optional[str] = None
 ):
     """
     Retrieve workflow outputs (calendars, summaries, etc.).
@@ -744,7 +737,7 @@ async def clear_cache(
         )
 
 # ============================================================================
-# Calendar Events CRUD Endpoints (Firestore-backed, no auth required)
+# Calendar Events CRUD Endpoints (Firestore-backed, Clerk authentication required)
 # ============================================================================
 
 @router.get("/events")
