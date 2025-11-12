@@ -2790,14 +2790,14 @@
         }
         
         /* Specific opacity adjustments for better hierarchy */
-        body.light-mode .text-white\/90 { color: rgba(0, 0, 0, 0.9) !important; }
-        body.light-mode .text-white\/80 { color: rgba(0, 0, 0, 0.8) !important; }
-        body.light-mode .text-white\/70 { color: rgba(0, 0, 0, 0.7) !important; }
-        body.light-mode .text-white\/60 { color: rgba(0, 0, 0, 0.6) !important; }
-        body.light-mode .text-white\/50 { color: rgba(0, 0, 0, 0.5) !important; }
-        body.light-mode .text-white\/40 { color: rgba(0, 0, 0, 0.4) !important; }
-        body.light-mode .text-white\/30 { color: rgba(0, 0, 0, 0.3) !important; }
-        body.light-mode .text-white\/20 { color: rgba(0, 0, 0, 0.2) !important; }
+        body.light-mode .text-white\/90 { color: rgba(0, 0, 0, 0.95) !important; }
+        body.light-mode .text-white\/80 { color: rgba(0, 0, 0, 0.90) !important; }
+        body.light-mode .text-white\/70 { color: rgba(0, 0, 0, 0.85) !important; }
+        body.light-mode .text-white\/60 { color: rgba(0, 0, 0, 0.75) !important; }
+        body.light-mode .text-white\/50 { color: rgba(0, 0, 0, 0.70) !important; }
+        body.light-mode .text-white\/40 { color: rgba(0, 0, 0, 0.60) !important; }
+        body.light-mode .text-white\/30 { color: rgba(0, 0, 0, 0.50) !important; }
+        body.light-mode .text-white\/20 { color: rgba(0, 0, 0, 0.40) !important; }
         
         /* Gray text conversions */
         body.light-mode .text-gray-300 { color: #525252 !important; }
@@ -5134,25 +5134,7 @@
                 // Update the segments display with filtering
                 const segmentsDiv = document.getElementById('affinitySegments');
                 if (segmentsDiv) {
-                    // Add channel filter pills first
-                    const channelPills = `
-                        <div class="glass-card p-3 flex-1 min-w-[140px] cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all ${this.activeFilters.channels.includes('email') ? 'ring-2 ring-purple-500 bg-purple-500/20' : ''}"
-                             onclick="calendarManager.toggleChannelFilter('email')"
-                             title="Filter by Email campaigns">
-                            <div class="flex items-center justify-center gap-2">
-                                <span class="text-xs font-semibold">📧 Email</span>
-                            </div>
-                        </div>
-                        <div class="glass-card p-3 flex-1 min-w-[140px] cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all ${this.activeFilters.channels.includes('sms') ? 'ring-2 ring-purple-500 bg-purple-500/20' : ''}"
-                             onclick="calendarManager.toggleChannelFilter('sms')"
-                             title="Filter by SMS campaigns">
-                            <div class="flex items-center justify-center gap-2">
-                                <span class="text-xs font-semibold">📱 SMS</span>
-                            </div>
-                        </div>
-                    `;
-
-                    // Add affinity segment pills
+                    // Add only affinity segment pills (channel filters are at the top)
                     const segmentPills = this.affinitySegments.map(seg => `
                         <div class="glass-card p-3 flex-1 min-w-[140px] cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all ${this.activeFilters.segments.includes(seg.name) ? 'ring-2 ring-purple-500 bg-purple-500/20' : ''}"
                              onclick="calendarManager.toggleSegmentFilter('${seg.name.replace(/'/g, "\\'")}')"
@@ -5164,7 +5146,7 @@
                         </div>
                     `).join('');
 
-                    segmentsDiv.innerHTML = channelPills + segmentPills;
+                    segmentsDiv.innerHTML = segmentPills;
                 }
                 
                 // Also update the target segment dropdown in the create campaign modal
@@ -9982,9 +9964,15 @@
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-white/50">Type</span>
-                                <div class="campaign-pill ${campaign.gradient || campaign.type} inline-block px-3 py-1">
-                                    ${campaign.type || 'General'}
-                                </div>
+                                <select id="campaignTypeSelect_${campaignId}" class="form-select text-sm px-2 py-1"
+                                        onchange="updateCampaignType('${campaignId}', this.value)"
+                                        style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: white;">
+                                    <option value="promotional" ${campaign.type === 'promotional' ? 'selected' : ''}>🎯 Promotional</option>
+                                    <option value="content" ${campaign.type === 'content' ? 'selected' : ''}>📰 Content</option>
+                                    <option value="engagement" ${campaign.type === 'engagement' ? 'selected' : ''}>💬 Engagement</option>
+                                    <option value="seasonal" ${campaign.type === 'seasonal' ? 'selected' : ''}>🎄 Seasonal</option>
+                                    <option value="transactional" ${campaign.type === 'transactional' ? 'selected' : ''}>📦 Transactional</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -10129,7 +10117,29 @@
 
             modal.classList.add('show');
         }
-        
+
+        function updateCampaignType(campaignId, newType) {
+            const campaign = calendarManager.campaigns.find(c => c.id === campaignId);
+            if (!campaign) return;
+
+            // Update the campaign type
+            campaign.type = newType;
+
+            // Save to cloud
+            calendarManager.saveToCloud();
+
+            // Re-render the calendar
+            if (calendarManager.currentView === 'list') {
+                renderListView();
+            } else if (calendarManager.currentView === 'week') {
+                renderWeekView();
+            } else {
+                calendarManager.renderCalendar();
+            }
+
+            showToast(`Campaign type updated to ${newType}`, 'success');
+        }
+
         function closeCampaignModal() {
             document.getElementById('campaignModal').classList.remove('show');
         }
@@ -11325,10 +11335,10 @@
         function toggleHolidays() {
             const manager = window.calendarManager;
             if (!manager) return;
-            
+
             manager.showHolidays = !manager.showHolidays;
             const toggle = document.getElementById('holidayToggle');
-            
+
             if (manager.showHolidays) {
                 toggle.classList.add('active');
                 toggle.title = 'Hide Holidays';
@@ -11336,8 +11346,15 @@
                 toggle.classList.remove('active');
                 toggle.title = 'Show Holidays';
             }
-            
-            manager.renderCalendar();
+
+            // Re-render the current view
+            if (manager.currentView === 'list') {
+                renderListView();
+            } else if (manager.currentView === 'week') {
+                renderWeekView();
+            } else {
+                manager.renderCalendar();
+            }
         }
         
         window.openHolidayManager = function() {
