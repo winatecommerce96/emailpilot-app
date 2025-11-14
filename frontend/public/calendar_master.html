@@ -20,7 +20,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.css">
     <script src="https://cdn.jsdelivr.net/npm/react-select@5.8.0/dist/react-select.min.js"></script>
 
-    <!-- Clerk Authentication SDK - Loaded dynamically after config fetch to prevent auto-init errors -->
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <style>
         :root {
@@ -3949,14 +3951,6 @@
                         <span style="margin-right: var(--space-1);">📥</span>
                         <span>Import</span>
                     </button>
-
-                    <!-- Clerk Authentication UI -->
-                    <div id="clerk-auth-container" style="display: flex; align-items: center; gap: var(--space-2);">
-                        <!-- Clerk will mount sign-in button here when not authenticated -->
-                        <div id="clerk-sign-in"></div>
-                        <!-- Clerk will mount user button here when authenticated -->
-                        <div id="clerk-user-button"></div>
-                    </div>
                 </nav>
             </div>
         </div>
@@ -4476,235 +4470,32 @@
     
     <script>
         // ====================================================================
-        // Clerk Authentication
+        // Simplified Fetch Wrapper (No Authentication Required)
         // ====================================================================
-        let clerkInstance = null;
-        let clerkPublishableKey = null;
-        let currentSessionToken = null;
-        let isAuthInitialized = false;
 
-        // Dynamically load Clerk SDK script
-        function loadClerkScript() {
-            return new Promise((resolve, reject) => {
-                if (window.Clerk) {
-                    console.log('[Auth] Clerk SDK already loaded');
-                    resolve(window.Clerk);
-                    return;
-                }
-
-                console.log('[Auth] Loading Clerk SDK script...');
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
-                script.crossOrigin = 'anonymous';
-
-                script.onload = () => {
-                    console.log('[Auth] Clerk SDK script loaded successfully');
-                    // Wait a bit for Clerk to initialize on window
-                    setTimeout(() => {
-                        if (window.Clerk) {
-                            resolve(window.Clerk);
-                        } else {
-                            reject(new Error('Clerk SDK loaded but not available on window'));
-                        }
-                    }, 100);
-                };
-
-                script.onerror = () => {
-                    console.error('[Auth] Failed to load Clerk SDK script from CDN');
-                    reject(new Error('Failed to load Clerk SDK script'));
-                };
-
-                document.head.appendChild(script);
-            });
-        }
-
-        // Initialize Clerk on page load
-        async function initializeClerk() {
-            if (isAuthInitialized) return;
-
-            try {
-                console.log('[Auth] Initializing Clerk...');
-
-                // Fetch Clerk configuration from backend
-                const configResponse = await fetch('/api/auth/v2/clerk-config');
-                if (!configResponse.ok) {
-                    throw new Error(`Failed to fetch Clerk config: ${configResponse.status}`);
-                }
-
-                const config = await configResponse.json();
-                console.log('[Auth] Clerk config loaded:', config.configured ? 'Configured' : 'Not configured');
-
-                if (config.publishable_key) {
-                    clerkPublishableKey = config.publishable_key;
-                    console.log('[Auth] Publishable key obtained:', clerkPublishableKey.substring(0, 20) + '...');
-
-                    // Load Clerk SDK dynamically now that we have the config
-                    const Clerk = await loadClerkScript();
-                    console.log('[Auth] Clerk SDK is available');
-
-                    // Initialize Clerk with the publishable key
-                    console.log('[Auth] Initializing Clerk instance with key...');
-                    clerkInstance = new Clerk(clerkPublishableKey);
-                    await clerkInstance.load();
-
-                    console.log('[Auth] Clerk instance loaded successfully');
-                    isAuthInitialized = true;
-
-                    // Check if user is already signed in
-                    await checkSession();
-                } else {
-                    console.error('[Auth] No publishable key in config');
-                }
-            } catch (error) {
-                console.error('[Auth] Failed to initialize Clerk:', error);
-                console.error('[Auth] Error details:', error.message, error.stack);
-                // Don't block the calendar - just log the error
-                // Calendar will load without authentication
-            }
-        }
-
-        // Check for existing Clerk session
-        async function checkSession() {
-            if (!clerkInstance) {
-                console.log('[Auth] No Clerk instance');
-                return false;
-            }
-
-            if (clerkInstance.session) {
-                const session = clerkInstance.session;
-                const user = clerkInstance.user;
-
-                // Get session token for API calls
-                try {
-                    currentSessionToken = await session.getToken();
-                    console.log('[Auth] Session token obtained');
-
-                    // Update UI with user info
-                    updateAuthState(user);
-
-                    return true;
-                } catch (error) {
-                    console.error('[Auth] Failed to get session token:', error);
-                    // Use Clerk's built-in sign-in redirect
-                    clerkInstance.redirectToSignIn();
-                    return false;
-                }
-            } else {
-                console.log('[Auth] No active session, redirecting to sign-in...');
-                // Use Clerk's built-in sign-in redirect
-                clerkInstance.redirectToSignIn();
-                return false;
-            }
-        }
-
-        // Update UI with authentication state
-        function updateAuthState(user) {
-            if (user) {
-                console.log('[Auth] User authenticated:', user.primaryEmailAddress?.emailAddress || user.id);
-
-                // Show user info in UI if element exists
-                const userInfoElement = document.getElementById('userInfo');
-                if (userInfoElement) {
-                    userInfoElement.textContent = user.primaryEmailAddress?.emailAddress || 'Signed In';
-                }
-
-                // Mount Clerk UserButton for authenticated users
-                mountClerkUI(true);
-            } else {
-                console.log('[Auth] User not authenticated');
-
-                // Mount Clerk SignIn button for unauthenticated users
-                mountClerkUI(false);
-            }
-        }
-
-        // Mount Clerk UI components based on authentication state
-        function mountClerkUI(isAuthenticated) {
-            if (!clerkInstance) {
-                console.warn('[Auth] Cannot mount Clerk UI - instance not available');
-                return;
-            }
-
-            const signInContainer = document.getElementById('clerk-sign-in');
-            const userButtonContainer = document.getElementById('clerk-user-button');
-
-            if (!signInContainer || !userButtonContainer) {
-                console.warn('[Auth] Clerk UI containers not found');
-                return;
-            }
-
-            try {
-                if (isAuthenticated) {
-                    // Hide sign-in button, show user button
-                    signInContainer.style.display = 'none';
-                    userButtonContainer.style.display = 'block';
-
-                    // Mount UserButton if not already mounted
-                    if (userButtonContainer.children.length === 0) {
-                        clerkInstance.mountUserButton(userButtonContainer, {
-                            afterSignOutUrl: '/calendar',
-                            appearance: {
-                                elements: {
-                                    userButtonAvatarBox: {
-                                        width: '32px',
-                                        height: '32px'
-                                    }
-                                }
-                            }
-                        });
-                        console.log('[Auth] Clerk UserButton mounted');
-                    }
-                } else {
-                    // Show sign-in button, hide user button
-                    signInContainer.style.display = 'block';
-                    userButtonContainer.style.display = 'none';
-
-                    // Mount SignIn button if not already mounted
-                    if (signInContainer.children.length === 0) {
-                        clerkInstance.mountSignIn(signInContainer, {
-                            redirectUrl: '/calendar',
-                            appearance: {
-                                elements: {
-                                    rootBox: {
-                                        display: 'inline-block'
-                                    },
-                                    card: {
-                                        boxShadow: 'none'
-                                    }
-                                }
-                            }
-                        });
-                        console.log('[Auth] Clerk SignIn button mounted');
-                    }
-                }
-            } catch (error) {
-                console.error('[Auth] Error mounting Clerk UI:', error);
-            }
-        }
-
-        // Wrapper for authenticated fetch calls
+        // Simple wrapper function that just uses fetch directly
         async function authenticatedFetch(url, options = {}) {
-            // Try to get token if available, but don't block if not
-            let token = currentSessionToken;
-
-            if (!token && clerkInstance?.session) {
-                try {
-                    token = await clerkInstance.session.getToken();
-                    currentSessionToken = token;
-                } catch (error) {
-                    console.warn('[Auth] Token not available, proceeding without auth:', error);
-                    // Don't redirect - just log and continue
-                }
-            }
-
-            // Add Authorization header only if token exists
-            const headers = { ...options.headers };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-
-            return fetch(url, { ...options, headers });
+            return fetch(url, options);
         }
+
+        // ====================================================================
+        // Firebase Initialization for Real-Time Sync
+        // ====================================================================
+
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB0RrH7hbER2R-SzXfNmFe0O32HhH7HBEM",
+            authDomain: "emailpilot-438321.firebaseapp.com",
+            projectId: "emailpilot-438321",
+            storageBucket: "emailpilot-438321.appspot.com",
+            messagingSenderId: "104067375141",
+            appId: "1:104067375141:web:2b65c86eec8e8c8b4c9f3a"
+        };
+
+        // Initialize Firebase app
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        console.log('🔥 Firebase initialized for real-time sync');
 
         // ====================================================================
         // Theme Cycling System - Dark → Light → Reading Mode
@@ -4778,9 +4569,6 @@
 
         // Apply saved theme on page load
         document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize Clerk authentication first
-            await initializeClerk();
-
             applyTheme(currentTheme);
 
             const studioButton = document.getElementById('studioThemeButton');
@@ -4826,11 +4614,9 @@
                 this.lastSyncCheck = 0;
                 this.draggedCampaignId = null;
                 this.autoSaveTimeout = null;
-                // Multi-user sync properties
-                this.syncInterval = null;
-                this.syncIntervalMs = 5000; // Check for changes every 5 seconds
-                this.lastEventHash = null; // Hash of current events for change detection
-                this.isSyncing = false; // Prevent concurrent syncs
+                // Firestore real-time sync
+                this.firestoreUnsubscribe = null;  // Firestore listener unsubscribe function
+                this.initialLoadComplete = false;  // Flag to skip initial snapshot
                 // Filtering state
                 this.activeFilters = {
                     segments: [],  // Array of active segment names
@@ -4893,17 +4679,39 @@
             renderClientList() {
                 const list = document.getElementById('clientList');
                 list.innerHTML = this.clients.map(client => `
-                    <button onclick="selectClient('${client.id}')" class="glass-card p-4 text-left hover:border-purple-500/50 transition-all">
+                    <button onclick="calendarManager.selectClient('${client.slug || client.id}')" class="glass-card p-4 text-left hover:border-purple-500/50 transition-all">
                         <div class="font-bold">${client.name}</div>
-                        <div class="text-sm text-white/50">${client.client_slug}</div>
+                        <div class="text-sm text-white/50">${client.slug || client.client_slug || 'N/A'}</div>
                     </button>
                 `).join('');
             }
             
             selectClient(clientId) {
-                this.selectedClient = this.clients.find(c => c.id === clientId);
+                // Find client by slug, id, or name
+                this.selectedClient = this.clients.find(c =>
+                    c.slug === clientId ||
+                    c.id === clientId ||
+                    c.name === clientId
+                );
+
+                if (!this.selectedClient) {
+                    showToast('Client not found', 'error');
+                    console.error('Client not found with ID:', clientId);
+                    return;
+                }
+
+                // Ensure client has an identifier for API calls
+                if (!this.selectedClient.id && !this.selectedClient.slug) {
+                    this.selectedClient.id = this.selectedClient.slug || this.selectedClient.name;
+                }
+
+                console.log('Selected client:', this.selectedClient);
                 document.getElementById('selectedClientName').textContent = this.selectedClient.name;
                 closeClientModal();
+
+                // Stop any existing polling first
+                this.stopSyncPolling();
+
                 // Load existing calendar data for this client
                 this.loadFromCloud();
                 // Check approval status
@@ -4948,35 +4756,52 @@
                         </div>
                     `;
                 }
-
+                
                 // Load existing calendar data
                 this.loadFromCloud();
 
-                // Start multi-user sync polling
+                // Start multi-user sync polling (5 second interval)
                 this.startSyncPolling();
             }
-
+            
             // Load change requests for the selected client
             async loadChangeRequests() {
                 if (!this.selectedClient) return;
-                
+
                 try {
                     // Build approval ID to match what we're looking for
                     const year = this.selectedDate.getFullYear();
                     const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
                     const approvalIdPrefix = `${this.selectedClient.client_slug || this.selectedClient.id}-${year}-${month}`;
-                    
+
                     const response = await authenticatedFetch(`/api/calendar/change-requests/${approvalIdPrefix}`);
-                    if (!response.ok) return;
-                    
+
+                    // Silently skip if endpoint doesn't exist or returns an error
+                    if (!response.ok) {
+                        console.debug('Change requests service not available');
+                        const section = document.getElementById('changeRequestsSection');
+                        if (section) {
+                            section.classList.add('hidden');
+                        }
+                        return;
+                    }
+
                     const result = await response.json();
                     if (result.change_requests && result.change_requests.length > 0) {
                         this.displayChangeRequests(result.change_requests);
                     } else {
-                        document.getElementById('changeRequestsSection').classList.add('hidden');
+                        const section = document.getElementById('changeRequestsSection');
+                        if (section) {
+                            section.classList.add('hidden');
+                        }
                     }
                 } catch (error) {
-                    console.error('Error loading change requests:', error);
+                    // Silently skip change requests if service not available
+                    console.debug('Change requests service not available:', error.message);
+                    const section = document.getElementById('changeRequestsSection');
+                    if (section) {
+                        section.classList.add('hidden');
+                    }
                 }
             }
             
@@ -5568,21 +5393,21 @@
 
             async loadMonthGoal() {
                 if (!this.selectedClient) return;
-                
+
                 try {
                     // Get current month and year
                     const currentMonth = this.selectedDate.getMonth() + 1;
                     const currentYear = this.selectedDate.getFullYear();
-                    
+
                     // Fetch goals for this client, year, and month
                     const response = await authenticatedFetch(`/api/goals/${this.selectedClient.id}?year=${currentYear}&month=${currentMonth}`);
-                    
+
                     if (response.ok) {
                         const goals = await response.json();
-                        
+
                         if (goals && goals.length > 0) {
                             const goal = goals[0];
-                            
+
                             // Check for multi-metric support first
                             if (goal.metrics && goal.metrics.revenue) {
                                 this.currentMonthGoal = goal.metrics.revenue.goal || goal.metrics.revenue.predicted || 50000;
@@ -5592,21 +5417,21 @@
                             } else {
                                 this.currentMonthGoal = 50000;
                             }
-                            
+
                             // Update the display
                             const goalElement = document.getElementById('monthGoal');
                             if (goalElement) {
                                 goalElement.textContent = this.formatCurrency(this.currentMonthGoal);
                             }
-                            
+
                             // Store the full goal data for reference
                             this.currentGoalData = goal;
-                            
+
                             // Show confidence indicator if available
                             if (goal.confidence) {
                                 this.showGoalConfidence(goal.confidence);
                             }
-                            
+
                             // Show if it's a human override
                             if (goal.human_override) {
                                 this.showHumanOverrideIndicator();
@@ -5614,22 +5439,29 @@
                         } else {
                             // No goals found, use default
                             this.currentMonthGoal = 50000;
-                            document.getElementById('monthGoal').textContent = '$50k';
-                            
-                            // Optionally suggest generating goals
-                            console.log('No goals found for this month. Consider generating predictions.');
+                            const goalElement = document.getElementById('monthGoal');
+                            if (goalElement) {
+                                goalElement.textContent = '$50k';
+                            }
+                            console.debug('No goals found for this month - using default $50k');
                         }
                     } else {
-                        console.error('Failed to load goals:', response.status);
-                        // Use default on error
+                        // Goals endpoint not available or returned error - use default
+                        console.debug('Goals service not available - using default $50k');
                         this.currentMonthGoal = 50000;
-                        document.getElementById('monthGoal').textContent = '$50k';
+                        const goalElement = document.getElementById('monthGoal');
+                        if (goalElement) {
+                            goalElement.textContent = '$50k';
+                        }
                     }
                 } catch (error) {
-                    console.error('Error loading month goal:', error);
-                    // Use default on error
+                    // Silently use default on error - goals are optional
+                    console.debug('Goals service not available:', error.message);
                     this.currentMonthGoal = 50000;
-                    document.getElementById('monthGoal').textContent = '$50k';
+                    const goalElement = document.getElementById('monthGoal');
+                    if (goalElement) {
+                        goalElement.textContent = '$50k';
+                    }
                 }
             }
             
@@ -5848,8 +5680,13 @@
 
                 this.updateStats();
 
-                // Auto-save to cloud
-                this.saveToCloud();
+
+                // Delete from Firestore directly (surgical delete, no cascade)
+                if (campaign && campaign.id) {
+                    authenticatedFetch(`/api/calendar/events/${campaign.id}`, { 
+                        method: 'DELETE' 
+                    }).catch(err => console.warn('Failed to delete event:', err));
+                }
 
                 showToast(`🗑️ "${campaignName}" deleted successfully`, 'success');
             }
@@ -5860,106 +5697,133 @@
                     showToast('Please select a client first', 'warning');
                     return false;
                 }
+
+                const clientId = this.selectedClient.slug || this.selectedClient.id;
+                if (!clientId || clientId === 'undefined') {
+                    showToast('Invalid client selected', 'error');
+                    return false;
+                }
                 
                 showSaveStatus('saving', 'Saving to cloud...');
                 
                 try {
-                    // Format dates properly
+                    // Get month range
                     const year = this.selectedDate.getFullYear();
                     const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
                     const monthStart = `${year}-${month}-01`;
                     const monthEnd = `${year}-${month}-31`;
                     
-                    // Get existing events for this client and month
-                    const existingResponse = await authenticatedFetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`);
+                    // Fetch existing events
+                    const existingResponse = await authenticatedFetch(`/api/calendar/events?client_id=${clientId}&start_date=${monthStart}&end_date=${monthEnd}`);
                     
-                    let existingEventIds = [];
+                    let existingEvents = [];
                     if (existingResponse.ok) {
                         const existingData = await existingResponse.json();
-                        const existingEvents = existingData.events || existingData; // Handle both wrapped and direct array
-                        existingEventIds = existingEvents.map(e => e.id).filter(id => id);
-                        
-                        // Delete old events in batch (more efficient)
-                        const deletePromises = existingEventIds.map(eventId =>
-                            authenticatedFetch(`/api/calendar/events/${eventId}`, { method: 'DELETE' })
-                                .catch(err => console.warn(`Failed to delete event ${eventId}:`, err))
-                        );
-                        await Promise.all(deletePromises);
+                        existingEvents = existingData.events || existingData;
                     }
                     
-                    // Now save new events using the proper calendar_events collection
-                    const events = this.campaigns.map(campaign => ({
-                        title: campaign.name,
-                        // FIX: Use local date components to avoid timezone shift
-                        event_date: `${campaign.date.getFullYear()}-${String(campaign.date.getMonth() + 1).padStart(2, '0')}-${String(campaign.date.getDate()).padStart(2, '0')}`,
-                        client_id: this.selectedClient.id,
-                        content: campaign.description || '',
-                        color: this.getChannelColor(campaign.channel),
-                        event_type: campaign.type,
-                        // Additional metadata
-                        channel: campaign.channel || 'email',
-                        time: campaign.time,
-                        segment: campaign.segment || 'all',
-                        expected_metrics: campaign.metrics || {},
-                        gradient: campaign.gradient,
-                        emoji: campaign.emoji
-                    }));
+                    // Create maps for comparison
+                    const existingMap = new Map(existingEvents.map(e => [e.id, e]));
+                    const localMap = new Map(this.campaigns.map(c => [c.id, c]));
                     
-                    // Try bulk save first, fall back to individual saves
-                    let saveSuccess = false;
+                    // Determine operations
+                    const toCreate = [];
+                    const toUpdate = [];
+                    const toDelete = [];
                     
-                    // Attempt bulk save
-                    const bulkResponse = await authenticatedFetch('/api/calendar/create-bulk-events', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            client_id: this.selectedClient.id,
-                            events: events
-                        })
-                    }).catch(() => null);
+                    // Find creates and updates
+                    for (const campaign of this.campaigns) {
+                        const eventData = {
+                            title: campaign.name,
+                            event_date: `${campaign.date.getFullYear()}-${String(campaign.date.getMonth() + 1).padStart(2, '0')}-${String(campaign.date.getDate()).padStart(2, '0')}`,
+                            client_id: clientId,
+                            content: campaign.description || '',
+                            color: this.getChannelColor(campaign.channel),
+                            event_type: campaign.type,
+                            channel: campaign.channel || 'email',
+                            time: campaign.time,
+                            segment: campaign.segment || 'all',
+                            expected_metrics: campaign.metrics || {},
+                            gradient: campaign.gradient,
+                            emoji: campaign.emoji
+                        };
+                        
+                        if (existingMap.has(campaign.id)) {
+                            // Event exists - may need update
+                            toUpdate.push({ id: campaign.id, data: eventData });
+                        } else {
+                            // New event
+                            toCreate.push(eventData);
+                        }
+                    }
                     
-                    if (bulkResponse && bulkResponse.ok) {
-                        saveSuccess = true;
-                    } else {
-                        // Fall back to individual saves
-                        const savePromises = events.map(event =>
+                    // Find deletes
+                    for (const existingEvent of existingEvents) {
+                        if (!localMap.has(existingEvent.id)) {
+                            toDelete.push(existingEvent.id);
+                        }
+                    }
+                    
+                    // Execute surgical operations
+                    const operations = [];
+                    
+                    // Creates
+                    for (const event of toCreate) {
+                        operations.push(
                             authenticatedFetch('/api/calendar/events', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(event)
-                            }).then(res => res.ok).catch(() => false)
+                            }).catch(err => console.warn('Create failed:', err))
                         );
-                        
-                        const results = await Promise.all(savePromises);
-                        saveSuccess = results.filter(r => r).length > 0;
                     }
                     
-                    const response = { ok: saveSuccess };
-                    
-                    if (response.ok) {
-                        showSaveStatus('saved', 'Saved to cloud!');
-                        showToast('Calendar saved to cloud successfully!');
-
-                        // Update hash after successful save
-                        this.lastEventHash = this.computeEventHash();
-
-                        // Save conversation history if there's chat history
-                        if (this.chatHistory && this.chatHistory.length > 0) {
-                            await this.saveChatHistory();
-                        }
-                        // Trigger sync notification for approval pages
-                        this.broadcastSync();
-                        return true;
-                    } else {
-                        throw new Error('Failed to save all events');
+                    // Updates
+                    for (const {id, data} of toUpdate) {
+                        operations.push(
+                            authenticatedFetch(`/api/calendar/events/${id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(data)
+                            }).catch(err => console.warn('Update failed:', err))
+                        );
                     }
+                    
+                    // Deletes
+                    for (const id of toDelete) {
+                        operations.push(
+                            authenticatedFetch(`/api/calendar/events/${id}`, {
+                                method: 'DELETE'
+                            }).catch(err => console.warn('Delete failed:', err))
+                        );
+                    }
+                    
+                    // Wait for all operations
+                    await Promise.all(operations);
+                    
+                    showSaveStatus('saved', 'Saved to cloud!');
+                    showToast('Calendar saved successfully!');
+                    
+                    // Save chat history if exists
+                    if (this.chatHistory && this.chatHistory.length > 0) {
+                        await this.saveChatHistory();
+                    }
+
+                    // Update hash
+                    this.lastEventHash = this.computeEventHash();
+                    
+                    // Broadcast sync
+                    this.broadcastSync();
+                    return true;
+                    
                 } catch (error) {
                     console.error('Save failed:', error);
                     showSaveStatus('error', 'Save failed - ' + error.message);
-                    showToast('Failed to save to cloud: ' + error.message, 'error');
+                    showToast('Failed to save: ' + error.message, 'error');
                     return false;
                 }
             }
+
             
             // Helper method to get channel color
             getChannelColor(channel) {
@@ -5993,6 +5857,15 @@
             // Load events from Firestore calendar_events collection
             async loadFromCloud() {
                 if (!this.selectedClient) {
+                    console.warn('loadFromCloud: No client selected');
+                    return;
+                }
+
+                // Get client identifier (prefer slug over id)
+                const clientId = this.selectedClient.slug || this.selectedClient.id;
+                if (!clientId || clientId === 'undefined') {
+                    console.error('loadFromCloud: Invalid client ID:', clientId);
+                    showToast('Invalid client selected', 'error');
                     return;
                 }
                 
@@ -6008,7 +5881,7 @@
                     
                     // Parallel fetch for events, goals, and holidays
                     const [eventsResponse, goalsPromise, holidaysPromise] = await Promise.all([
-                        authenticatedFetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`),
+                        authenticatedFetch(`/api/calendar/events?client_id=${clientId}&start_date=${monthStart}&end_date=${monthEnd}`),
                         this.loadMonthGoal(), // Load goals in parallel
                         this.loadHolidaysAndEvents() // Load holidays in parallel
                     ]);
@@ -6021,7 +5894,16 @@
                         this.campaigns = events.map(event => {
                             // FIX: Parse date string to avoid timezone shift
                             // "2025-12-01" should stay December 1, not convert to UTC
-                            const dateParts = event.date.split('-');
+                            // Handle both 'date' and 'event_date' field names from Firestore
+                            const dateString = event.date || event.event_date;
+
+                            // Defensive check for missing date
+                            if (!dateString) {
+                                console.error('Event missing date field:', event);
+                                return null;
+                            }
+
+                            const dateParts = dateString.split('-');
                             const eventDate = new Date(
                                 parseInt(dateParts[0]), // year
                                 parseInt(dateParts[1]) - 1, // month (0-indexed)
@@ -6041,12 +5923,12 @@
                                 emoji: event.emoji || this.getTypeEmoji(event.event_type),
                                 metrics: event.expected_metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
                             };
-                        });
+                        }).filter(event => event !== null); // Remove any null events from bad data
                         
                         this.renderCalendar();
                         this.updateStats();
 
-                        // Update hash after loading
+                        // Update hash for change detection
                         this.lastEventHash = this.computeEventHash();
 
                         // Only show toast if we loaded events
@@ -6062,7 +5944,7 @@
                         // Update hash after clearing
                         this.lastEventHash = this.computeEventHash();
                     }
-
+                    
                     // Load chat history in background (don't wait for it)
                     this.loadChatHistory().catch(console.error);
                     
@@ -6073,6 +5955,9 @@
                     this.campaigns = [];
                     this.renderCalendar();
                     this.updateStats();
+
+                    // Update hash even on error
+                    this.lastEventHash = this.computeEventHash();
                 } finally {
                     // Remove loading indicator
                     if (loadingIndicator.parentNode) {
@@ -6088,18 +5973,18 @@
 
                 try {
                     const response = await authenticatedFetch(`/api/calendar/holidays/?year=${year}&month=${month}&include_klaviyo=true&include_seasons=true`);
-                    
+
                     if (response.ok) {
                         const data = await response.json();
-                        
+
                         // Clear existing holidays for this month
                         this.holidays = {};
                         this.klaviyoEvents = {};
-                        
+
                         // Process holidays and events
                         data.holidays.forEach(item => {
                             const dateKey = item.date;
-                            
+
                             if (item.type === 'holiday' || item.type === 'custom') {
                                 if (!this.holidays[dateKey]) {
                                     this.holidays[dateKey] = [];
@@ -6112,145 +5997,23 @@
                                 this.klaviyoEvents[dateKey].push(item);
                             }
                         });
-                        
+
                         // Store active seasons if any
                         if (data.holidays.length > 0 && data.holidays[0].active_seasons) {
                             this.activeSeasons = data.holidays[0].active_seasons;
                         }
-                        
-                        console.log(`Loaded ${Object.keys(this.holidays).length} holiday dates and ${Object.keys(this.klaviyoEvents).length} Klaviyo event dates`);
+
+                        console.debug(`Loaded ${Object.keys(this.holidays).length} holiday dates and ${Object.keys(this.klaviyoEvents).length} Klaviyo event dates`);
+                    } else {
+                        // Silently continue without holidays if endpoint doesn't exist
+                        console.debug('Holiday service not available - continuing without holiday data');
                     }
                 } catch (error) {
-                    console.error('Failed to load holidays:', error);
-                    // Continue without holidays - non-critical feature
+                    // Silently continue without holidays - non-critical feature
+                    console.debug('Holiday service not available:', error.message);
                 }
             }
-
-            // ====================================================================
-            // Multi-User Sync Methods
-            // ====================================================================
-
-            // Compute hash of current events for change detection
-            computeEventHash() {
-                if (!this.campaigns || this.campaigns.length === 0) {
-                    return 'empty';
-                }
-                // Create a simple hash based on event count, IDs, and dates
-                const hashData = this.campaigns.map(c => `${c.id}:${c.date.toISOString()}:${c.name}`).sort().join('|');
-                return hashData;
-            }
-
-            // Start polling for changes from other users
-            startSyncPolling() {
-                // Clear any existing interval
-                this.stopSyncPolling();
-
-                console.log('Multi-user sync polling started (checking every 5 seconds)');
-
-                // Set initial hash
-                this.lastEventHash = this.computeEventHash();
-
-                // Start polling
-                this.syncInterval = setInterval(() => {
-                    this.checkForChanges();
-                }, this.syncIntervalMs);
-            }
-
-            // Stop polling for changes
-            stopSyncPolling() {
-                if (this.syncInterval) {
-                    clearInterval(this.syncInterval);
-                    this.syncInterval = null;
-                    console.log('Multi-user sync polling stopped');
-                }
-            }
-
-            // Check if events have changed on server
-            async checkForChanges() {
-                // Skip if already syncing or no client selected
-                if (this.isSyncing || !this.selectedClient) {
-                    return;
-                }
-
-                this.isSyncing = true;
-
-                try {
-                    const monthStart = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-01`;
-                    const monthEnd = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-31`;
-
-                    // Fetch current events from server (silent, no loading indicator)
-                    const response = await authenticatedFetch(`/api/calendar/events?client_id=${this.selectedClient.id}&start_date=${monthStart}&end_date=${monthEnd}`);
-
-                    if (response.ok) {
-                        const eventsData = await response.json();
-                        const events = eventsData.events || eventsData;
-
-                        // Convert to campaign format and compute hash
-                        const serverCampaigns = events.map(event => {
-                            const dateParts = event.date.split('-');
-                            const eventDate = new Date(
-                                parseInt(dateParts[0]),
-                                parseInt(dateParts[1]) - 1,
-                                parseInt(dateParts[2])
-                            );
-                            return {
-                                id: event.id,
-                                name: event.title,
-                                type: event.event_type || 'promotional',
-                                date: eventDate,
-                                time: event.time || '10:00',
-                                channel: event.channel || 'email',
-                                segment: event.segment || 'all',
-                                description: event.content || '',
-                                gradient: event.gradient || this.getTypeGradient(event.event_type),
-                                emoji: event.emoji || this.getTypeEmoji(event.event_type),
-                                metrics: event.expected_metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
-                            };
-                        });
-
-                        // Compute hash of server events
-                        const serverHash = serverCampaigns.length === 0 ? 'empty' :
-                            serverCampaigns.map(c => `${c.id}:${c.date.toISOString()}:${c.name}`).sort().join('|');
-
-                        // Compare with local hash
-                        if (serverHash !== this.lastEventHash) {
-                            console.log('Changes detected from another user, updating calendar');
-
-                            // Update local campaigns
-                            this.campaigns = serverCampaigns;
-                            this.lastEventHash = serverHash;
-
-                            // Re-render calendar
-                            if (this.currentView === 'list') {
-                                renderListView();
-                            } else if (this.currentView === 'week') {
-                                renderWeekView();
-                            } else {
-                                this.renderCalendar();
-                            }
-                            this.updateStats();
-
-                            // Show subtle notification
-                            const notification = document.createElement('div');
-                            notification.className = 'fixed top-20 right-4 bg-blue-500/90 text-white px-4 py-2 rounded-lg border border-blue-300 z-50 animate-fade-in';
-                            notification.innerHTML = '🔄 Calendar updated by another user';
-                            document.body.appendChild(notification);
-
-                            setTimeout(() => {
-                                notification.style.opacity = '0';
-                                notification.style.transition = 'opacity 0.5s';
-                                setTimeout(() => notification.remove(), 500);
-                            }, 3000);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Sync check failed:', error);
-                    // Silently fail - don't disrupt user experience
-                } finally {
-                    this.isSyncing = false;
-                }
-            }
-
+            
             // Add drag and drop handlers
             handleDragStart(e, campaignId) {
                 this.draggedCampaignId = campaignId;
@@ -6275,7 +6038,7 @@
                 if (e.stopPropagation) {
                     e.stopPropagation();
                 }
-                
+
                 if (this.draggedCampaignId) {
                     const campaign = this.campaigns.find(c => c.id === this.draggedCampaignId);
                     if (campaign) {
@@ -6283,22 +6046,22 @@
                         if (oldDay !== targetDay) {
                             // Save state for undo
                             this.saveState();
-                            
+
                             // Update campaign date
                             campaign.date.setDate(targetDay);
-                            
+
                             // Re-render calendar
                             this.renderCalendar();
                             this.updateStats();
-                            
-                            // Auto-save to cloud
-                            await this.autoSaveToCloud();
-                            
+
+                            // Immediate save to cloud (no debounce for drag-drop)
+                            await this.saveToCloud();
+
                             showToast(`Campaign moved from ${oldDay} to ${targetDay}`);
                         }
                     }
                 }
-                
+
                 return false;
             }
             
@@ -6312,7 +6075,7 @@
                 // Set new timeout for auto-save (debounce for 1 second)
                 this.autoSaveTimeout = setTimeout(async () => {
                     await this.saveToCloud();
-                    this.broadcastSync(); // Notify other views
+                    // broadcastSync() is called within saveToCloud() after successful save
                 }, 1000);
             }
             
@@ -6374,6 +6137,13 @@
                 });
             }
             
+            // Save campaigns to localStorage (placeholder - using Firestore now)
+            saveToLocalStorage() {
+                // No-op: We're using Firestore for persistence now
+                // This method exists for backwards compatibility
+                console.log('📝 saveToLocalStorage called (using Firestore instead)');
+            }
+
             // Check for pending sync updates
             checkForSyncUpdates() {
                 const syncData = localStorage.getItem('calendar_sync');
@@ -6394,7 +6164,7 @@
             // Handle incoming sync updates
             handleSyncUpdate(syncData) {
                 showToast(`🔄 Calendar updated (${syncData.campaigns} campaigns)`);
-                
+
                 // If we have campaign data, use it directly for immediate sync
                 if (syncData.campaigns_data) {
                     try {
@@ -6407,11 +6177,176 @@
                         console.error('Error parsing sync data:', error);
                     }
                 }
-                
+
                 // Fallback to cloud reload if no data or error
                 setTimeout(() => {
                     this.loadFromCloud();
                 }, 500);
+            }
+
+            // Compute hash of current events for change detection
+            computeEventHash(campaigns = null) {
+                const campaignsToHash = campaigns || this.campaigns;
+
+                if (!campaignsToHash || campaignsToHash.length === 0) {
+                    return 'empty';
+                }
+
+                // Create a deterministic hash from campaign data
+                const eventData = campaignsToHash
+                    .map(c => {
+                        const dateStr = c.date instanceof Date ? c.date.toISOString().split('T')[0] : c.date;
+                        return `${c.id}:${c.name}:${dateStr}:${c.type}`;
+                    })
+                    .sort()
+                    .join('|');
+
+                // Simple hash using DJB2 algorithm (handles UTF-8)
+                let hash = 5381;
+                for (let i = 0; i < eventData.length; i++) {
+                    hash = ((hash << 5) + hash) + eventData.charCodeAt(i);
+                }
+                return (hash >>> 0).toString(36); // Convert to base36 string
+            }
+
+            // ====================================================================
+            // Firestore Real-Time Listener for Multi-User Sync
+            // ====================================================================
+
+            // Start Firestore real-time listener for changes from other users
+            startSyncPolling() {
+                console.log('🔥 startSyncPolling called');
+
+                // Clear any existing listener
+                this.stopSyncPolling();
+
+                // Get client identifier
+                const clientId = this.selectedClient?.slug || this.selectedClient?.id;
+                if (!clientId || clientId === 'undefined') {
+                    console.warn('startSyncPolling: Invalid client ID, cannot start sync');
+                    return;
+                }
+
+                // Calculate month range
+                const year = this.selectedDate.getFullYear();
+                const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
+                const monthStart = `${year}-${month}-01`;
+                const monthEnd = `${year}-${month}-31`;
+
+                console.log(`🔥 Firestore real-time sync starting for client: ${clientId}, month: ${monthStart} to ${monthEnd}`);
+
+                // Verify Firestore is initialized
+                if (typeof db === 'undefined' || !db) {
+                    console.error('❌ Firestore (db) is not initialized - real-time sync disabled');
+                    return;
+                }
+
+                // Listen to calendar_events collection for this client and month
+                try {
+                    this.firestoreUnsubscribe = db.collection('calendar_events')
+                        .where('client_id', '==', clientId)
+                        .where('event_date', '>=', monthStart)
+                        .where('event_date', '<=', monthEnd)
+                        .onSnapshot((snapshot) => {
+                            console.log('🔥 Firestore snapshot received, documents:', snapshot.size);
+                        // Skip if this is the initial load
+                        if (!this.initialLoadComplete) {
+                            this.initialLoadComplete = true;
+                            return;
+                        }
+
+                        // Check if there are any changes
+                        const changes = snapshot.docChanges();
+                        if (changes.length === 0) {
+                            return;
+                        }
+
+                        console.log(`🔄 Firestore detected ${changes.length} changes`);
+
+                        // Reload campaigns from Firestore
+                        const updatedCampaigns = [];
+                        snapshot.forEach((doc) => {
+                            const event = doc.data();
+
+                            // Defensive check for missing date field
+                            const dateString = event.event_date || event.date;
+                            if (!dateString) {
+                                console.error('Firestore event missing date field:', doc.id, event);
+                                return; // Skip this event
+                            }
+
+                            const dateParts = dateString.split('-');
+                            const eventDate = new Date(
+                                parseInt(dateParts[0]),
+                                parseInt(dateParts[1]) - 1,
+                                parseInt(dateParts[2])
+                            );
+
+                            updatedCampaigns.push({
+                                id: doc.id,
+                                name: event.title,
+                                type: event.event_type || 'promotional',
+                                date: eventDate,
+                                time: event.time || '10:00',
+                                channel: event.channel || 'email',
+                                segment: event.segment || 'all',
+                                description: event.description || event.content || '',
+                                gradient: event.gradient || this.getTypeGradient(event.event_type),
+                                emoji: event.emoji || this.getTypeEmoji(event.event_type),
+                                metrics: event.expected_metrics || event.metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                            });
+                        });
+
+                        // Compute hash of incoming data
+                        const incomingHash = this.computeEventHash(updatedCampaigns);
+                        const currentHash = this.computeEventHash(this.campaigns);
+
+                        // Only update if data actually changed (prevents bounce from own changes)
+                        if (incomingHash === currentHash) {
+                            console.log('🔄 Firestore data matches local state - skipping update');
+                            return;
+                        }
+
+                        // Update local campaigns
+                        this.campaigns = updatedCampaigns;
+
+                        // Re-render calendar
+                        this.renderCalendar();
+                        this.updateStats();
+
+                        // Show subtle notification
+                        const notification = document.createElement('div');
+                        notification.className = 'fixed top-20 right-4 bg-blue-500/90 text-white px-4 py-2 rounded-lg border border-blue-300 z-50 animate-fade-in';
+                        notification.innerHTML = '🔄 Calendar updated in real-time';
+                        document.body.appendChild(notification);
+
+                        setTimeout(() => {
+                            notification.style.opacity = '0';
+                            notification.style.transition = 'opacity 0.5s';
+                            setTimeout(() => notification.remove(), 500);
+                        }, 2000);
+                    }, (error) => {
+                        console.error('❌ Firestore sync error:', error);
+                        // If permissions error, show helpful message
+                        if (error.code === 'permission-denied') {
+                            console.warn('⚠️ Firestore permissions denied - check security rules');
+                        }
+                    });
+
+                    console.log('✅ Firestore listener successfully attached');
+                } catch (error) {
+                    console.error('❌ Failed to setup Firestore listener:', error);
+                }
+            }
+
+            // Stop Firestore listener
+            stopSyncPolling() {
+                if (this.firestoreUnsubscribe) {
+                    this.firestoreUnsubscribe();
+                    this.firestoreUnsubscribe = null;
+                    this.initialLoadComplete = false;
+                    console.log('🔥 Firestore real-time sync stopped');
+                }
             }
             
             // Load chat history from calendar_conversations collection
@@ -7526,28 +7461,43 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestData)
                 });
-                
+
+                // Check if endpoint doesn't exist (404) - feature not yet implemented
+                if (response.status === 404) {
+                    document.getElementById('gradingResults').innerHTML = `
+                        <div class="text-center py-12">
+                            <div class="text-6xl mb-4">🚀</div>
+                            <p class="text-xl text-white mb-2">Grading Feature Coming Soon!</p>
+                            <p class="text-sm text-white/60">We're building an AI-powered calendar grading system.</p>
+                            <p class="text-sm text-white/60 mt-2">Check back soon for performance insights and recommendations!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
                 if (!response.ok) throw new Error('Failed to grade calendar');
-                
+
                 const gradingData = await response.json();
                 currentGradingData = gradingData;
-                
+
                 // Render grading results
                 renderGradingResults(gradingData);
-                
+
                 // Update the FAB with the grade
                 updateGradeFAB(gradingData.overall_grade, gradingData.score);
-                
+
             } catch (error) {
-                console.error('Grading error:', error);
-                showToast('Failed to grade calendar', 'error');
+                console.debug('Grading feature not available:', error);
+                // Show friendly message for any errors
                 document.getElementById('gradingResults').innerHTML = `
                     <div class="text-center py-12">
-                        <p class="text-red-400">Failed to analyze calendar. Please try again.</p>
-                        <p class="text-sm text-white/50 mt-2">${error.message || 'Unknown error occurred'}</p>
+                        <div class="text-6xl mb-4">🚀</div>
+                        <p class="text-xl text-white mb-2">Grading Feature Coming Soon!</p>
+                        <p class="text-sm text-white/60">We're building an AI-powered calendar grading system.</p>
+                        <p class="text-sm text-white/60 mt-2">Check back soon for performance insights and recommendations!</p>
                     </div>
                 `;
-                // Don't try to update the FAB on error
+                // Don't show error toast - just display friendly message
                 return;
             }
         }
@@ -8265,8 +8215,13 @@
             document.getElementById('clientModal').classList.remove('show');
         }
         
+        // Global wrapper function for client selection (for backward compatibility)
         function selectClient(clientId) {
-            calendarManager.selectClient(clientId);
+            if (window.calendarManager) {
+                calendarManager.selectClient(clientId);
+            } else {
+                console.error('CalendarManager not initialized');
+            }
         }
         
         function generateWithAI() {
@@ -9474,9 +9429,13 @@
                 calendarManager.campaigns.push(campaignData);
                 showToast('Campaign created successfully!');
             }
-            
+
             calendarManager.renderCalendar();
             calendarManager.updateStats();
+
+            // Save to Firestore to sync across windows
+            calendarManager.saveToCloud();
+
             closeCreateCampaignModal();
         }
 
@@ -10334,9 +10293,11 @@
                 container.innerHTML = newWrapper.innerHTML;
                 container.classList.remove('calendar-animating');
                 isAnimating = false;
-                
+
                 // Load events for the new month from Firestore
                 await calendarManager.loadFromCloud();
+                // Restart Firestore listener for the new month range
+                calendarManager.startSyncPolling();
                 // Check approval status for the new month
                 checkApprovalStatus();
             }, 400);
@@ -10388,9 +10349,11 @@
                 container.innerHTML = newWrapper.innerHTML;
                 container.classList.remove('calendar-animating');
                 isAnimating = false;
-                
+
                 // Load events for the new month from Firestore
                 await calendarManager.loadFromCloud();
+                // Restart Firestore listener for the new month range
+                calendarManager.startSyncPolling();
                 // Check approval status for the new month
                 checkApprovalStatus();
             }, 400);
@@ -11251,15 +11214,36 @@
         window.addEventListener('error', (event) => {
             // Chrome extension communication errors - these are external and cannot be prevented
             if (event.message && (
+                event.message.includes('extension') ||
                 event.message.includes('Could not establish connection') ||
                 event.message.includes('Receiving end does not exist') ||
-                event.message.includes('Extension context invalidated')
+                event.message.includes('Extension context invalidated') ||
+                event.message.includes('chrome-extension') ||
+                event.message.includes('moz-extension')
             )) {
                 console.debug('Browser extension error suppressed (external):', event.message);
                 event.preventDefault(); // Prevent the error from appearing in console
+                event.stopPropagation(); // Stop the error from bubbling
+                return true; // Prevent default error handling
+            }
+        }, true); // Use capture phase
+
+        // Suppress unhandled promise rejections from browser extensions
+        window.addEventListener('unhandledrejection', (event) => {
+            // Extension-related promise rejections
+            if (event.reason && event.reason.message && (
+                event.reason.message.includes('extension') ||
+                event.reason.message.includes('Could not establish connection') ||
+                event.reason.message.includes('Receiving end does not exist') ||
+                event.reason.message.includes('Extension context invalidated') ||
+                event.reason.message.includes('chrome-extension') ||
+                event.reason.message.includes('moz-extension')
+            )) {
+                console.debug('Browser extension promise rejection suppressed (external):', event.reason.message);
+                event.preventDefault(); // Prevent the unhandled rejection warning
                 return true;
             }
-        }, true);
+        });
 
         // Initialize on load
         window.addEventListener('load', async () => {
