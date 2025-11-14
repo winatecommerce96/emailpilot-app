@@ -747,7 +747,37 @@
             background: linear-gradient(135deg, rgba(197, 255, 117, 0.1), rgba(197, 255, 117, 0.05));
             border-color: rgba(197, 255, 117, 0.5);
         }
-        
+
+        /* Hover effect for empty calendar days - shows + symbol */
+        .calendar-day:not(:has(.campaign-pill)):hover {
+            background: rgba(197, 255, 117, 0.08);
+            border-color: rgba(197, 255, 117, 0.3);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .calendar-day:not(:has(.campaign-pill)):hover::before {
+            content: '+';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: 300;
+            color: rgba(197, 255, 117, 0.5);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        body.light-mode .calendar-day:not(:has(.campaign-pill)):hover {
+            background: rgba(138, 108, 247, 0.08);
+            border-color: rgba(138, 108, 247, 0.3);
+        }
+
+        body.light-mode .calendar-day:not(:has(.campaign-pill)):hover::before {
+            color: rgba(138, 108, 247, 0.5);
+        }
+
         .day-number {
             font-weight: 700;
             font-size: 13px;
@@ -818,6 +848,35 @@
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 90%;
+        }
+
+        /* Approval status badges */
+        .approval-badge {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .approval-badge.pending {
+            background: rgba(251, 191, 36, 0.2);
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            color: #fbbf24;
+        }
+
+        .approval-badge.approved {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #22c55e;
+        }
+
+        .approval-badge.rejected {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #ef4444;
         }
 
         /* On hover, make room for actions - DISABLED to prevent text movement */
@@ -1732,7 +1791,7 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease;
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            margin: 2px;
+            margin: 0px 2px;  /* No top/bottom margin for perfect alignment with hour grid */
             min-height: 50px;
             z-index: 10;
         }
@@ -2300,6 +2359,19 @@
             border-left-color: #FA709A !important;
         }
 
+        /* Resend campaign styling for list view */
+        .list-view-campaign-card.is-resend {
+            border: 2px dashed #fbbf24 !important;  /* Amber dashed border */
+            border-left: 4px solid #fbbf24 !important;  /* Solid left accent */
+            background: rgba(251, 191, 36, 0.08) !important;
+        }
+
+        body.light-mode .list-view-campaign-card.is-resend {
+            border: 2px dashed #d97706 !important;
+            border-left: 4px solid #d97706 !important;
+            background: rgba(251, 191, 36, 0.12) !important;
+        }
+
         /* List view campaign details section */
         .list-view-campaign-details {
             margin-top: 12px;
@@ -2365,6 +2437,10 @@
             font-weight: 600;
             font-size: 14px;
             color: #C5FF75;
+        }
+
+        body.light-mode .form-label {
+            color: #8A6CF7;
         }
 
         .form-input, .form-select {
@@ -4269,7 +4345,7 @@
                         <span style="margin-right: var(--space-1);">✨</span>
                         <span>AI Calendar</span>
                     </button>
-                    <button onclick="createSingleCampaign()" class="glow-button requires-client" style="min-height: var(--touch-target);">
+                    <button onclick="createSingleCampaign()" class="glow-button requires-client" style="min-height: var(--touch-target); display: none;">
                         <span style="margin-right: var(--space-1);">➕</span>
                         <span>New Campaign</span>
                     </button>
@@ -5770,15 +5846,18 @@
                     // Determine if this is the only campaign for the day (for expanded view)
                     const isSingleEvent = campaigns.length === 1;
 
+                    // Check if this is a resend campaign (comprehensive check)
+                    const isResend = c.is_resend || c.type === 'resend' || c.campaignMessageType === 'Resend' || c.name.toLowerCase().includes('resend');
+
                     return `
-                    <div class="campaign-pill ${c.gradient || c.type} ${c.is_resend ? "is-resend" : ""} ${isSingleEvent ? 'expanded-pill' : ''}"
+                    <div class="campaign-pill ${c.gradient || c.type} ${isResend ? "is-resend" : ""} ${isSingleEvent ? 'expanded-pill' : ''}"
                          draggable="true"
                          ondragstart="calendarManager.handleDragStart(event, '${c.id}')"
                          ondragend="calendarManager.handleDragEnd(event)"
                          onclick="showCampaignDetails('${c.id}')"
                          title="${c.name}">
                         <span class="campaign-pill-text">
-                            ${channelEmoji} ${c.name}${c.is_resend ? " <span class=\'resend-badge\'>↻ RESEND</span>" : ""}
+                            ${channelEmoji} ${c.name}${isResend ? " <span class=\'resend-badge\'>↻ RESEND</span>" : ""}
                         </span>
                         ${audienceList.length > 0 ? `
                         <div class="campaign-pill-meta">
@@ -6034,7 +6113,8 @@
                     ...campaign,
                     id: 'campaign-' + Date.now(),
                     name: campaign.name + ' (Copy)',
-                    date: newDate
+                    date: newDate,
+                    type: campaign.type === 'resend' ? 'resend' : campaign.type  // Preserve resend type
                 };
 
                 this.campaigns.push(newCampaign);
@@ -6060,19 +6140,21 @@
             resendCampaign(campaignId) {
                 const campaign = this.campaigns.find(c => c.id === campaignId);
                 if (!campaign) return;
-                
+
                 this.saveState();
-                
+
                 // Create resend for next day
                 const resendDate = new Date(campaign.date);
                 resendDate.setDate(resendDate.getDate() + 1);
-                
+
                 const resendCampaign = {
                     ...campaign,
                     id: 'campaign-' + Date.now(),
                     name: 'Resend: ' + campaign.name.replace(/^Resend:\s*/, ''),
                     date: resendDate,
-                    is_resend: true
+                    is_resend: true,
+                    type: 'resend',  // Set message type to resend
+                    campaignMessageType: 'Resend'  // Explicit field for UI display
                 };
                 
                 this.campaigns.push(resendCampaign);
@@ -6225,6 +6307,12 @@
                     
                     // Find creates and updates
                     for (const campaign of this.campaigns) {
+                        // Ensure time always has AM/PM before saving
+                        let timeToSave = campaign.time || campaign.send_time || '10:00 AM';
+                        if (timeToSave && !timeToSave.toLowerCase().includes('am') && !timeToSave.toLowerCase().includes('pm')) {
+                            timeToSave = timeToSave + ' AM';
+                        }
+
                         const eventData = {
                             title: campaign.name,
                             event_date: `${campaign.date.getFullYear()}-${String(campaign.date.getMonth() + 1).padStart(2, '0')}-${String(campaign.date.getDate()).padStart(2, '0')}`,
@@ -6233,12 +6321,14 @@
                             color: this.getChannelColor(campaign.channel),
                             event_type: campaign.type,
                             channel: campaign.channel || 'email',
-                            time: campaign.time,
+                            time: timeToSave,  // Save with AM/PM
+                            send_time: timeToSave,  // Save both fields
                             segment: campaign.segment || 'all',
                             expected_metrics: campaign.metrics || {},
                             gradient: campaign.gradient,
                             emoji: campaign.emoji,
-                            is_resend: campaign.is_resend || false  // ✅ Include is_resend for border styling
+                            is_resend: campaign.is_resend || false,  // ✅ Include is_resend for border styling
+                            campaignMessageType: campaign.campaignMessageType || null  // ✅ Include message type
                         };
                         
                         if (existingMap.has(campaign.id)) {
@@ -6415,7 +6505,153 @@
                     console.debug('Chat history save unavailable:', error.message);
                 }
             }
-            
+
+            // ====================================================================
+            // Client Approval Functions
+            // ====================================================================
+
+            async requestApprovalForAll() {
+                if (!this.selectedClient) {
+                    showToast('Please select a client first', 'warning');
+                    return false;
+                }
+
+                showSaveStatus('saving', '📋 Requesting approval for all campaigns...');
+
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const campaign of this.campaigns) {
+                    if (!campaign.id) continue; // Skip unsaved campaigns
+
+                    try {
+                        const response = await authenticatedFetch(`/api/calendar/events/${campaign.id}/request-approval`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            campaign.approval_status = 'pending_approval';
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Failed to request approval for campaign ${campaign.id}:`, error);
+                        failCount++;
+                    }
+                }
+
+                // Re-render to show approval status
+                this.renderCalendar();
+
+                if (failCount === 0) {
+                    showSaveStatus('saved', `✅ Approval requested for ${successCount} campaigns`);
+                    showToast(`Approval requested for ${successCount} campaigns`, 'success');
+                } else {
+                    showSaveStatus('error', `⚠️ ${successCount} succeeded, ${failCount} failed`);
+                    showToast(`${successCount} succeeded, ${failCount} failed`, 'warning');
+                }
+
+                return successCount > 0;
+            }
+
+            async unapproveCalendar() {
+                if (!this.selectedClient) {
+                    showToast('Please select a client first', 'warning');
+                    return false;
+                }
+
+                if (!confirm('Mark entire calendar for client approval? This will flag all campaigns as needing review.')) {
+                    return false;
+                }
+
+                return await this.requestApprovalForAll();
+            }
+
+            async approveEvent(eventId) {
+                try {
+                    const response = await authenticatedFetch(`/api/calendar/events/${eventId}/approve`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+
+                        // Update local campaign status
+                        const campaign = this.campaigns.find(c => c.id === eventId);
+                        if (campaign) {
+                            campaign.approval_status = 'approved';
+                            this.renderCalendar();
+                        }
+
+                        showToast('✅ Campaign approved', 'success');
+                        return true;
+                    } else {
+                        throw new Error('Approval failed');
+                    }
+                } catch (error) {
+                    console.error('Error approving event:', error);
+                    showToast('Failed to approve campaign', 'error');
+                    return false;
+                }
+            }
+
+            async rejectEvent(eventId) {
+                try {
+                    const response = await authenticatedFetch(`/api/calendar/events/${eventId}/reject`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+
+                        // Update local campaign status
+                        const campaign = this.campaigns.find(c => c.id === eventId);
+                        if (campaign) {
+                            campaign.approval_status = 'rejected';
+                            this.renderCalendar();
+                        }
+
+                        showToast('❌ Campaign rejected', 'warning');
+                        return true;
+                    } else {
+                        throw new Error('Rejection failed');
+                    }
+                } catch (error) {
+                    console.error('Error rejecting event:', error);
+                    showToast('Failed to reject campaign', 'error');
+                    return false;
+                }
+            }
+
+            async getApprovalRequests() {
+                if (!this.selectedClient) {
+                    showToast('Please select a client first', 'warning');
+                    return [];
+                }
+
+                const clientId = this.selectedClient.slug || this.selectedClient.id;
+
+                try {
+                    const response = await authenticatedFetch(`/api/calendar/approval-requests?client_id=${clientId}`);
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        return result.events || [];
+                    } else {
+                        throw new Error('Failed to fetch approval requests');
+                    }
+                } catch (error) {
+                    console.error('Error fetching approval requests:', error);
+                    showToast('Failed to fetch approval requests', 'error');
+                    return [];
+                }
+            }
+
             // Load events from Firestore calendar_events collection
             async loadFromCloud() {
                 if (!this.selectedClient) {
@@ -6472,19 +6708,28 @@
                                 parseInt(dateParts[2]) // day
                             );
 
+                            // Ensure time always has AM/PM for proper week view rendering
+                            let timeValue = event.time || event.send_time || '10:00 AM';
+                            // If time doesn't have AM/PM, add it
+                            if (timeValue && !timeValue.toLowerCase().includes('am') && !timeValue.toLowerCase().includes('pm')) {
+                                timeValue = timeValue + ' AM';  // Default to AM if not specified
+                            }
+
                             return {
                                 id: event.id,
                                 name: event.title,
                                 type: event.event_type || 'promotional',
                                 date: eventDate,
-                                time: event.time || '10:00',
+                                time: timeValue,
+                                send_time: timeValue,  // Ensure both fields are set
                                 channel: event.channel || 'email',
                                 segment: event.segment || 'all',
                                 description: event.content || '',
                                 gradient: event.gradient || this.getTypeGradient(event.event_type),
                                 emoji: event.emoji || this.getTypeEmoji(event.event_type),
                                 metrics: event.expected_metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 },
-                                is_resend: event.is_resend || false
+                                is_resend: event.is_resend || false,
+                                campaignMessageType: event.campaignMessageType || (event.is_resend || event.event_type === 'resend' ? 'Resend' : null)
                             };
                         }).filter(event => event !== null); // Remove any null events from bad data
                         
@@ -8995,38 +9240,53 @@
             // client is already declared above at line 6477
             const date = calendarManager.selectedDate;
             const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const monthInt = date.getMonth() + 1;  // Integer month (1-12)
+            const monthStr = String(monthInt).padStart(2, '0');  // String month with padding ("01"-"12")
             const monthName = date.toLocaleDateString('en-US', { month: 'long' });
-            
-            // Generate approval page ID and URL
-            const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
+
+            // Generate approval page ID and URL (use padded string for ID)
+            const approvalId = `${client.client_slug || client.id}-${year}-${monthStr}`;
             // Public approval URL (no authentication required)
             const approvalUrl = `https://app.emailpilot.ai/calendar-approval/${approvalId}`;
             
             try {
                 // Store approval page data in Firestore
+                const requestData = {
+                    approval_id: approvalId,
+                    client_id: client.id,
+                    client_name: client.name,
+                    client_slug: client.client_slug || client.slug || null,
+                    year: year,
+                    month: monthInt,  // Send as integer for Pydantic validation
+                    month_name: monthName,
+                    campaigns: calendarManager.campaigns.map(c => {
+                        // Ensure date is ISO string
+                        const campaignCopy = { ...c };
+                        if (campaignCopy.date instanceof Date) {
+                            campaignCopy.date = campaignCopy.date.toISOString();
+                        }
+                        // Remove any non-serializable fields
+                        delete campaignCopy.$$hashKey;  // Angular artifacts
+                        return campaignCopy;
+                    }),
+                    created_at: new Date().toISOString(),
+                    status: 'pending',
+                    editable: true
+                };
+
+                console.log('[Approval Debug] Request data:', JSON.stringify(requestData, null, 2));
+
                 const response = await authenticatedFetch('/api/calendar/approval/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        approval_id: approvalId,
-                        client_id: client.id,
-                        client_name: client.name,
-                        client_slug: client.client_slug,
-                        year: year,
-                        month: month,
-                        month_name: monthName,
-                        campaigns: calendarManager.campaigns.map(c => ({
-                            ...c,
-                            date: c.date.toISOString()
-                        })),
-                        created_at: new Date().toISOString(),
-                        status: 'pending',
-                        editable: true
-                    })
+                    body: JSON.stringify(requestData)
                 });
-                
-                if (!response.ok) throw new Error('Failed to create approval page');
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[Approval Error] Status:', response.status, 'Body:', errorText);
+                    throw new Error(`Failed to create approval page: ${response.status} - ${errorText}`);
+                }
 
                 const result = await response.json();
 
@@ -9081,10 +9341,18 @@
             if (!calendarManager.selectedClient) return;
 
             const client = calendarManager.selectedClient;
+
+            // Ensure client has required identifiers
+            const clientId = client.client_slug || client.slug || client.id;
+            if (!clientId) {
+                console.debug('Client missing required identifier (client_slug, slug, or id)');
+                return;
+            }
+
             const date = calendarManager.selectedDate;
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
-            const approvalId = `${client.client_slug || client.id}-${year}-${month}`;
+            const approvalId = `${clientId}-${year}-${month}`;
 
             try {
                 const response = await authenticatedFetch(`/api/calendar/approval/${approvalId}`);
@@ -10652,6 +10920,7 @@
                 name: title,
                 type: type,
                 channel: channel,  // ✅ NOW INCLUDES CHANNEL
+                emoji: emoji.trim(),  // ✅ Store emoji separately for rendering
                 date: parsedDate || new Date(),  // FIX: Use locally-parsed date
                 description: description,
                 color: event.color || getColorForType(type),
@@ -11237,13 +11506,23 @@
         }
 
         function shouldShowCampaign(campaign) {
-            // Check message type filter (email vs sms)
-            const messageType = (campaign.message_type || 'email').toLowerCase();
-            if (messageType === 'sms' && !campaignTypeFilters.sms) return false;
-            if (messageType === 'email' && !campaignTypeFilters.email) return false;
+            // Check channel filter (email vs sms vs push)
+            // Use 'channel' field first (primary), fallback to 'message_type', default to 'email'
+            const channel = (campaign.channel || campaign.message_type || 'email').toLowerCase();
 
-            // Check campaign type filter (promotional vs content)
+            // Filter by channel - if the campaign's channel filter is OFF, hide it
+            if (channel === 'sms' && !campaignTypeFilters.sms) return false;
+            if (channel === 'email' && !campaignTypeFilters.email) return false;
+            if (channel === 'push' && !campaignTypeFilters.email) return false;  // Push uses email filter for now
+
+            // Check campaign type filter (promotional, content, resend)
             const campaignType = (campaign.type || 'promotional').toLowerCase();
+
+            // Check for resend campaigns (comprehensive check)
+            const isResend = campaign.is_resend || campaign.type === 'resend' || campaign.campaignMessageType === 'Resend' || campaign.name.toLowerCase().includes('resend');
+            if (isResend && !campaignTypeFilters.resend) return false;
+
+            // Check other types
             if (campaignType === 'promotional' && !campaignTypeFilters.promotional) return false;
             if (campaignType === 'content' && !campaignTypeFilters.content) return false;
 
@@ -11360,8 +11639,11 @@
                                                 'draft': 'text-yellow-400'
                                             };
 
+                                            // Check if this is a resend campaign (comprehensive check)
+                                            const isResend = c.is_resend || c.type === 'resend' || c.campaignMessageType === 'Resend' || c.name.toLowerCase().includes('resend');
+
                                             return `
-                                                <div class="list-view-campaign-card glass-card p-4 hover:border-purple-500/50 transition-all campaign-${typeClass}"
+                                                <div class="list-view-campaign-card glass-card p-4 hover:border-purple-500/50 transition-all campaign-${typeClass} ${isResend ? 'is-resend' : ''}"
                                                      data-campaign-id="${c.id}"
                                                      data-week="${weekKey}"
                                                      data-index="${index}"
@@ -11378,6 +11660,7 @@
                                                                     <span class="font-bold text-lg cursor-pointer" onclick="showCampaignDetails('${c.id}')" draggable="false">${c.name}</span>
                                                                     <span class="campaign-pill-meta-badge" style="background: rgba(197, 255, 117, 0.2); border: 1px solid rgba(197, 255, 117, 0.4); padding: 3px 8px; border-radius: 8px; font-size: 10px;" draggable="false">${typeLabel}</span>
                                                                     <span class="campaign-pill-meta-badge ${statusColors[status]}" style="padding: 3px 8px; border-radius: 8px; font-size: 10px; text-transform: uppercase; font-weight: 600;" draggable="false">⬤ ${status}</span>
+                                                                    ${c.approval_status ? `<span class="approval-badge ${c.approval_status === 'pending_approval' ? 'pending' : c.approval_status}" draggable="false">${c.approval_status === 'pending_approval' ? '⏳ Pending' : c.approval_status === 'approved' ? '✅ Approved' : '❌ Rejected'}</span>` : ''}
                                                                 </div>
                                                             </div>
 
@@ -11799,23 +12082,55 @@
                         <div class="week-timeline-campaigns">
                             ${weekDays.map((day, dayIdx) =>
                                 day.campaigns.map(campaign => {
-                                    // Parse send time
-                                    const sendTime = campaign.send_time || campaign.time || '10:00';
-                                    const [hourStr, minStr] = sendTime.split(':');
+                                    // Parse send time - FIXED: Robust parsing for all time formats
+                                    const sendTime = campaign.send_time || campaign.time || '10:00 AM';
+
+                                    console.log(`[Week View Debug] Campaign: ${campaign.name}, Raw time: "${sendTime}"`);
+
+                                    // Remove any extra whitespace and split by colon
+                                    const cleanTime = sendTime.trim();
+                                    const parts = cleanTime.split(':');
+                                    const hourStr = parts[0];
+                                    const minStr = parts[1] || '00';
+
+                                    // Parse hour (before AM/PM)
                                     let hour = parseInt(hourStr);
-                                    const isPM = sendTime.toLowerCase().includes('pm');
-                                    const isAM = sendTime.toLowerCase().includes('am');
 
-                                    if (isPM && hour !== 12) hour += 12;
-                                    if (isAM && hour === 12) hour = 0;
+                                    // Parse minute (extract digits only, ignore AM/PM)
+                                    let minute = parseInt(minStr.replace(/[^0-9]/g, '')) || 0;
 
-                                    const minute = parseInt(minStr) || 0;
+                                    // Determine AM/PM from the time string (check ENTIRE string, not just minute part)
+                                    const isPM = cleanTime.toLowerCase().includes('pm');
+                                    const isAM = cleanTime.toLowerCase().includes('am');
+
+                                    console.log(`  Parsed: hour=${hour}, minute=${minute}, isPM=${isPM}, isAM=${isAM}`);
+
+                                    // Convert to 24-hour format
+                                    if (isPM && hour !== 12) {
+                                        hour = hour + 12;
+                                        console.log(`  Converted PM: hour is now ${hour}`);
+                                    } else if (isAM && hour === 12) {
+                                        hour = 0;
+                                        console.log(`  Converted 12 AM to midnight: hour is now ${hour}`);
+                                    } else if (!isAM && !isPM) {
+                                        // No AM/PM specified - assume it's already 24-hour OR default to AM for hours 1-11, PM for 12
+                                        if (hour >= 1 && hour <= 11) {
+                                            console.log(`  No AM/PM specified, assuming AM for hour ${hour}`);
+                                        } else if (hour === 12) {
+                                            console.log(`  No AM/PM specified for 12, assuming 12 PM (noon)`);
+                                        }
+                                        // For hour 13-23, assume 24-hour format (leave as-is)
+                                    }
+
+                                    // Calculate position (percentage of day)
                                     const topPosition = (hour * 60 + minute) / (24 * 60) * 100;
+                                    console.log(`  Final: hour=${hour}, minute=${minute}, topPosition=${topPosition.toFixed(2)}%`);
                                     const leftPosition = dayIdx * (100 / 7);
                                     const width = 100 / 7;
 
                                     const revenue = campaign.metrics?.revenue || campaign.expected_metrics?.revenue || 0;
-                                    const isResend = campaign.is_resend || campaign.name.toLowerCase().includes('resend');
+                                    // Check if this is a resend campaign (comprehensive check)
+                                    const isResend = campaign.is_resend || campaign.type === 'resend' || campaign.campaignMessageType === 'Resend' || campaign.name.toLowerCase().includes('resend');
 
                                     return `
                                         <div class="week-timeline-campaign ${campaign.gradient || campaign.type} ${isResend ? 'is-resend' : ''}"
@@ -12692,7 +13007,7 @@
                         <div class="text-sm text-white/60">Calendar analytics</div>
                     </div>
                 </button>
-                <button onclick="clearThisMonth(); closeCommandModal();" class="command-item">
+                <button onclick="if(confirm('Clear all campaigns for this month? This will PERMANENTLY delete them from Firestore.')) { clearMonthWithLoading(); closeCommandModal(); } else { closeCommandModal(); }" class="command-item">
                     <span class="text-2xl">🗑️</span>
                     <div>
                         <div class="font-semibold">Clear This Month</div>

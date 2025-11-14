@@ -35,8 +35,10 @@ def transform_event(event):
         "client_id": CLIENT_ID,  # Each event needs client_id!
         "title": event.get("title", "Untitled"),
         "event_date": event.get("date"),  # CRITICAL: Use event_date, not date
+        "time": event.get("time", "10:00 AM"),  # Default to 10:00 AM with AM/PM
         "description": event.get("content", ""),
         "event_type": event.get("event_type", "email"),
+        "channel": event.get("channel", "email"),  # Include channel at top level
         "segment": event.get("segment", ""),
         "color": get_event_color(event.get("event_type", "email")),
         "metadata": {
