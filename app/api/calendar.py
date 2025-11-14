@@ -14,13 +14,30 @@ import os
 import sys
 from pathlib import Path
 from google.cloud import firestore
+from google.cloud import secretmanager
 
 # Import authentication dependency
 from app.api.clerk_auth import verify_clerk_session
 from app.deps.firestore import get_db
+from app.services.asana_client import AsanaClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Helper to get Asana token from Secret Manager
+async def get_asana_token() -> Optional[str]:
+    """Get Asana API token from Secret Manager"""
+    try:
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")
+        secret_name = f"projects/{project_id}/secrets/asana-api-token/versions/latest"
+
+        client = secretmanager.SecretManagerServiceClient()
+        response = client.access_secret_version(request={"name": secret_name})
+        token = response.payload.data.decode("UTF-8").strip()
+        return token
+    except Exception as e:
+        logger.warning(f"Could not retrieve Asana token: {e}")
+        return None
 
 # Global state for lazy-initialized calendar components
 _calendar_state = {
@@ -292,7 +309,7 @@ async def calendar_health(
         }
     )
 
-@router.post("/workflow/run")
+@router.post("/workflow/execute")
 async def run_workflow(
     request: WorkflowRequest,
     background_tasks: BackgroundTasks,
@@ -763,9 +780,9 @@ async def get_events(
 
         # Add date range filters if provided
         if start_date:
-            query = query.where("date", ">=", start_date)
+            query = query.where("event_date", ">=", start_date)
         if end_date:
-            query = query.where("date", "<=", end_date)
+            query = query.where("event_date", "<=", end_date)
 
         # Execute query
         docs = query.stream()
@@ -907,6 +924,183 @@ async def delete_event(
             detail=f"Failed to delete event: {str(e)}"
         )
 
+# ============================================================================
+# Client Approval Endpoints (Firestore-backed)
+# ============================================================================
+
+@router.post("/events/{event_id}/request-approval")
+async def request_approval(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Mark a calendar event as 'pending_approval' to request client approval.
+
+    Updates the event status and adds approval metadata.
+    """
+    try:
+        event_ref = db.collection("calendar_events").document(event_id)
+        event_doc = event_ref.get()
+
+        if not event_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Update event with approval request
+        update_data = {
+            "approval_status": "pending_approval",
+            "approval_requested_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        event_ref.update(update_data)
+        logger.info(f"Approval requested for event {event_id}")
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "approval_status": "pending_approval",
+            "message": "Approval request submitted"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error requesting approval for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to request approval: {str(e)}"
+        )
+
+@router.post("/events/{event_id}/approve")
+async def approve_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Approve a calendar event.
+
+    Marks the event as 'approved' and records approval timestamp.
+    """
+    try:
+        event_ref = db.collection("calendar_events").document(event_id)
+        event_doc = event_ref.get()
+
+        if not event_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Update event with approval
+        update_data = {
+            "approval_status": "approved",
+            "approved_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        event_ref.update(update_data)
+        logger.info(f"Event {event_id} approved")
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "approval_status": "approved",
+            "message": "Event approved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve event: {str(e)}"
+        )
+
+@router.post("/events/{event_id}/reject")
+async def reject_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Reject a calendar event.
+
+    Marks the event as 'rejected' and records rejection timestamp.
+    """
+    try:
+        event_ref = db.collection("calendar_events").document(event_id)
+        event_doc = event_ref.get()
+
+        if not event_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Update event with rejection
+        update_data = {
+            "approval_status": "rejected",
+            "rejected_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        event_ref.update(update_data)
+        logger.info(f"Event {event_id} rejected")
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "approval_status": "rejected",
+            "message": "Event rejected"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rejecting event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reject event: {str(e)}"
+        )
+
+@router.get("/approval-requests")
+async def get_approval_requests(
+    client_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get all events pending approval for a client.
+
+    Returns events with approval_status = 'pending_approval'.
+    """
+    try:
+        events_ref = db.collection("calendar_events")
+        query = events_ref.where("client_id", "==", client_id).where("approval_status", "==", "pending_approval")
+
+        events = []
+        for doc in query.stream():
+            event_data = doc.to_dict()
+            event_data['id'] = doc.id
+            events.append(event_data)
+
+        logger.info(f"Found {len(events)} pending approval requests for client {client_id}")
+
+        return {
+            "success": True,
+            "count": len(events),
+            "events": events
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching approval requests: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch approval requests: {str(e)}"
+        )
+
 @router.post("/create-bulk-events")
 async def create_bulk_events(
     bulk_request: BulkEventsCreate,
@@ -957,3 +1151,400 @@ async def create_bulk_events(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to bulk create events: {str(e)}"
         )
+
+# ============================================================================
+# Stub Endpoints - Prevent 404 Console Errors
+# ============================================================================
+
+# DISABLED: This stub endpoint conflicts with the real implementation in calendar_holidays.py
+# The real endpoint is registered via calendar_holidays_router with prefix="/api/calendar/holidays"
+# @router.get("/holidays/")
+# async def get_holidays(
+#     year: Optional[int] = None,
+#     month: Optional[int] = None,
+#     include_klaviyo: Optional[bool] = False,
+#     include_seasons: Optional[bool] = False
+# ):
+#     """
+#     Stub endpoint - returns empty holidays list.
+#
+#     TODO: Implement actual holiday data fetching logic.
+#     """
+#     return {"holidays": [], "active_seasons": []}
+
+# ============================================================================
+# Calendar Approval Workflow Endpoints
+# ============================================================================
+
+class ApprovalPageCreate(BaseModel):
+    """Request model for creating an approval page"""
+    approval_id: str
+    client_id: str
+    client_name: str
+    client_slug: Optional[str] = None
+    year: int
+    month: int
+    month_name: str
+    campaigns: List[Dict[str, Any]]
+    created_at: str
+    status: str = "pending"
+    editable: bool = True
+
+class AsanaTaskCreate(BaseModel):
+    """Request model for creating Asana approval task"""
+    client_id: str
+    client_name: str
+    approval_url: str
+    month: str
+    year: int
+
+class ChangeRequestSubmit(BaseModel):
+    """Request model for submitting change requests"""
+    change_request: str
+    tasks: Optional[List[Dict[str, Any]]] = None
+    requested_at: str
+    client_name: str
+
+@router.post("/approval/create")
+async def create_approval_page(
+    data: ApprovalPageCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create a client approval page and store in Firestore.
+
+    This endpoint is called by the internal calendar when "Create Client Approval Page" is clicked.
+    It saves the calendar data to Firestore for the client to review.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(data.approval_id)
+
+        # Store approval page data
+        approval_data = data.model_dump()
+        approval_data['created_at'] = datetime.utcnow().isoformat()
+        approval_data['status'] = 'pending'
+
+        approval_ref.set(approval_data)
+
+        logger.info(f"Created approval page: {data.approval_id} for client {data.client_name}")
+
+        return {
+            "success": True,
+            "approval_id": data.approval_id,
+            "message": "Approval page created successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating approval page: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create approval page: {str(e)}"
+        )
+
+@router.post("/approval/create-asana-task")
+async def create_asana_approval_task(
+    data: AsanaTaskCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create an Asana task with the approval page link.
+
+    Looks up the client's Asana project link and creates a task for the client to review.
+    """
+    try:
+        # Get client from Firestore to find Asana project link
+        client_ref = db.collection("clients").document(data.client_id)
+        client_doc = client_ref.get()
+
+        if not client_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Client {data.client_id} not found"
+            )
+
+        client_data = client_doc.to_dict()
+        asana_project_link = client_data.get("asana_project_link")
+
+        if not asana_project_link:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Client {data.client_name} does not have an Asana project link configured"
+            )
+
+        # Get Asana token
+        asana_token = await get_asana_token()
+        if not asana_token:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Asana API token not configured"
+            )
+
+        # Extract project GID from URL
+        asana_client = AsanaClient(asana_token)
+        project_gid = asana_client.parse_project_gid_from_url(asana_project_link)
+
+        if not project_gid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not parse Asana project GID from URL: {asana_project_link}"
+            )
+
+        # Create Asana task
+        task_name = f"📅 Review {data.month} {data.year} Campaign Calendar"
+        task_notes = f"""Please review and approve your campaign calendar for {data.month} {data.year}.
+
+**Approval Link**: {data.approval_url}
+
+Click the link above to:
+✓ View all scheduled campaigns
+✓ Approve the calendar
+✓ Request any changes
+
+Once approved, we'll move forward with campaign execution."""
+
+        result = await asana_client.create_task(
+            name=task_name,
+            project_gid=project_gid,
+            notes=task_notes
+        )
+
+        task_gid = result.get("data", {}).get("gid")
+        task_url = f"https://app.asana.com/0/{project_gid}/{task_gid}" if task_gid else None
+
+        logger.info(f"Created Asana task for {data.client_name}: {task_url}")
+
+        return {
+            "success": True,
+            "task_gid": task_gid,
+            "task_url": task_url,
+            "message": "Asana task created successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Asana task: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create Asana task: {str(e)}"
+        )
+
+@router.get("/approval/{approval_id}")
+async def get_approval(
+    approval_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get approval page data for client review.
+
+    This endpoint is called by the public calendar-approval.html page.
+    Returns the calendar data so the client can review it.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(approval_id)
+        approval_doc = approval_ref.get()
+
+        if not approval_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Approval page {approval_id} not found"
+            )
+
+        approval_data = approval_doc.to_dict()
+
+        return {
+            "success": True,
+            "data": approval_data
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving approval page: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve approval page: {str(e)}"
+        )
+
+@router.post("/approval/{approval_id}/accept")
+async def accept_approval(
+    approval_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Mark the calendar as approved by the client.
+
+    Called when the client clicks "Approve Calendar" on the public approval page.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(approval_id)
+        approval_doc = approval_ref.get()
+
+        if not approval_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Approval page {approval_id} not found"
+            )
+
+        # Update approval status
+        approval_ref.update({
+            "status": "approved",
+            "approved_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        })
+
+        logger.info(f"Calendar approved: {approval_id}")
+
+        return {
+            "success": True,
+            "approval_id": approval_id,
+            "status": "approved",
+            "message": "Calendar approved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving calendar: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve calendar: {str(e)}"
+        )
+
+@router.post("/approval/{approval_id}/request-changes")
+async def request_changes(
+    approval_id: str,
+    data: ChangeRequestSubmit,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Submit change requests from the client.
+
+    Called when the client clicks "Request Changes" on the public approval page.
+    Creates an Asana task with the requested changes.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(approval_id)
+        approval_doc = approval_ref.get()
+
+        if not approval_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Approval page {approval_id} not found"
+            )
+
+        approval_data = approval_doc.to_dict()
+        client_id = approval_data.get("client_id")
+        client_name = approval_data.get("client_name")
+
+        # Update approval status
+        approval_ref.update({
+            "status": "changes_requested",
+            "change_request": data.change_request,
+            "change_tasks": data.tasks or [],
+            "requested_at": data.requested_at,
+            "updated_at": datetime.utcnow().isoformat()
+        })
+
+        # Try to create Asana task for the change request
+        try:
+            # Get client's Asana project link
+            client_ref = db.collection("clients").document(client_id)
+            client_doc = client_ref.get()
+
+            if client_doc.exists:
+                client_data = client_doc.to_dict()
+                asana_project_link = client_data.get("asana_project_link")
+
+                if asana_project_link:
+                    asana_token = await get_asana_token()
+                    if asana_token:
+                        asana_client = AsanaClient(asana_token)
+                        project_gid = asana_client.parse_project_gid_from_url(asana_project_link)
+
+                        if project_gid:
+                            task_name = f"🔧 Calendar Change Request - {approval_data.get('month_name')} {approval_data.get('year')}"
+                            task_notes = f"""Client has requested changes to the calendar:
+
+{data.change_request}
+
+**Approval Link**: https://app.emailpilot.ai/calendar-approval/{approval_id}
+
+Please review and make the requested changes."""
+
+                            result = await asana_client.create_task(
+                                name=task_name,
+                                project_gid=project_gid,
+                                notes=task_notes
+                            )
+
+                            logger.info(f"Created Asana change request task for {client_name}")
+        except Exception as asana_error:
+            logger.warning(f"Could not create Asana task for change request: {asana_error}")
+            # Continue anyway - the change request is saved
+
+        logger.info(f"Change request submitted for {approval_id}")
+
+        return {
+            "success": True,
+            "approval_id": approval_id,
+            "status": "changes_requested",
+            "message": "Change request submitted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error submitting change request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to submit change request: {str(e)}"
+        )
+
+@router.get("/change-requests/{request_id}")
+async def get_change_requests(request_id: str):
+    """
+    Stub endpoint - returns empty change requests.
+
+    TODO: Implement change request tracking logic.
+    """
+    return {"requests": [], "request_id": request_id}
+
+@router.get("/ai/get-conversation/{client}")
+async def get_conversation(client: str):
+    """
+    Stub endpoint - returns empty conversation history.
+
+    TODO: Implement AI conversation history storage and retrieval.
+    """
+    return {"messages": [], "client": client}
+
+# DISABLED: This stub endpoint conflicts with the real implementation in calendar_grader.py
+# The real endpoint is registered via calendar_grader_router with prefix="/api/calendar"
+# @router.post("/grade")
+# async def grade_performance(request: dict):
+#     """
+#     Stub endpoint for Grade Performance feature.
+#
+#     TODO: Implement campaign performance evaluation logic.
+#     """
+#     return {
+#         "status": "success",
+#         "message": "Performance grading not yet implemented",
+#         "grade": None
+#     }
+
+# DISABLED: This stub endpoint conflicts with the real implementation in calendar_chat.py
+# The real endpoint is registered via calendar_chat_router with prefix="/api/calendar"
+# @router.post("/chat")
+# async def chat_with_ai(request: dict):
+#     """
+#     Stub endpoint for AI Assistant chat feature.
+#
+#     TODO: Implement AI chat functionality.
+#     """
+#     return {
+#         "status": "success",
+#         "message": "AI chat not yet implemented",
+#         "response": "The AI Assistant feature is coming soon!"
+#     }
