@@ -8221,12 +8221,12 @@
                     gradeLabel.textContent = randomLabel;
                 }
                 
-                // Show a nudge after 5 seconds of inactivity
-                setTimeout(() => {
-                    if (!hasBeenClicked && !gradeCard.classList.contains('has-grade')) {
-                        showGradeNudge();
-                    }
-                }, 5000);
+                // Show a nudge after 5 seconds of inactivity - DISABLED per user request
+                // setTimeout(() => {
+                //     if (!hasBeenClicked && !gradeCard.classList.contains('has-grade')) {
+                //         showGradeNudge();
+                //     }
+                // }, 5000);
                 
                 // Add mouse tracking effect
                 let mouseNearCount = 0;
