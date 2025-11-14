@@ -226,7 +226,20 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
+
+        /* Welcome section text readability in light mode */
+        body.light-mode .welcome-section p {
+            color: rgba(26, 26, 26, 0.9) !important;
+        }
+
+        body.light-mode .welcome-section strong {
+            color: #3369DC !important;
+        }
+
+        body.light-mode .welcome-section div[style*="flex"] {
+            color: rgba(26, 26, 26, 0.7) !important;
+        }
+
         body.light-mode .modal-backdrop {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -3239,6 +3252,19 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+        }
+
+        /* Welcome section text readability in reading mode */
+        body.reading-mode .welcome-section p {
+            color: rgba(26, 26, 26, 0.9) !important;
+        }
+
+        body.reading-mode .welcome-section strong {
+            color: #1a1a1a !important;
+        }
+
+        body.reading-mode .welcome-section div[style*="flex"] {
+            color: rgba(26, 26, 26, 0.7) !important;
         }
 
         /* Glass Cards - High Contrast */
