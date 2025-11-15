@@ -6501,6 +6501,7 @@
                     event_type: campaign.type,
                     channel: campaign.channel || 'email',
                     time: campaign.time,
+                    send_time: campaign.send_time || campaign.time,
                     segment: campaign.segment || 'all',
                     expected_metrics: campaign.metrics || {},
                     gradient: campaign.gradient,
@@ -7075,7 +7076,8 @@
                 const eventData = campaignsToHash
                     .map(c => {
                         const dateStr = c.date instanceof Date ? c.date.toISOString().split('T')[0] : c.date;
-                        return `${c.id}:${c.name}:${dateStr}:${c.type}`;
+                        const timeStr = c.send_time || c.time || '';
+                        return `${c.id}:${c.name}:${dateStr}:${c.type}:${timeStr}`;
                     })
                     .sort()
                     .join('|');
@@ -7189,8 +7191,14 @@
                         // Update local campaigns
                         this.campaigns = updatedCampaigns;
 
-                        // Re-render calendar
-                        this.renderCalendar();
+                        // Re-render based on current view to maintain view state
+                        if (this.currentView === 'list') {
+                            renderListView();
+                        } else if (this.currentView === 'week') {
+                            renderWeekView();
+                        } else {
+                            this.renderCalendar();
+                        }
                         this.updateStats();
 
                         // Show subtle notification
@@ -10905,7 +10913,32 @@
             
             return events;
         }
-        
+
+        // Helper function to convert 24-hour time to 12-hour format with AM/PM
+        function convertTo12HourFormat(timeString) {
+            if (!timeString) return '10:00 AM'; // Default time
+
+            // Already in 12-hour format (contains AM/PM)
+            if (timeString.includes('AM') || timeString.includes('PM') ||
+                timeString.includes('am') || timeString.includes('pm')) {
+                return timeString;
+            }
+
+            // Parse 24-hour format (e.g., "13:52" or "13:52:00")
+            const parts = timeString.split(':');
+            if (parts.length < 2) return '10:00 AM';
+
+            let hours = parseInt(parts[0]);
+            const minutes = parts[1].padStart(2, '0');
+
+            if (isNaN(hours) || hours < 0 || hours > 23) return '10:00 AM';
+
+            const isPM = hours >= 12;
+            const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+
+            return `${displayHours}:${minutes} ${isPM ? 'PM' : 'AM'}`;
+        }
+
         function normalizeEventData(event) {
             // Normalize date format
             let date = event.date || event.event_date || event.send_date || event.dtstart;
@@ -11002,6 +11035,9 @@
                 description += extraFields.join('\n');
             }
 
+            // Convert time to 12-hour format if needed
+            const normalizedTime = convertTo12HourFormat(event.send_time || event.time);
+
             return {
                 id: event.id || 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                 name: title,
@@ -11009,6 +11045,8 @@
                 channel: channel,  // ✅ NOW INCLUDES CHANNEL
                 emoji: emoji.trim(),  // ✅ Store emoji separately for rendering
                 date: parsedDate || new Date(),  // FIX: Use locally-parsed date
+                time: normalizedTime,  // ✅ NOW INCLUDES TIME IN 12-HOUR FORMAT
+                send_time: normalizedTime,  // ✅ ALSO SET send_time FOR WEEK VIEW
                 description: description,
                 color: event.color || getColorForType(type),
                 segment: event.segments || event.segment || '',
