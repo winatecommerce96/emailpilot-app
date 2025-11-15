@@ -4358,7 +4358,9 @@
     <header class="relative z-10 border-b border-white/10" style="padding: var(--space-3) var(--space-4);">
         <div style="max-width: var(--container-max); margin: 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;">
             <div class="fade-in" style="flex-shrink: 0; display: flex; align-items: center; gap: var(--space-3);">
-                <img src="https://storage.googleapis.com/emailpilot-438321-public/logo.png" alt="EmailPilot Logo" style="height: 72px; width: auto;">
+                <div style="background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(45, 45, 45, 0.95)); border-radius: 12px; padding: var(--space-2);">
+                    <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png" alt="EmailPilot Logo" style="height: 60px; width: auto; display: block;">
+                </div>
                 <div>
                     <h1 class="text-hero" style="margin-bottom: var(--space-1);">
                         <span class="gradient-text">Campaign Co-Pilot</span>
@@ -4396,21 +4398,19 @@
 
             <!-- Welcome Message (shown before client selection) -->
             <div id="welcomeMessage" class="welcome-section fade-in" style="text-align: center; padding: var(--space-8) var(--space-4); margin-bottom: var(--space-6);">
-                <img src="https://storage.googleapis.com/emailpilot-438321-public/logo.png" alt="EmailPilot Logo" style="height: 180px; width: auto; margin: 0 auto var(--space-4) auto; display: block;">
+                <div class="logo-container" style="background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(45, 45, 45, 0.95)); border-radius: 20px; padding: var(--space-4); max-width: 280px; margin: 0 auto var(--space-4) auto;">
+                    <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png" alt="EmailPilot Logo" style="height: 180px; width: auto; margin: 0 auto; display: block;">
+                </div>
                 <h2 class="gradient-text" style="font-size: 2.5rem; font-weight: 900; margin-bottom: var(--space-3);">
                     Welcome to Campaign Co-Pilot
                 </h2>
                 <p style="font-size: 1.25rem; color: rgba(255, 255, 255, 0.8); max-width: 600px; margin: 0 auto var(--space-4) auto; line-height: 1.6;">
-                    Your AI-powered email marketing calendar is ready to help you plan, organize, and optimize campaigns with confidence.
+                    Your mission control center for precision email campaign planning. Chart your course, navigate market conditions, and execute flawless campaigns with AI-powered flight assistance.
                 </p>
-                <div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 12px; padding: var(--space-4); max-width: 500px; margin: 0 auto var(--space-4) auto;">
-                    <p style="font-size: 1rem; color: rgba(255, 255, 255, 0.9); margin-bottom: var(--space-2);">
-                        <strong style="color: rgba(168, 85, 247, 1);">✨ To get started:</strong>
-                    </p>
-                    <p style="font-size: 0.95rem; color: rgba(255, 255, 255, 0.7);">
-                        Click the <strong style="color: rgba(255, 255, 255, 0.95);">👤 Select Client</strong> button above to choose which client's calendar you'd like to work on.
-                    </p>
-                </div>
+                <button onclick="showClientModal()" class="glow-button select-client-welcome" style="min-height: var(--touch-target); font-size: 1.1rem; padding: var(--space-3) var(--space-6); margin: 0 auto var(--space-6) auto; display: block;">
+                    <span style="margin-right: var(--space-2);">👤</span>
+                    <span>SELECT CLIENT TO GET STARTED</span>
+                </button>
                 <div style="display: flex; gap: var(--space-3); justify-content: center; flex-wrap: wrap; color: rgba(255, 255, 255, 0.6); font-size: 0.875rem;">
                     <div style="display: flex; align-items: center; gap: var(--space-1);">
                         <span style="font-size: 1.25rem;">📅</span>
@@ -4423,6 +4423,22 @@
                     <div style="display: flex; align-items: center; gap: var(--space-1);">
                         <span style="font-size: 1.25rem;">🔄</span>
                         <span>Real-Time Sync</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: var(--space-1);">
+                        <span style="font-size: 1.25rem;">📊</span>
+                        <span>Performance Analytics</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: var(--space-1);">
+                        <span style="font-size: 1.25rem;">🎯</span>
+                        <span>Goal Tracking</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: var(--space-1);">
+                        <span style="font-size: 1.25rem;">🗓️</span>
+                        <span>Multi-View Calendar</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: var(--space-1);">
+                        <span style="font-size: 1.25rem;">✈️</span>
+                        <span>Campaign Orchestration</span>
                     </div>
                 </div>
             </div>
@@ -13074,7 +13090,105 @@
     <script>
         // Command Modal Functions
         function openCommandModal() {
-            document.getElementById('commandModal').style.display = 'flex';
+            const modal = document.getElementById('commandModal');
+            const commandsContainer = modal.querySelector('.space-y-2');
+            const hasClient = calendarManager && calendarManager.selectedClient;
+
+            // Clear existing commands
+            commandsContainer.innerHTML = '';
+
+            // Always show Toggle Theme
+            commandsContainer.innerHTML += `
+                <button onclick="cycleTheme(); closeCommandModal();" class="command-item">
+                    <span class="text-2xl">🎨</span>
+                    <div>
+                        <div class="font-semibold">Toggle Theme</div>
+                        <div class="text-sm text-white/60">Dark → Light → Reading Mode</div>
+                    </div>
+                </button>
+            `;
+
+            // Always show Add Client
+            commandsContainer.innerHTML += `
+                <button onclick="addNewClient(); closeCommandModal();" class="command-item">
+                    <span class="text-2xl">➕</span>
+                    <div>
+                        <div class="font-semibold">Add Client</div>
+                        <div class="text-sm text-white/60">Create new client profile</div>
+                    </div>
+                </button>
+            `;
+
+            // Show additional commands only if client is selected
+            if (hasClient) {
+                commandsContainer.innerHTML += `
+                    <button onclick="createClientApprovalPage(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">📄</span>
+                        <div>
+                            <div class="font-semibold">Create Client Approval Page</div>
+                            <div class="text-sm text-white/60">Generate shareable approval link</div>
+                        </div>
+                    </button>
+                    <button onclick="showChangeRequests(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">💬</span>
+                        <div>
+                            <div class="font-semibold">View Change Requests</div>
+                            <div class="text-sm text-white/60">See client feedback</div>
+                        </div>
+                    </button>
+                    <button onclick="undoLastChange(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">↩️</span>
+                        <div>
+                            <div class="font-semibold">Undo Last Change</div>
+                            <div class="text-sm text-white/60">Revert recent action</div>
+                        </div>
+                    </button>
+                    <button onclick="window.location.reload(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">🔄</span>
+                        <div>
+                            <div class="font-semibold">Refresh Calendar</div>
+                            <div class="text-sm text-white/60">Reload data</div>
+                        </div>
+                    </button>
+                    <button onclick="openHolidayManager(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">🎄</span>
+                        <div>
+                            <div class="font-semibold">Holiday & Event Management</div>
+                            <div class="text-sm text-white/60">Manage special dates</div>
+                        </div>
+                    </button>
+                    <button onclick="openGoalManager(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">🎯</span>
+                        <div>
+                            <div class="font-semibold">Goal Management</div>
+                            <div class="text-sm text-white/60">Set campaign goals</div>
+                        </div>
+                    </button>
+                    <button onclick="viewStats(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">📊</span>
+                        <div>
+                            <div class="font-semibold">View Stats</div>
+                            <div class="text-sm text-white/60">Calendar analytics</div>
+                        </div>
+                    </button>
+                    <button onclick="if(confirm('Clear all campaigns for this month? This action cannot be undone.')) { clearMonthWithLoading(); closeCommandModal(); } else { closeCommandModal(); }" class="command-item">
+                        <span class="text-2xl">🗑️</span>
+                        <div>
+                            <div class="font-semibold">Clear This Month</div>
+                            <div class="text-sm text-white/60">Remove all campaigns</div>
+                        </div>
+                    </button>
+                `;
+            }
+
+            // Always show Cancel button
+            commandsContainer.innerHTML += `
+                <button onclick="closeCommandModal()" class="glow-button mt-4 w-full">
+                    Cancel
+                </button>
+            `;
+
+            modal.style.display = 'flex';
         }
 
         function closeCommandModal() {

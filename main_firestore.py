@@ -138,6 +138,12 @@ from app.api.klaviyo_discovery import router as klaviyo_discovery_router
 # Import admin client management router
 from app.api.admin_clients import router as admin_clients_router
 
+# Import multi-platform clients module (NEW)
+import sys
+sys.path.insert(0, '/Users/Damon/klaviyo/klaviyo-audit-automation')
+# TEMPORARILY DISABLED - causing import hang
+# from shared_modules.clients.main import router as multi_platform_clients_router
+
 # Import admin firestore router
 from app.api.admin_firestore import router as admin_firestore_router
 
@@ -451,10 +457,12 @@ cors_origins_env = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") 
 default_origins = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "http://localhost:3000", 
+        "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "http://localhost:8003",
+        "http://127.0.0.1:8003",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://emailpilot.ai",
@@ -524,30 +532,32 @@ async def version():
     """Version information endpoint for deployment tracking."""
     return {"version": "1.0.0"}
 
-# Legacy clients endpoint (for backwards compatibility)
+# Clients list endpoint - now uses multi-platform module
+@app.get("/api/clients")
 @app.get("/api/clients/")
-async def get_clients_legacy():
-    """Legacy endpoint for clients list - redirects to admin endpoint"""
+async def get_clients_list():
+    """Get list of all clients - uses Firestore directly"""
     try:
-        db = get_db()
-        docs = list(db.collection("clients").stream())
+        # Get project ID from environment
+        import os
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCLOUD_PROJECT")
+        if not project_id:
+            logger.error("No Google Cloud project ID found")
+            return []
+
+        # Use simple Firestore client with explicit project ID
+        db = firestore.Client(project=project_id)
         clients = []
-        
-        for doc in docs:
-            if doc.exists:
-                data = doc.to_dict()
-                clients.append({
-                    "id": doc.id,
-                    "name": data.get("name", "Unknown"),
-                    "metric_id": data.get("metric_id", ""),
-                    "is_active": data.get("is_active", True),
-                    "contact_email": data.get("contact_email", ""),
-                    "website": data.get("website", "")
-                })
-        
+        for doc in db.collection('clients').stream():
+            client_data = doc.to_dict()
+            clients.append({
+                "name": client_data.get("client_name", "Unknown"),
+                "slug": client_data.get("client_slug", doc.id),
+                **client_data  # Include all other fields
+            })
         return clients
     except Exception as e:
-        logger.error(f"Error fetching clients: {e}")
+        logger.error(f"Error fetching clients: {e}", exc_info=True)
         return []
 
 # Stub endpoints for admin dashboard compatibility
@@ -752,15 +762,19 @@ except ImportError as e:
     logger.warning(f"❌ Backfill router not loaded: {e}")
 
 # Include calendar routers with appropriate prefixes
+# IMPORTANT: Register specialized calendar routers BEFORE general calendar router
+# This ensures specific endpoints like /chat, /grade, /holidays take priority over stubs
+app.include_router(calendar_chat_router, tags=["Calendar Chat"])
+app.include_router(calendar_grader_router, tags=["Calendar Grading"])
+app.include_router(calendar_holidays_router, tags=["Calendar Holidays"])
+
+# Now register general calendar routers (with potential stub endpoints)
 app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
 app.include_router(calendar_enhanced_router, prefix="/api/calendar", tags=["Calendar Enhanced"])
 app.include_router(calendar_planning_router, tags=["AI Calendar Planning"])
 app.include_router(calendar_planning_ai_router, tags=["Calendar Planning AI with MCP"])
 app.include_router(calendar_planning_templates_router, tags=["Calendar Planning Templates"])
 app.include_router(firebase_calendar_router, prefix="/api/firebase-calendar", tags=["Firebase Calendar"])
-app.include_router(calendar_chat_router, tags=["Calendar Chat"])
-app.include_router(calendar_grader_router, tags=["Calendar Grading"])
-app.include_router(calendar_holidays_router, tags=["Calendar Holidays"])
 
 # Include LangSmith-traced calendar router if available
 if CALENDAR_LANGSMITH_AVAILABLE:
@@ -861,6 +875,10 @@ app.include_router(klaviyo_discovery_router, prefix="/api/klaviyo", tags=["Klavi
 
 # Admin client management router - already has /api/admin/clients prefix internally
 app.include_router(admin_clients_router, tags=["Admin Client Management"])
+
+# Multi-platform clients router (NEW - Klaviyo, Braze, Mailchimp, Fishbowl)
+# TEMPORARILY DISABLED - router import causing hang
+# app.include_router(multi_platform_clients_router, prefix="/api", tags=["Multi-Platform Clients"])
 
 # Admin Firestore router
 app.include_router(admin_firestore_router, prefix="/api/admin/firestore", tags=["Admin Firestore Configuration"])
@@ -1085,7 +1103,11 @@ async def serve_test_hidden_endpoints():
 # ============ MPA Routes (Server-rendered) ============
 @app.get("/")
 async def root_spa(request: Request):
-    """Serves the main index.html file for the React SPA."""
+    """Serves the main index.html file for the React SPA or calendar based on hostname."""
+    # Check if this is calendar.emailpilot.ai subdomain
+    hostname = request.headers.get("host", "").split(":")[0]  # Remove port if present
+    if hostname == "calendar.emailpilot.ai":
+        return FileResponse('frontend/public/calendar_master.html')
     return FileResponse('dist/index.html')
 
 
