@@ -6509,23 +6509,15 @@
                     is_resend: campaign.is_resend || false
                 };
 
-                console.log(`[quickUpdate] Saving campaign ${campaign.id}:`, {
-                    time: eventData.time,
-                    send_time: eventData.send_time,
-                    date: eventData.event_date
-                });
-
                 try {
-                    const response = await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
+                    await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
-                    const result = await response.json();
-                    console.log(`[quickUpdate] API response:`, result);
                     return true;
                 } catch (err) {
-                    console.error('[quickUpdate] Failed:', err);
+                    console.error('Quick update failed:', err);
                     return false;
                 }
             }
@@ -7171,12 +7163,20 @@
                                 parseInt(dateParts[2])
                             );
 
+                            // Ensure time always has AM/PM for proper week view rendering
+                            let timeValue = event.send_time || event.time || '10:00 AM';
+                            // If time doesn't have AM/PM, add it
+                            if (timeValue && !timeValue.toLowerCase().includes('am') && !timeValue.toLowerCase().includes('pm')) {
+                                timeValue = timeValue + ' AM';  // Default to AM if not specified
+                            }
+
                             updatedCampaigns.push({
                                 id: doc.id,
                                 name: event.title,
                                 type: event.event_type || 'promotional',
                                 date: eventDate,
-                                time: event.time || '10:00',
+                                time: timeValue,
+                                send_time: timeValue,  // Ensure both fields are set
                                 channel: event.channel || 'email',
                                 segment: event.segment || 'all',
                                 description: event.description || event.content || '',
