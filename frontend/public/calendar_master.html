@@ -12210,12 +12210,6 @@
                                     // Parse send time - FIXED: Robust parsing for all time formats
                                     const sendTime = campaign.send_time || campaign.time || '10:00 AM';
 
-                                    console.log(`[Render Debug] === Campaign: ${campaign.name} ===`);
-                                    console.log(`[Render Debug]   send_time: "${campaign.send_time}"`);
-                                    console.log(`[Render Debug]   time: "${campaign.time}"`);
-                                    console.log(`[Render Debug]   Using: "${sendTime}"`);
-                                    console.log(`[Render Debug]   Date: ${campaign.date}`);
-
                                     // Remove any extra whitespace and split by colon
                                     const cleanTime = sendTime.trim();
                                     const parts = cleanTime.split(':');
@@ -12232,28 +12226,16 @@
                                     const isPM = cleanTime.toLowerCase().includes('pm');
                                     const isAM = cleanTime.toLowerCase().includes('am');
 
-                                    console.log(`[Render Debug]   Parsed: hour=${hour}, minute=${minute}, isPM=${isPM}, isAM=${isAM}`);
-
                                     // Convert to 24-hour format
                                     if (isPM && hour !== 12) {
                                         hour = hour + 12;
-                                        console.log(`  Converted PM: hour is now ${hour}`);
                                     } else if (isAM && hour === 12) {
                                         hour = 0;
-                                        console.log(`  Converted 12 AM to midnight: hour is now ${hour}`);
-                                    } else if (!isAM && !isPM) {
-                                        // No AM/PM specified - assume it's already 24-hour OR default to AM for hours 1-11, PM for 12
-                                        if (hour >= 1 && hour <= 11) {
-                                            console.log(`  No AM/PM specified, assuming AM for hour ${hour}`);
-                                        } else if (hour === 12) {
-                                            console.log(`  No AM/PM specified for 12, assuming 12 PM (noon)`);
-                                        }
-                                        // For hour 13-23, assume 24-hour format (leave as-is)
                                     }
+                                    // For times without AM/PM, hours 13-23 are assumed to be 24-hour format
 
                                     // Calculate position (percentage of day)
                                     const topPosition = (hour * 60 + minute) / (24 * 60) * 100;
-                                    console.log(`[Render Debug]   Final 24h: ${hour}:${minute.toString().padStart(2, '0')} = position ${topPosition.toFixed(2)}%`);
                                     const leftPosition = dayIdx * (100 / 7);
                                     const width = 100 / 7;
 
@@ -12310,6 +12292,17 @@
                 // Add new scroll listener
                 timelineGrid.addEventListener('scroll', syncTimeLabelsScroll);
             }
+
+            // Auto-scroll to first event (if any)
+            requestAnimationFrame(() => {
+                const firstCampaign = container.querySelector('.week-timeline-campaign');
+                if (firstCampaign && timelineGrid) {
+                    const campaignTop = parseFloat(firstCampaign.style.top);
+                    // Scroll so the first event is visible, with some padding (200px above it)
+                    const scrollPosition = (campaignTop / 100) * 1440 - 200; // 1440px = 24 hours * 60px
+                    timelineGrid.scrollTop = Math.max(0, scrollPosition);
+                }
+            });
         }
 
         // Scroll synchronization function (defined once to avoid duplicates)
