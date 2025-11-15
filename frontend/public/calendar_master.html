@@ -6509,15 +6509,23 @@
                     is_resend: campaign.is_resend || false
                 };
 
+                console.log(`[quickUpdate] Saving campaign ${campaign.id}:`, {
+                    time: eventData.time,
+                    send_time: eventData.send_time,
+                    date: eventData.event_date
+                });
+
                 try {
-                    await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
+                    const response = await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
+                    const result = await response.json();
+                    console.log(`[quickUpdate] API response:`, result);
                     return true;
                 } catch (err) {
-                    console.warn('Quick update failed:', err);
+                    console.error('[quickUpdate] Failed:', err);
                     return false;
                 }
             }
