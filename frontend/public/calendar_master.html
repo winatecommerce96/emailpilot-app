@@ -1676,6 +1676,8 @@
             border-radius: 16px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.05);
+            max-height: calc(100vh - 300px);
+            position: relative;
         }
 
         .week-timeline-times {
@@ -1686,6 +1688,7 @@
             position: sticky;
             left: 0;
             z-index: 10;
+            overflow: hidden;
         }
 
         .week-timeline-corner {
@@ -1708,6 +1711,34 @@
             flex: 1;
             position: relative;
             overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 300px);
+            scroll-behavior: smooth;
+        }
+
+        /* Scrollbar styling for week view */
+        .week-timeline-grid::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .week-timeline-grid::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .week-timeline-grid::-webkit-scrollbar-thumb {
+            background: rgba(138, 108, 247, 0.5);
+            border-radius: 4px;
+        }
+
+        .week-timeline-grid::-webkit-scrollbar-thumb:hover {
+            background: rgba(138, 108, 247, 0.7);
+        }
+
+        .week-timeline-times::-webkit-scrollbar {
+            width: 0px;
+            display: none;
         }
 
         .week-timeline-days-header {
@@ -1792,7 +1823,7 @@
             top: 60px;
             left: 0;
             right: 0;
-            bottom: 0;
+            height: 1440px; /* 24 hours × 60px per hour = fixed height for accurate positioning */
             pointer-events: none;
         }
 
@@ -12082,7 +12113,7 @@
 
             container.innerHTML = `
                 <div class="week-timeline-header">
-                    <h3 class="text-xl font-black gradient-text mb-2">📅 Week View</h3>
+                    <h3 class="text-xl font-bold gradient-text mb-2">📅 Week View</h3>
                     <div class="week-nav-container">
                         <button onclick="previousWeek()" class="glow-button">← Prev Week</button>
                         <button onclick="goToCurrentWeek()" class="glow-button">Today</button>
@@ -12141,7 +12172,11 @@
                                     // Parse send time - FIXED: Robust parsing for all time formats
                                     const sendTime = campaign.send_time || campaign.time || '10:00 AM';
 
-                                    console.log(`[Week View Debug] Campaign: ${campaign.name}, Raw time: "${sendTime}"`);
+                                    console.log(`[Render Debug] === Campaign: ${campaign.name} ===`);
+                                    console.log(`[Render Debug]   send_time: "${campaign.send_time}"`);
+                                    console.log(`[Render Debug]   time: "${campaign.time}"`);
+                                    console.log(`[Render Debug]   Using: "${sendTime}"`);
+                                    console.log(`[Render Debug]   Date: ${campaign.date}`);
 
                                     // Remove any extra whitespace and split by colon
                                     const cleanTime = sendTime.trim();
@@ -12159,7 +12194,7 @@
                                     const isPM = cleanTime.toLowerCase().includes('pm');
                                     const isAM = cleanTime.toLowerCase().includes('am');
 
-                                    console.log(`  Parsed: hour=${hour}, minute=${minute}, isPM=${isPM}, isAM=${isAM}`);
+                                    console.log(`[Render Debug]   Parsed: hour=${hour}, minute=${minute}, isPM=${isPM}, isAM=${isAM}`);
 
                                     // Convert to 24-hour format
                                     if (isPM && hour !== 12) {
@@ -12180,7 +12215,7 @@
 
                                     // Calculate position (percentage of day)
                                     const topPosition = (hour * 60 + minute) / (24 * 60) * 100;
-                                    console.log(`  Final: hour=${hour}, minute=${minute}, topPosition=${topPosition.toFixed(2)}%`);
+                                    console.log(`[Render Debug]   Final 24h: ${hour}:${minute.toString().padStart(2, '0')} = position ${topPosition.toFixed(2)}%`);
                                     const leftPosition = dayIdx * (100 / 7);
                                     const width = 100 / 7;
 
@@ -12225,6 +12260,30 @@
                     campaignsContainer.appendChild(indicator);
                 }
             }
+
+            // Synchronize scroll between timeline grid and time labels
+            const timelineGrid = container.querySelector('.week-timeline-grid');
+            const timeLabels = container.querySelector('.week-timeline-times');
+
+            if (timelineGrid && timeLabels) {
+                // Remove any existing scroll listeners to prevent duplicates
+                timelineGrid.removeEventListener('scroll', syncTimeLabelsScroll);
+
+                // Add new scroll listener
+                timelineGrid.addEventListener('scroll', syncTimeLabelsScroll);
+            }
+        }
+
+        // Scroll synchronization function (defined once to avoid duplicates)
+        function syncTimeLabelsScroll(event) {
+            const grid = event.target;
+            const container = grid.closest('.week-timeline-container');
+            const timeLabels = container?.querySelector('.week-timeline-times');
+
+            if (timeLabels) {
+                // Sync vertical scroll only
+                timeLabels.scrollTop = grid.scrollTop;
+            }
         }
 
         // Drag and drop handlers for week timeline
@@ -12240,6 +12299,54 @@
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
             event.currentTarget.classList.add('drag-over');
+
+            // Show real-time time feedback during drag
+            if (draggedCampaignId) {
+                const cell = event.currentTarget;
+                const hour = parseInt(cell.dataset.hour);
+
+                // Calculate minute based on mouse position
+                const cellRect = cell.getBoundingClientRect();
+                const relativeY = event.clientY - cellRect.top;
+                const cellHeight = cellRect.height;
+                const minuteFraction = relativeY / cellHeight;
+                const minute = Math.max(0, Math.min(59, Math.round(minuteFraction * 60)));
+
+                // Format time for display
+                const isPM = hour >= 12;
+                const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                const minuteStr = minute.toString().padStart(2, '0');
+                const timeStr = `${displayHour}:${minuteStr} ${isPM ? 'PM' : 'AM'}`;
+
+                // Update or create time indicator tooltip
+                let tooltip = document.getElementById('drag-time-tooltip');
+                if (!tooltip) {
+                    tooltip = document.createElement('div');
+                    tooltip.id = 'drag-time-tooltip';
+                    tooltip.style.cssText = `
+                        position: fixed;
+                        background: linear-gradient(135deg, rgba(138, 108, 247, 0.98), rgba(123, 95, 238, 0.98));
+                        color: white;
+                        padding: 12px 20px;
+                        border-radius: 12px;
+                        font-size: 16px;
+                        font-weight: 800;
+                        pointer-events: none;
+                        z-index: 999999;
+                        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(197, 255, 117, 0.6);
+                        border: 2px solid rgba(197, 255, 117, 0.8);
+                        letter-spacing: 0.5px;
+                        transform: translateY(-100%);
+                        backdrop-filter: blur(8px);
+                    `;
+                    document.body.appendChild(tooltip);
+                }
+
+                tooltip.innerHTML = `<span style="font-size: 18px; margin-right: 6px;">🕐</span>${timeStr}`;
+                tooltip.style.left = `${event.clientX - 50}px`;
+                tooltip.style.top = `${event.clientY - 70}px`;
+                tooltip.style.display = 'block';
+            }
         }
 
         function handleTimelineDrop(event) {
@@ -12252,20 +12359,49 @@
             const dayIdx = parseInt(cell.dataset.day);
             const hour = parseInt(cell.dataset.hour);
 
+            console.log(`[Drop Debug] Cell: day=${dayIdx}, hour=${hour}`);
+
             // Find the campaign
             const campaign = calendarManager.campaigns.find(c => c.id === draggedCampaignId);
-            if (!campaign) return;
+            if (!campaign) {
+                console.error(`[Drop Debug] Campaign not found: ${draggedCampaignId}`);
+                return;
+            }
 
-            // Calculate new date
-            const weekStart = new Date(calendarManager.selectedDate);
-            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            console.log(`[Drop Debug] Campaign found: ${campaign.name}, current time: ${campaign.send_time || campaign.time}`);
+
+            // Calculate minute precision based on mouse position within the cell
+            const cellRect = cell.getBoundingClientRect();
+            const relativeY = event.clientY - cellRect.top;
+            const cellHeight = cellRect.height;
+            const minuteFraction = relativeY / cellHeight;
+            const minute = Math.round(minuteFraction * 60);
+
+            // Clamp minutes to 0-59 range
+            const finalMinute = Math.max(0, Math.min(59, minute));
+
+            console.log(`[Drop Debug] Position in cell: relativeY=${relativeY.toFixed(2)}, cellHeight=${cellHeight.toFixed(2)}, minute=${finalMinute}`);
+
+            // Calculate new date - CRITICAL: Use the WEEK VIEW's week start, not the calendar's selected date
+            const selectedDate = new Date(calendarManager.selectedDate);
+            const weekStart = new Date(selectedDate);
+            // Set to start of week (Sunday)
+            weekStart.setDate(selectedDate.getDate() - selectedDate.getDay() + (currentWeekOffset * 7));
+            weekStart.setHours(0, 0, 0, 0); // Reset time to midnight
+
             const newDate = new Date(weekStart);
             newDate.setDate(newDate.getDate() + dayIdx);
+            newDate.setHours(hour, finalMinute, 0, 0); // Set the actual time on the date object
 
-            // Format new time
+            console.log(`[Drop Debug] Week start: ${weekStart.toLocaleDateString()}, New date: ${newDate.toLocaleString()}`);
+
+            // Format new time with minute precision
             const isPM = hour >= 12;
             const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-            const newTime = `${displayHour}:00 ${isPM ? 'PM' : 'AM'}`;
+            const minuteStr = finalMinute.toString().padStart(2, '0');
+            const newTime = `${displayHour}:${minuteStr} ${isPM ? 'PM' : 'AM'}`;
+
+            console.log(`[Drop Debug] Formatted time: ${newTime} (hour=${hour}, isPM=${isPM}, displayHour=${displayHour})`);
 
             // Update campaign
             const oldDate = campaign.date;
@@ -12274,6 +12410,8 @@
             campaign.date = newDate;
             campaign.send_time = newTime;
             campaign.time = newTime;
+
+            console.log(`[Drop Debug] Campaign updated: date=${newDate.toLocaleString()}, send_time=${newTime}, time=${newTime}`);
 
             // Track change
             pendingChanges.push({
@@ -12293,11 +12431,31 @@
                 showToast('⚠️ Failed to save changes', 'error');
             });
 
+            // Save scroll position before re-rendering
+            const grid = document.querySelector('.week-timeline-grid');
+            const savedScrollTop = grid ? grid.scrollTop : 0;
+            const savedScrollLeft = grid ? grid.scrollLeft : 0;
+
             // Re-render week view
             renderWeekView();
 
+            // Restore scroll position after re-rendering
+            requestAnimationFrame(() => {
+                const newGrid = document.querySelector('.week-timeline-grid');
+                if (newGrid) {
+                    newGrid.scrollTop = savedScrollTop;
+                    newGrid.scrollLeft = savedScrollLeft;
+                }
+            });
+
             // Show toast
             showToast(`📅 ${campaign.name} moved to ${newDate.toLocaleDateString()} at ${newTime}`);
+
+            // Hide the time tooltip immediately
+            const tooltip = document.getElementById('drag-time-tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
 
             // Clear drag state
             draggedCampaignId = null;
@@ -12311,6 +12469,12 @@
             document.querySelectorAll('.drag-over').forEach(el => {
                 el.classList.remove('drag-over');
             });
+
+            // Remove time tooltip
+            const tooltip = document.getElementById('drag-time-tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
         });
         
         function openCommandPalette() {
@@ -12995,6 +13159,22 @@
         }
     </script>
 
+    <!-- Client Manager Modal (Iframe) -->
+    <div id="clientManagerModal" class="modal-backdrop" style="display: none; z-index: 10000;">
+        <div class="modal-content" style="max-width: 95vw; max-height: 95vh; width: 1400px; padding: 0; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-4); background: rgba(255, 255, 255, 0.05); border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <h3 class="text-xl font-bold gradient-text">Client Management</h3>
+                <button onclick="closeClientManager()" class="text-2xl hover:text-purple-400 transition-colors" style="background: none; border: none; cursor: pointer; color: white;">×</button>
+            </div>
+            <iframe
+                id="clientManagerIframe"
+                src="https://emailpilot-orchestrator-935786836546.us-central1.run.app/static/client_manager.html"
+                style="width: 100%; height: calc(95vh - 60px); border: none; background: #0a0a0f;"
+                allow="clipboard-read; clipboard-write">
+            </iframe>
+        </div>
+    </div>
+
     <!-- Command Palette Modal (Quick Actions Menu) -->
     <div id="commandModal" class="modal-backdrop" style="display: none;">
         <div class="modal-content" style="max-width: 500px;">
@@ -13226,8 +13406,98 @@
         }
 
         function addNewClient() {
-            showToast('Add client feature coming soon!', 'info');
+            openClientManager('create');
         }
+
+        function editCurrentClient() {
+            if (calendarManager && calendarManager.selectedClient) {
+                const clientSlug = calendarManager.selectedClient.slug || calendarManager.selectedClient.client_slug || calendarManager.selectedClient.id;
+                openClientManager('edit', clientSlug);
+            } else {
+                showToast('No client selected', 'warning');
+            }
+        }
+
+        function openClientManager(mode = 'list', clientSlug = null) {
+            const modal = document.getElementById('clientManagerModal');
+            const iframe = document.getElementById('clientManagerIframe');
+
+            // Build iframe URL with mode parameter
+            let iframeUrl = 'https://emailpilot-orchestrator-935786836546.us-central1.run.app/static/client_manager.html';
+
+            if (mode === 'create') {
+                iframeUrl += '?action=create';
+            } else if (mode === 'edit' && clientSlug) {
+                iframeUrl += `?action=edit&client=${clientSlug}`;
+            }
+
+            iframe.src = iframeUrl;
+            modal.style.display = 'flex';
+
+            // Add escape key listener
+            document.addEventListener('keydown', handleClientManagerEscape);
+        }
+
+        function closeClientManager() {
+            const modal = document.getElementById('clientManagerModal');
+            modal.style.display = 'none';
+
+            // Remove escape key listener
+            document.removeEventListener('keydown', handleClientManagerEscape);
+
+            // Refresh client list after closing (in case changes were made)
+            if (calendarManager) {
+                calendarManager.loadClients();
+            }
+        }
+
+        function handleClientManagerEscape(event) {
+            if (event.key === 'Escape') {
+                closeClientManager();
+            }
+        }
+
+        // Listen for messages from client manager iframe
+        window.addEventListener('message', function(event) {
+            // Security: verify origin
+            if (event.origin !== 'https://emailpilot-orchestrator-935786836546.us-central1.run.app') {
+                return;
+            }
+
+            const data = event.data;
+
+            // Handle different message types
+            if (data.type === 'CLIENT_CREATED') {
+                showToast(`✅ Client "${data.clientName}" created successfully!`, 'success');
+                closeClientManager();
+                if (calendarManager) {
+                    calendarManager.loadClients();
+                }
+            } else if (data.type === 'CLIENT_UPDATED') {
+                showToast(`✅ Client "${data.clientName}" updated successfully!`, 'success');
+                closeClientManager();
+                if (calendarManager) {
+                    calendarManager.loadClients();
+                }
+            } else if (data.type === 'CLIENT_DELETED') {
+                showToast(`🗑️ Client "${data.clientName}" removed`, 'info');
+                closeClientManager();
+                if (calendarManager) {
+                    calendarManager.loadClients();
+                    // If deleted client was selected, clear selection
+                    if (calendarManager.selectedClient &&
+                        (calendarManager.selectedClient.slug === data.clientSlug ||
+                         calendarManager.selectedClient.client_slug === data.clientSlug ||
+                         calendarManager.selectedClient.id === data.clientSlug)) {
+                        calendarManager.selectedClient = null;
+                        document.getElementById('selectedClientName').textContent = 'Select Client';
+                        showClientModal();
+                    }
+                }
+            } else if (data.type === 'CLOSE_MANAGER') {
+                closeClientManager();
+            }
+        });
 
         function openGoalManager() {
             showToast('Goal management coming soon!', 'info');
