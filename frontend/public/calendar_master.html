@@ -12107,6 +12107,11 @@
         
         function renderWeekView() {
             const container = document.getElementById('calendarContainer');
+
+            // Save current scroll position before re-rendering
+            const existingGrid = container.querySelector('.week-timeline-grid');
+            const savedScrollTop = existingGrid ? existingGrid.scrollTop : null;
+
             container.className = 'calendar-week-timeline';
 
             // Define today for comparison
@@ -12301,14 +12306,22 @@
                 timelineGrid.addEventListener('scroll', syncTimeLabelsScroll);
             }
 
-            // Auto-scroll to first event (if any)
+            // Restore scroll position or auto-scroll to first event on initial load
             requestAnimationFrame(() => {
-                const firstCampaign = container.querySelector('.week-timeline-campaign');
-                if (firstCampaign && timelineGrid) {
-                    const campaignTop = parseFloat(firstCampaign.style.top);
-                    // Scroll so the first event is visible, with some padding (200px above it)
-                    const scrollPosition = (campaignTop / 100) * 1440 - 200; // 1440px = 24 hours * 60px
-                    timelineGrid.scrollTop = Math.max(0, scrollPosition);
+                if (!timelineGrid) return;
+
+                if (savedScrollTop !== null) {
+                    // Restore previous scroll position (re-render)
+                    timelineGrid.scrollTop = savedScrollTop;
+                } else {
+                    // Initial load: auto-scroll to first event (if any)
+                    const firstCampaign = container.querySelector('.week-timeline-campaign');
+                    if (firstCampaign) {
+                        const campaignTop = parseFloat(firstCampaign.style.top);
+                        // Scroll so the first event is visible, with some padding (200px above it)
+                        const scrollPosition = (campaignTop / 100) * 1440 - 200; // 1440px = 24 hours * 60px
+                        timelineGrid.scrollTop = Math.max(0, scrollPosition);
+                    }
                 }
             });
         }
