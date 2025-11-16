@@ -11905,7 +11905,7 @@
             modal.classList.add('show');
         }
 
-        function updateCampaignType(campaignId, newType) {
+        function updateCampaignTypeById(campaignId, newType) {
             const campaign = calendarManager.campaigns.find(c => c.id === campaignId);
             if (!campaign) return;
 
