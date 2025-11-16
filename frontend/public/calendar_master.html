@@ -7746,9 +7746,27 @@
                 const actionType = action.action;
                 
                 if (actionType === 'add') {
+                    // Check if a full date was provided (year, month) and navigate if needed
+                    if (action.year && action.month) {
+                        const targetDate = new Date(action.year, action.month - 1, action.day || 1);
+                        const currentMonth = this.selectedDate.getMonth();
+                        const currentYear = this.selectedDate.getFullYear();
+                        const targetMonth = targetDate.getMonth();
+                        const targetYear = targetDate.getFullYear();
+
+                        // Navigate to the target month if different from current
+                        if (currentYear !== targetYear || currentMonth !== targetMonth) {
+                            console.log(`📅 Navigating to ${targetYear}-${targetMonth + 1} to add event`);
+                            this.selectedDate = new Date(targetYear, targetMonth, 1);
+                            updateMonthDisplay();
+                            localStorage.setItem('lastSelectedMonth', this.selectedDate.toISOString());
+                            this.renderCalendar();
+                        }
+                    }
+
                     // Handle campaigns with LLM-extracted names
                     const campaignName = action.campaign_name || action.custom_name;
-                    
+
                     if (action.type === 'custom' && action.custom_name) {
                         this.addCustomEventToDate(action.day, action.custom_name);
                     } else if (campaignName) {
