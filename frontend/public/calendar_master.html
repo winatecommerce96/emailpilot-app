@@ -10872,11 +10872,17 @@
             const isEditing = form.dataset.editingId;
 
             const campaignType = document.getElementById('campaignType').value;
+
+            // Parse date correctly to avoid timezone issues
+            const dateInputValue = document.getElementById('campaignDate').value; // Format: "YYYY-MM-DD"
+            const [year, month, day] = dateInputValue.split('-').map(Number);
+            const campaignDate = new Date(year, month - 1, day); // month is 0-indexed
+
             const campaignData = {
                 id: isEditing || 'campaign-' + Date.now(),
                 name: document.getElementById('campaignName').value,
                 type: campaignType,
-                date: new Date(document.getElementById('campaignDate').value),
+                date: campaignDate,
                 time: document.getElementById('campaignTime').value,
                 subject_lines: document.getElementById('campaignSubjects').value
                     .split(',').map(s => s.trim()).filter(s => s),
