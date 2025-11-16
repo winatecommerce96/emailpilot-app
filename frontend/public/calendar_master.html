@@ -10570,10 +10570,10 @@
 
         function createCampaign(event) {
             event.preventDefault();
-            
+
             const form = event.target;
             const isEditing = form.dataset.editingId;
-            
+
             const campaignType = document.getElementById('campaignType').value;
             const campaignData = {
                 id: isEditing || 'campaign-' + Date.now(),
@@ -10588,12 +10588,26 @@
                 emoji: calendarManager.getTypeEmoji(campaignType),
                 is_resend: campaignType === 'resend'  // Mark as resend for styling
             };
-            
+
+            let monthChanged = false;
+            let originalMonth = null;
+            let originalYear = null;
+
             if (isEditing) {
                 // Update existing campaign
                 calendarManager.saveState();
                 const index = calendarManager.campaigns.findIndex(c => c.id === isEditing);
                 if (index !== -1) {
+                    // Store original date to detect month change
+                    const originalCampaign = calendarManager.campaigns[index];
+                    originalMonth = originalCampaign.date.getMonth();
+                    originalYear = originalCampaign.date.getFullYear();
+
+                    // Check if month changed
+                    const newMonth = campaignData.date.getMonth();
+                    const newYear = campaignData.date.getFullYear();
+                    monthChanged = (originalMonth !== newMonth || originalYear !== newYear);
+
                     calendarManager.campaigns[index] = campaignData;
                     showToast('Campaign updated successfully!');
                     // Fast-path update (single PUT request)
@@ -10606,6 +10620,13 @@
                 showToast('Campaign created successfully!');
                 // Fast-path create (single POST request)
                 calendarManager.quickCreate(campaignData);
+            }
+
+            // If month changed during edit, navigate to the new month
+            if (monthChanged) {
+                calendarManager.selectedDate = new Date(campaignData.date);
+                updateMonthDisplay();
+                localStorage.setItem('lastSelectedMonth', calendarManager.selectedDate.toISOString());
             }
 
             calendarManager.renderCalendar();
