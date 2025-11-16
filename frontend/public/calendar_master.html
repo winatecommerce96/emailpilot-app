@@ -5858,9 +5858,16 @@
 
                     // Add drag handlers to all child elements programmatically
                     const children = dayDiv.querySelectorAll('.day-number, .add-btn, .space-y-1');
-                    children.forEach(child => {
-                        child.ondragover = (e) => this.handleDragOver(e);
-                        child.ondrop = (e) => this.handleDropAdjacentMonth(e, nextDate);
+                    console.log(`📌 Attaching handlers to ${children.length} children for next month day ${day}, date:`, nextDate);
+                    children.forEach((child, idx) => {
+                        child.ondragover = (e) => {
+                            console.log(`🔵 DRAGOVER on next month child ${idx} for day ${day}`);
+                            return this.handleDragOver(e);
+                        };
+                        child.ondrop = (e) => {
+                            console.log(`🟢 DROP on next month child ${idx} for day ${day}, target date:`, nextDate);
+                            return this.handleDropAdjacentMonth(e, nextDate);
+                        };
                     });
 
                     container.appendChild(dayDiv);
@@ -6124,12 +6131,21 @@
             handleDropAdjacentMonth(e, targetDate) {
                 e.preventDefault();
 
-                const campaignId = e.dataTransfer.getData('text/plain');
-                const campaign = this.campaigns.find(c => c.id === campaignId);
-                if (!campaign) return;
+                // Use this.draggedCampaignId instead of e.dataTransfer (matches handleDrop pattern)
+                console.log('🔍 Dragged Campaign ID:', this.draggedCampaignId);
+
+                const campaign = this.campaigns.find(c => c.id === this.draggedCampaignId);
+                console.log('🔍 Campaign found:', campaign ? `${campaign.name} (${campaign.id})` : 'NONE');
+
+                if (!campaign) {
+                    console.error('❌ No campaign found for ID:', this.draggedCampaignId);
+                    return;
+                }
 
                 // Debug logging to diagnose date issue
                 console.log('🐛 DROP DEBUG:', {
+                    campaignName: campaign.name,
+                    campaignOldDate: campaign.date,
                     targetDate: targetDate,
                     targetDateType: typeof targetDate,
                     targetDateString: targetDate.toString(),
