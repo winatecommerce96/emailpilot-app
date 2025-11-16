@@ -9687,7 +9687,7 @@
                 // Store approval page data in Firestore
                 const requestData = {
                     approval_id: approvalId,
-                    client_id: client.id,
+                    client_id: client.id || client.slug || client.client_slug,  // Use slug as fallback if id is undefined
                     client_name: client.name,
                     client_slug: client.client_slug || client.slug || null,
                     year: year,
@@ -9730,7 +9730,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            client_id: client.id,
+                            client_id: client.id || client.slug || client.client_slug,  // Use slug as fallback
                             client_name: client.name,
                             approval_url: approvalUrl,
                             month: monthName,
