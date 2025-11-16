@@ -4263,6 +4263,27 @@
             margin-left: 4px;
         }
 
+        /* NEW: Modified campaign badge for EmailPilot Simple workflow */
+        .modified-badge {
+            background: #3b82f6;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 4px;
+            cursor: help;
+        }
+
+        .modified-badge:hover {
+            background: #2563eb;
+        }
+
+        .campaign-pill.is-modified {
+            border-left: 4px solid #3b82f6 !important;
+        }
+
         /* Campaign pill hover actions */
         .pill-actions {
             opacity: 0;
@@ -6018,15 +6039,21 @@
                     // Check if this is a resend campaign (comprehensive check)
                     const isResend = c.is_resend || c.type === 'resend' || c.campaignMessageType === 'Resend' || c.name.toLowerCase().includes('resend');
 
+                    // NEW: Check if campaign was modified
+                    const isModified = c.modified === true;
+                    const modifiedBadgeTitle = isModified && c.modified_fields?.length > 0
+                        ? `Edited: ${c.modified_fields.join(', ')}`
+                        : '';
+
                     return `
-                    <div class="campaign-pill ${c.gradient || c.type} ${isResend ? "is-resend" : ""} ${isSingleEvent ? 'expanded-pill' : ''}"
+                    <div class="campaign-pill ${c.gradient || c.type} ${isResend ? "is-resend" : ""} ${isSingleEvent ? 'expanded-pill' : ''} ${isModified ? 'is-modified' : ''}"
                          draggable="true"
                          ondragstart="calendarManager.handleDragStart(event, '${c.id}')"
                          ondragend="calendarManager.handleDragEnd(event)"
                          onclick="showCampaignDetails('${c.id}')"
-                         title="${c.name}">
+                         title="${c.name}${isModified ? ' (Modified)' : ''}">
                         <span class="campaign-pill-text">
-                            ${channelEmoji} ${c.name}${isResend ? " <span class=\'resend-badge\'>↻ RESEND</span>" : ""}
+                            ${channelEmoji} ${c.name}${isResend ? " <span class=\'resend-badge\'>↻ RESEND</span>" : ""}${isModified ? ` <span class='modified-badge' title='${modifiedBadgeTitle}'>✏️ EDITED</span>` : ""}
                         </span>
                         ${audienceList.length > 0 ? `
                         <div class="campaign-pill-meta">
@@ -6642,7 +6669,18 @@
                             gradient: campaign.gradient,
                             emoji: campaign.emoji,
                             is_resend: campaign.is_resend || false,  // ✅ Include is_resend for border styling
-                            campaignMessageType: campaign.campaignMessageType || null  // ✅ Include message type
+                            campaignMessageType: campaign.campaignMessageType || null,  // ✅ Include message type
+
+                            // NEW: EmailPilot Simple workflow support
+                            custom_fields: campaign.custom_fields || campaign.originalData || {},  // Preserve all enriched data
+                            original_id: campaign.original_id || campaign.id,  // Track original import ID
+                            import_metadata: campaign.import_metadata || null,  // Source, batch_id, enriched_context_key
+
+                            // NEW: Modification tracking
+                            created_at: campaign.created_at || new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                            modified: campaign.modified || false,
+                            modified_fields: campaign.modified_fields || []
                         };
                         
                         if (existingMap.has(campaign.id)) {
@@ -10630,6 +10668,27 @@
             margin-left: 4px;
         }
 
+        /* NEW: Modified campaign badge for EmailPilot Simple workflow */
+        .modified-badge {
+            background: #3b82f6;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 4px;
+            cursor: help;
+        }
+
+        .modified-badge:hover {
+            background: #2563eb;
+        }
+
+        .campaign-pill.is-modified {
+            border-left: 4px solid #3b82f6 !important;
+        }
+
         /* Campaign pill hover actions */
         .pill-actions {
             opacity: 0;
@@ -11060,6 +11119,50 @@
                     const newYear = campaignData.date.getFullYear();
                     monthChanged = (originalMonth !== newMonth || originalYear !== newYear);
 
+                    // NEW: Track modifications for EmailPilot Simple workflow
+                    const modifiedFields = [];
+
+                    // Compare editable fields to detect changes
+                    if (originalCampaign.name !== campaignData.name) modifiedFields.push('name');
+                    if (originalCampaign.type !== campaignData.type) modifiedFields.push('type');
+                    if (originalCampaign.date.getTime() !== campaignData.date.getTime()) modifiedFields.push('date');
+                    if (originalCampaign.time !== campaignData.time) modifiedFields.push('time');
+                    if (originalCampaign.target_segment !== campaignData.target_segment) modifiedFields.push('segment');
+
+                    // Check if subject_lines array changed
+                    const oldSubjects = originalCampaign.subject_lines?.join(',') || '';
+                    const newSubjects = campaignData.subject_lines?.join(',') || '';
+                    if (oldSubjects !== newSubjects) modifiedFields.push('subject_lines');
+
+                    // Preserve workflow-critical fields from original campaign
+                    campaignData.custom_fields = originalCampaign.custom_fields || originalCampaign.originalData || {};
+                    campaignData.original_id = originalCampaign.original_id || originalCampaign.id;
+                    campaignData.import_metadata = originalCampaign.import_metadata || null;
+                    campaignData.created_at = originalCampaign.created_at || new Date().toISOString();
+
+                    // Update modification tracking
+                    if (modifiedFields.length > 0) {
+                        // This campaign was modified by the user
+                        campaignData.modified = true;
+
+                        // Merge with previously modified fields (avoid duplicates)
+                        const existingModifiedFields = originalCampaign.modified_fields || [];
+                        campaignData.modified_fields = [...new Set([...existingModifiedFields, ...modifiedFields])];
+
+                        campaignData.updated_at = new Date().toISOString();
+
+                        console.log('✏️ Campaign modified:', {
+                            id: campaignData.id,
+                            modified_fields: modifiedFields,
+                            total_modifications: campaignData.modified_fields.length
+                        });
+                    } else {
+                        // No changes detected, preserve existing modification status
+                        campaignData.modified = originalCampaign.modified || false;
+                        campaignData.modified_fields = originalCampaign.modified_fields || [];
+                        campaignData.updated_at = originalCampaign.updated_at || new Date().toISOString();
+                    }
+
                     calendarManager.campaigns[index] = campaignData;
 
                     // Fast-path update (single PUT request) - AWAIT to ensure completion
@@ -11256,8 +11359,35 @@
 
                     if (fileType === 'json') {
                         const data = JSON.parse(content);
+
+                        // NEW: Capture import metadata for EmailPilot Simple workflow
+                        let importMetadata = null;
+                        if (data.metadata) {
+                            importMetadata = {
+                                source: data.metadata.source || 'unknown',
+                                version: data.metadata.version || '1.0',
+                                generated_at: data.metadata.generated_at || new Date().toISOString(),
+                                client_id: data.metadata.client_id || null,
+                                client_name: data.metadata.client_name || null,
+                                enriched_context_available: data.metadata.enriched_context_available || false,
+                                enriched_context_key: data.metadata.enriched_context_key || null,
+                                enriched_context_url: data.metadata.enriched_context_url || null,
+                                batch_id: 'import-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+                            };
+
+                            // Store metadata in sessionStorage for export
+                            sessionStorage.setItem('calendar_import_metadata', JSON.stringify(importMetadata));
+
+                            console.log('📦 Import metadata captured:', importMetadata);
+                            if (importMetadata.enriched_context_available) {
+                                console.log('✨ Enriched context available:', importMetadata.enriched_context_key);
+                            }
+                        }
+
                         events = Array.isArray(data) ? data : (data.events || data.calendar || []);
-                        events = events.map(normalizeEventData);
+
+                        // NEW: Attach import metadata to each event
+                        events = events.map(event => normalizeEventData(event, importMetadata));
                     } else if (fileType === 'csv') {
                         const lines = content.split('\n').filter(line => line.trim());
                         const titleCol = parseInt(document.getElementById('titleColumn').value);
@@ -11447,7 +11577,7 @@
             return `${displayHours}:${minutes} ${isPM ? 'PM' : 'AM'}`;
         }
 
-        function normalizeEventData(event) {
+        function normalizeEventData(event, importMetadata = null) {
             // Normalize date format
             let date = event.date || event.event_date || event.send_date || event.dtstart;
             let parsedDate = null;
@@ -11546,6 +11676,33 @@
             // Convert time to 12-hour format if needed
             const normalizedTime = convertTo12HourFormat(event.send_time || event.time);
 
+            // Build comprehensive custom_fields object to preserve ALL enriched data
+            const custom_fields = {
+                week_number: event.week_number,
+                send_time: event.send_time,
+                subject_line_a: event.subject_line_a,
+                subject_line_b: event.subject_line_b,
+                preview_text: event.preview_text,
+                hero_h1: event.hero_h1,
+                sub_head: event.sub_head,
+                hero_image: event.hero_image,
+                cta_copy: event.cta_copy,
+                offer: event.offer,
+                ab_test_idea: event.ab_test_idea,
+                secondary_message: event.secondary_message,
+                sms_variant: event.sms_variant,
+                original_channel: event.channel || event.Channel,
+                // Include any other custom fields from the event that aren't standard calendar fields
+                ...Object.keys(event).reduce((acc, key) => {
+                    const standardFields = ['id', 'name', 'title', 'type', 'channel', 'date', 'event_date',
+                        'send_date', 'dtstart', 'time', 'description', 'content', 'color', 'segment', 'segments'];
+                    if (!standardFields.includes(key) && !acc.hasOwnProperty(key)) {
+                        acc[key] = event[key];
+                    }
+                    return acc;
+                }, {})
+            };
+
             return {
                 id: event.id || 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                 name: title,
@@ -11559,23 +11716,19 @@
                 color: event.color || getColorForType(type),
                 segment: event.segments || event.segment || '',
                 imported: true,
-                // Store original fields for reference
-                originalData: {
-                    week_number: event.week_number,
-                    send_time: event.send_time,
-                    subject_line_a: event.subject_line_a,
-                    subject_line_b: event.subject_line_b,
-                    preview_text: event.preview_text,
-                    hero_h1: event.hero_h1,
-                    sub_head: event.sub_head,
-                    hero_image: event.hero_image,
-                    cta_copy: event.cta_copy,
-                    offer: event.offer,
-                    ab_test_idea: event.ab_test_idea,
-                    secondary_message: event.secondary_message,
-                    sms_variant: event.sms_variant,
-                    original_channel: event.channel || event.Channel  // Store original channel value
-                }
+
+                // NEW: EmailPilot Simple workflow support - preserve ALL enriched data
+                custom_fields: custom_fields,
+                original_id: event.original_id || event.id,
+                import_metadata: importMetadata,
+
+                // NEW: Modification tracking (initialized on import, updated on edits)
+                created_at: event.created_at || new Date().toISOString(),
+                modified: false,
+                modified_fields: [],
+
+                // Legacy: Keep originalData for backwards compatibility
+                originalData: custom_fields
             };
         }
         
@@ -11592,7 +11745,147 @@
             };
             return colorMap[type.toLowerCase()] || 'bg-gray-200 text-gray-800';
         }
-        
+
+        /**
+         * NEW: Export calendar for EmailPilot Brief Generation
+         * Exports reviewed calendar with all custom fields, modifications, and metadata
+         * for integration with EmailPilot Simple workflow
+         */
+        async function exportForBriefGeneration() {
+            try {
+                const clientId = calendarManager.selectedClient;
+                if (!clientId) {
+                    showToast('Please select a client first', 'error');
+                    return;
+                }
+
+                // Get current client info
+                const client = calendarManager.clients.find(c => c.id === clientId);
+                const clientName = client ? client.name : 'Unknown Client';
+
+                // Retrieve import metadata from sessionStorage (if available)
+                let originalImportMetadata = null;
+                try {
+                    const storedMetadata = sessionStorage.getItem('calendar_import_metadata');
+                    if (storedMetadata) {
+                        originalImportMetadata = JSON.parse(storedMetadata);
+                    }
+                } catch (e) {
+                    console.warn('No import metadata found in sessionStorage');
+                }
+
+                // Get all campaigns for this client
+                const campaigns = calendarManager.campaigns || [];
+
+                // Count modifications
+                const modifiedEvents = campaigns.filter(c => c.modified === true).length;
+                const unmodifiedEvents = campaigns.length - modifiedEvents;
+
+                // Build export metadata
+                const exportMetadata = {
+                    source: 'EmailPilot Calendar',
+                    version: '2.0',
+                    exported_at: new Date().toISOString(),
+                    client_id: clientId,
+                    client_name: clientName,
+
+                    // Include original import metadata if available
+                    import_metadata: originalImportMetadata ? {
+                        enriched_context_key: originalImportMetadata.enriched_context_key || null,
+                        enriched_context_url: originalImportMetadata.enriched_context_url || null,
+                        enriched_context_available: originalImportMetadata.enriched_context_available || false,
+                        original_source: originalImportMetadata.source || 'unknown',
+                        original_import_batch_id: originalImportMetadata.batch_id || null,
+                        imported_at: originalImportMetadata.generated_at || null
+                    } : null,
+
+                    // Export summary
+                    export_summary: {
+                        total_events: campaigns.length,
+                        modified_events: modifiedEvents,
+                        unmodified_events: unmodifiedEvents,
+                        export_purpose: 'brief_generation'
+                    }
+                };
+
+                // Format events for export (preserve ALL data)
+                const exportEvents = campaigns.map(campaign => {
+                    // Format date as YYYY-MM-DD
+                    const eventDate = campaign.date instanceof Date
+                        ? `${campaign.date.getFullYear()}-${String(campaign.date.getMonth() + 1).padStart(2, '0')}-${String(campaign.date.getDate()).padStart(2, '0')}`
+                        : campaign.event_date;
+
+                    return {
+                        // Standard calendar fields
+                        id: campaign.id,
+                        original_id: campaign.original_id || campaign.id,
+                        name: campaign.name,
+                        event_date: eventDate,
+                        type: campaign.type,
+                        channel: campaign.channel,
+                        time: campaign.time || campaign.send_time,
+                        send_time: campaign.send_time || campaign.time,
+                        segment: campaign.segment,
+                        description: campaign.description || campaign.content || '',
+
+                        // NEW: Preserve all custom fields from import
+                        custom_fields: campaign.custom_fields || campaign.originalData || {},
+
+                        // NEW: Import metadata (linkage to enriched context)
+                        import_metadata: campaign.import_metadata || null,
+
+                        // NEW: Modification tracking
+                        created_at: campaign.created_at || null,
+                        updated_at: campaign.updated_at || new Date().toISOString(),
+                        modified: campaign.modified || false,
+                        modified_fields: campaign.modified_fields || [],
+
+                        // Additional calendar-specific fields
+                        color: campaign.color,
+                        gradient: campaign.gradient,
+                        emoji: campaign.emoji,
+                        is_resend: campaign.is_resend || false,
+                        campaignMessageType: campaign.campaignMessageType || null,
+                        expected_metrics: campaign.expected_metrics || {}
+                    };
+                });
+
+                // Build final export structure
+                const exportData = {
+                    metadata: exportMetadata,
+                    events: exportEvents
+                };
+
+                // Generate filename
+                const timestamp = new Date().toISOString().split('T')[0];
+                const filename = `${clientName.replace(/\s+/g, '-')}-calendar-reviewed-${timestamp}.json`;
+
+                // Trigger download
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                console.log('✅ Exported calendar for brief generation:', {
+                    total_events: campaigns.length,
+                    modified_events: modifiedEvents,
+                    filename: filename,
+                    has_enriched_context: exportMetadata.import_metadata?.enriched_context_available || false
+                });
+
+                showToast(`Calendar exported: ${filename}`, 'success');
+
+            } catch (error) {
+                console.error('Export failed:', error);
+                showToast('Failed to export calendar', 'error');
+            }
+        }
+
         async function importEventsToCalendar(events) {
             // Track imported campaign IDs for undo functionality
             const importedIds = events.map(e => e.id);
@@ -13793,6 +14086,13 @@
                     <div>
                         <div class="font-semibold">View Stats</div>
                         <div class="text-sm text-white/60">Calendar analytics</div>
+                    </div>
+                </button>
+                <button onclick="exportForBriefGeneration(); closeCommandModal();" class="command-item">
+                    <span class="text-2xl">📤</span>
+                    <div>
+                        <div class="font-semibold">Export for Brief Generation</div>
+                        <div class="text-sm text-white/60">Download reviewed calendar with all edits</div>
                     </div>
                 </button>
                 <button onclick="if(confirm('Clear all campaigns for this month? This action cannot be undone.')) { clearMonthWithLoading(); closeCommandModal(); } else { closeCommandModal(); }" class="command-item">
