@@ -6932,9 +6932,52 @@
                 document.body.appendChild(loadingIndicator);
                 
                 try {
-                    const monthStart = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-01`;
-                    const monthEnd = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth() + 1).padStart(2, '0')}-31`;
-                    
+                    // Calculate visible date range (including adjacent month dates in the grid)
+                    const year = this.selectedDate.getFullYear();
+                    const month = this.selectedDate.getMonth(); // 0-11
+
+                    // Get first day of month and calculate how many previous month days are visible
+                    const firstDayOfMonth = new Date(year, month, 1);
+                    const firstDay = firstDayOfMonth.getDay(); // 0 = Sunday
+
+                    // Calculate previous month info
+                    const prevMonth = month === 0 ? 11 : month - 1;
+                    const prevMonthYear = month === 0 ? year - 1 : year;
+                    const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
+
+                    // Calculate current month info
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                    // Calculate next month info
+                    const totalCellsForCurrentMonth = firstDay + daysInMonth;
+                    const cellsNeeded = Math.ceil(totalCellsForCurrentMonth / 7) * 7; // Round up to complete weeks
+                    const nextMonthDays = cellsNeeded - totalCellsForCurrentMonth;
+
+                    // Start date: include previous month's trailing days if needed
+                    let queryStartDate;
+                    if (firstDay > 0) {
+                        const prevMonthStartDay = daysInPrevMonth - firstDay + 1;
+                        queryStartDate = new Date(prevMonthYear, prevMonth, prevMonthStartDay);
+                    } else {
+                        queryStartDate = new Date(year, month, 1);
+                    }
+
+                    // End date: include next month's leading days if needed
+                    let queryEndDate;
+                    if (nextMonthDays > 0) {
+                        const nextMonth = month === 11 ? 0 : month + 1;
+                        const nextMonthYear = month === 11 ? year + 1 : year;
+                        queryEndDate = new Date(nextMonthYear, nextMonth, nextMonthDays);
+                    } else {
+                        queryEndDate = new Date(year, month, daysInMonth);
+                    }
+
+                    // Format as YYYY-MM-DD strings for API query
+                    const monthStart = queryStartDate.toISOString().split('T')[0];
+                    const monthEnd = queryEndDate.toISOString().split('T')[0];
+
+                    console.log(`📅 Loading events from API: ${monthStart} to ${monthEnd} (includes adjacent month dates)`);
+
                     // Parallel fetch for events, goals, and holidays
                     const [eventsResponse, goalsPromise, holidaysPromise] = await Promise.all([
                         authenticatedFetch(`/api/calendar/events?client_id=${clientId}&start_date=${monthStart}&end_date=${monthEnd}`),
