@@ -594,6 +594,210 @@ When providing rich data, the AI can respond to commands like:
 
 ---
 
+## EmailPilot Simple Workflow Integration
+
+**Version Added**: 2.0
+**Purpose**: Support Planning → Review → Brief Generation workflow with enriched AI context
+
+### Workflow Overview
+
+EmailPilot Simple generates campaign calendars with AI-enriched strategic context. The calendar app preserves this context through import, review/editing, and export for brief generation:
+
+1. **Planning Phase** - EmailPilot Simple generates calendar with strategic context
+2. **Review Phase** - User imports, reviews, and modifies campaigns in calendar
+3. **Export Phase** - Calendar exports reviewed data back to EmailPilot Simple for brief generation
+
+### New Fields for EmailPilot Simple Integration
+
+#### 49. `enriched_context_key` (string)
+- **Purpose**: Reference to AI-generated strategic context document
+- **Format**: Unique identifier linking to enriched planning context
+- **Example**: `"context-2025-q4-holiday-strategy-abc123"`
+- **Required for**: EmailPilot Simple workflow integration
+- **Notes**:
+  - Preserved throughout import → review → export cycle
+  - Links calendar to original AI strategic analysis
+  - Critical for brief generation step
+
+#### 50. `enriched_context_url` (string)
+- **Purpose**: URL to view enriched context document
+- **Format**: Full HTTPS URL
+- **Example**: `"https://emailpilot.ai/context/abc123"`
+- **Optional**: Provides human-readable access to strategy doc
+
+#### 51. `enriched_context_available` (boolean)
+- **Purpose**: Indicates if enriched context exists
+- **Default**: `false`
+- **Example**: `true`
+- **Notes**: Used for UI indicators and workflow validation
+
+#### 52. `original_id` (string)
+- **Purpose**: Preserve original event ID through workflow
+- **Format**: Same as `id` field
+- **Example**: `"campaign-original-001"`
+- **Notes**:
+  - Automatically set to `id` value on first import
+  - Maintained even if `id` changes during editing
+  - Critical for tracking events through workflow stages
+
+#### 53. `import_metadata` (object)
+```json
+{
+  "source": "EmailPilot Simple",
+  "version": "2.0",
+  "generated_at": "2025-11-16T10:00:00.000Z",
+  "batch_id": "import-batch-abc123",
+  "enriched_context_key": "context-2025-q4-abc123",
+  "enriched_context_url": "https://emailpilot.ai/context/abc123",
+  "enriched_context_available": true,
+  "client_id": "buca-di-beppo",
+  "client_name": "Buca di Beppo"
+}
+```
+- **Purpose**: Preserve import provenance and context linkage
+- **Stored**: Attached to each imported event
+- **Used for**: Export tracking and workflow continuity
+
+### Modification Tracking
+
+The calendar tracks user edits to imported campaigns for review and brief generation:
+
+#### 54. `modified` (boolean)
+- **Purpose**: Flag indicating user has edited the campaign
+- **Default**: `false`
+- **Set to**: `true` when any field is changed after import
+
+#### 55. `modified_fields` (array of strings)
+- **Purpose**: List of field names that were modified
+- **Example**: `["name", "date", "time", "subject_lines"]`
+- **Accumulated**: New edits are added to existing array
+- **Used for**: Review audit trail and brief generation context
+
+#### 56. `created_at` (ISO 8601 DateTime)
+- **Purpose**: When campaign was first created
+- **Preserved**: Through all edits
+
+#### 57. `updated_at` (ISO 8601 DateTime)
+- **Purpose**: When campaign was last modified
+- **Updated**: On every edit
+
+### EmailPilot Simple Import Example
+
+**Metadata Structure**:
+```json
+{
+  "metadata": {
+    "source": "EmailPilot Simple",
+    "version": "2.0",
+    "generated_at": "2025-11-16T10:00:00.000Z",
+    "client_id": "buca-di-beppo",
+    "client_name": "Buca di Beppo",
+    "enriched_context_available": true,
+    "enriched_context_key": "context-2025-q4-holiday-abc123",
+    "enriched_context_url": "https://emailpilot.ai/context/abc123"
+  },
+  "events": [
+    {
+      "id": "black-friday-email-001",
+      "name": "Black Friday VIP Early Access",
+      "date": "2025-11-27T10:00:00.000Z",
+      "time": "10:00 AM",
+      "channel": "email",
+      "type": "promotional",
+
+      "custom_fields": {
+        "strategic_rationale": "Target high-value VIPs before mass market",
+        "timing_rationale": "48h head start creates urgency and exclusivity",
+        "expected_roi": 3.2,
+        "competitive_advantage": "Early access differentiator"
+      }
+    }
+  ]
+}
+```
+
+### Export Format for Brief Generation
+
+When exporting reviewed calendars back to EmailPilot Simple:
+
+```json
+{
+  "metadata": {
+    "source": "EmailPilot Calendar",
+    "version": "2.0",
+    "exported_at": "2025-11-16T14:30:00.000Z",
+    "client_id": "buca-di-beppo",
+    "client_name": "Buca di Beppo",
+
+    "import_metadata": {
+      "enriched_context_key": "context-2025-q4-holiday-abc123",
+      "enriched_context_url": "https://emailpilot.ai/context/abc123",
+      "enriched_context_available": true,
+      "original_source": "EmailPilot Simple",
+      "original_import_batch_id": "import-batch-xyz789",
+      "imported_at": "2025-11-16T10:00:00.000Z"
+    },
+
+    "export_summary": {
+      "total_events": 25,
+      "modified_events": 8,
+      "unmodified_events": 17,
+      "export_purpose": "brief_generation"
+    }
+  },
+  "events": [
+    {
+      "id": "black-friday-email-001",
+      "original_id": "black-friday-email-001",
+      "name": "Black Friday VIP Early Access - UPDATED",
+      "date": "2025-11-26T09:00:00.000Z",
+      "time": "9:00 AM",
+      "channel": "email",
+      "type": "promotional",
+
+      "modified": true,
+      "modified_fields": ["name", "date", "time"],
+      "created_at": "2025-11-16T10:00:00.000Z",
+      "updated_at": "2025-11-16T14:25:00.000Z",
+
+      "custom_fields": {
+        "strategic_rationale": "Target high-value VIPs before mass market",
+        "timing_rationale": "48h head start creates urgency and exclusivity",
+        "expected_ROI": 3.2,
+        "competitive_advantage": "Early access differentiator"
+      }
+    }
+  ]
+}
+```
+
+### Best Practices for EmailPilot Simple Integration
+
+1. **Always Preserve Context Keys**
+   - Include `enriched_context_key` in all exports
+   - Maintain linkage through import → review → export cycle
+
+2. **Track Modifications**
+   - Set `modified: true` when user edits any field
+   - Accumulate `modified_fields` array with changed field names
+   - Update `updated_at` timestamp on every change
+
+3. **Maintain Original IDs**
+   - Store original event ID in `original_id` field
+   - Preserve even if `id` field changes
+
+4. **Export Metadata**
+   - Include full import provenance in export metadata
+   - Document modification counts for review summary
+   - Link back to original enriched context
+
+5. **Custom Fields Preservation**
+   - Never discard `custom_fields` object
+   - Preserve all fields even if not displayed in UI
+   - Critical for AI workflow continuity
+
+---
+
 ## Date and Time Formatting
 
 ### ISO 8601 Standard

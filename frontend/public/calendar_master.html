@@ -5167,6 +5167,38 @@
         applyTheme(currentTheme);
 
         // ====================================================================
+        // Time Format Utilities
+        // ====================================================================
+
+        // Convert 24H time to 12H format (e.g., "14:00" -> "2:00 PM")
+        function formatTime12H(time24) {
+            if (!time24) return '';
+            const [hours, minutes] = time24.split(':').map(Number);
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const hours12 = hours % 12 || 12;
+            return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
+        }
+
+        // Convert 12H time to 24H format (e.g., "2:00 PM" -> "14:00")
+        function convertTo24Hour(time) {
+            if (!time) return '10:00';
+            // Already in 24H format if no AM/PM
+            if (!/am|pm/i.test(time)) return time;
+
+            const parts = time.trim().match(/(\d+):(\d+)\s*(AM|PM)/i);
+            if (!parts) return '10:00';
+
+            let hours = parseInt(parts[1]);
+            const minutes = parts[2];
+            const period = parts[3].toUpperCase();
+
+            if (period === 'PM' && hours !== 12) hours += 12;
+            if (period === 'AM' && hours === 12) hours = 0;
+
+            return `${String(hours).padStart(2, '0')}:${minutes}`;
+        }
+
+        // ====================================================================
         // Calendar Manager Class
         // ====================================================================
 
@@ -6529,7 +6561,9 @@
                 document.getElementById('campaignType').value = campaign.type; // Hidden field
 
                 document.getElementById('campaignDate').value = campaign.date.toISOString().split('T')[0];
-                document.getElementById('campaignTime').value = campaign.time || campaign.send_time || '10:00';
+                // Convert time to 24H format for input field (handles both 12H and 24H formats)
+                const timeValue = campaign.time || campaign.send_time || '10:00';
+                document.getElementById('campaignTime').value = convertTo24Hour(timeValue);
                 document.getElementById('campaignSubjects').value = campaign.subject_lines?.join(', ') || '';
                 document.getElementById('campaignSegment').value = campaign.target_segment || campaign.segment || campaign.segments || '';
 
@@ -12056,7 +12090,7 @@
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-white/50">Time</span>
-                                <span class="font-semibold">${campaign.time || '10:00 AM'}</span>
+                                <span class="font-semibold">${formatTimeTo12Hour(campaign.time || campaign.send_time)}</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-white/50">Channel</span>
@@ -13056,7 +13090,7 @@
                                              draggable="true"
                                              ondragstart="handleCampaignDragStart(event, '${campaign.id}')"
                                              onclick="showCampaignDetails('${campaign.id}')">
-                                            <div class="campaign-time">${sendTime}</div>
+                                            <div class="campaign-time">${formatTimeTo12Hour(sendTime)}</div>
                                             <div class="campaign-name">${campaign.emoji || '📧'} ${campaign.name}</div>
                                             ${revenue > 0 ? `<div class="campaign-revenue">$${revenue.toLocaleString()}</div>` : ''}
                                         </div>
@@ -13569,9 +13603,15 @@
         window.addEventListener('load', async () => {
             console.log('Calendar Master: Page loaded, initializing...');
 
+            // Show loading screen IMMEDIATELY before any async operations
+            const loadingScreen = document.getElementById('loadingScreen');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'flex';
+            }
+
             // Initialize theme
             initTheme();
-            
+
             await calendarManager.loadClients();
 
             // Restore last selected client and month from localStorage
