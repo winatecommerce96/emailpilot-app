@@ -5739,8 +5739,8 @@
                     };
 
                     dayDiv.innerHTML = `
-                        <div class="day-number text-white/40">${prevDay}</div>
-                        <div class="add-btn opacity-50" onclick="event.stopPropagation(); calendarManager.openCreateCampaignModalForDate(new Date(${prevMonthYear}, ${prevMonth}, ${prevDay}))">+</div>
+                        <div class="day-number text-white/40" ondragover="calendarManager.handleDragOver(event)" ondrop="calendarManager.handleDropAdjacentMonth(event, new Date(${prevMonthYear}, ${prevMonth}, ${prevDay}))">${prevDay}</div>
+                        <div class="add-btn opacity-50" onclick="event.stopPropagation(); calendarManager.openCreateCampaignModalForDate(new Date(${prevMonthYear}, ${prevMonth}, ${prevDay}))" ondragover="calendarManager.handleDragOver(event)" ondrop="calendarManager.handleDropAdjacentMonth(event, new Date(${prevMonthYear}, ${prevMonth}, ${prevDay}))">+</div>
                         <div class="space-y-1" ondragover="calendarManager.handleDragOver(event)" ondrop="calendarManager.handleDropAdjacentMonth(event, new Date(${prevMonthYear}, ${prevMonth}, ${prevDay}))">
                             ${dayCampaigns}
                         </div>
@@ -5842,8 +5842,8 @@
                     };
 
                     dayDiv.innerHTML = `
-                        <div class="day-number text-white/40">${day}</div>
-                        <div class="add-btn opacity-50" onclick="event.stopPropagation(); calendarManager.openCreateCampaignModalForDate(new Date(${nextMonthYear}, ${nextMonth}, ${day}))">+</div>
+                        <div class="day-number text-white/40" ondragover="calendarManager.handleDragOver(event)" ondrop="calendarManager.handleDropAdjacentMonth(event, new Date(${nextMonthYear}, ${nextMonth}, ${day}))">${day}</div>
+                        <div class="add-btn opacity-50" onclick="event.stopPropagation(); calendarManager.openCreateCampaignModalForDate(new Date(${nextMonthYear}, ${nextMonth}, ${day}))" ondragover="calendarManager.handleDragOver(event)" ondrop="calendarManager.handleDropAdjacentMonth(event, new Date(${nextMonthYear}, ${nextMonth}, ${day}))">+</div>
                         <div class="space-y-1" ondragover="calendarManager.handleDragOver(event)" ondrop="calendarManager.handleDropAdjacentMonth(event, new Date(${nextMonthYear}, ${nextMonth}, ${day}))">
                             ${dayCampaigns}
                         </div>
