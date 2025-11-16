@@ -7365,11 +7365,21 @@
                     return 'empty';
                 }
 
+                // Helper to normalize time format (add AM if missing AM/PM)
+                const normalizeTime = (time) => {
+                    if (!time) return '';
+                    // If time doesn't have AM/PM, add AM (matches Firestore listener normalization)
+                    if (!time.toLowerCase().includes('am') && !time.toLowerCase().includes('pm')) {
+                        return time + ' AM';
+                    }
+                    return time;
+                };
+
                 // Create a deterministic hash from campaign data
                 const eventData = campaignsToHash
                     .map(c => {
                         const dateStr = c.date instanceof Date ? c.date.toISOString().split('T')[0] : c.date;
-                        const timeStr = c.send_time || c.time || '';
+                        const timeStr = normalizeTime(c.send_time || c.time || '');
                         return `${c.id}:${c.name}:${dateStr}:${c.type}:${timeStr}`;
                     })
                     .sort()
