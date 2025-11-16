@@ -6752,7 +6752,15 @@
                     is_resend: campaign.is_resend || false
                 };
 
-                console.log('📤 quickUpdate sending:', { id: campaign.id, event_type: eventData.event_type, time: eventData.time });
+                console.log('📤 quickUpdate sending FULL PAYLOAD:', {
+                    id: campaign.id,
+                    payload: eventData,
+                    original_campaign: {
+                        type: campaign.type,
+                        is_resend: campaign.is_resend,
+                        time: campaign.time
+                    }
+                });
 
                 try {
                     const response = await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
@@ -6767,7 +6775,11 @@
                         return false;
                     }
 
-                    console.log('✅ quickUpdate succeeded for campaign:', campaign.id);
+                    const responseData = await response.json();
+                    console.log('✅ quickUpdate succeeded, BACKEND RESPONSE:', {
+                        id: campaign.id,
+                        response: responseData
+                    });
                     return true;
                 } catch (err) {
                     console.error('❌ quickUpdate exception:', err);
@@ -7522,7 +7534,7 @@
                                 timeValue = timeValue + ' AM';  // Default to AM if not specified
                             }
 
-                            updatedCampaigns.push({
+                            const campaignObj = {
                                 id: doc.id,
                                 name: event.title,
                                 type: event.event_type || 'promotional',
@@ -7536,12 +7548,55 @@
                                 emoji: event.emoji || this.getTypeEmoji(event.event_type),
                                 metrics: event.expected_metrics || event.metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 },
                                 is_resend: event.is_resend || event.event_type === 'resend'  // Include is_resend from Firestore
-                            });
+                            };
+
+                            // LOG: What Firestore gave us for this document
+                            if (changes.some(change => change.doc.id === doc.id)) {
+                                console.log('🔍 FIRESTORE CHANGED DOC:', {
+                                    id: doc.id,
+                                    raw_event: {
+                                        event_type: event.event_type,
+                                        is_resend: event.is_resend,
+                                        time: event.time,
+                                        send_time: event.send_time
+                                    },
+                                    mapped_campaign: {
+                                        type: campaignObj.type,
+                                        is_resend: campaignObj.is_resend,
+                                        time: campaignObj.time
+                                    }
+                                });
+                            }
+
+                            updatedCampaigns.push(campaignObj);
                         });
 
                         // Compute hash of incoming data
                         const incomingHash = this.computeEventHash(updatedCampaigns);
                         const currentHash = this.computeEventHash(this.campaigns);
+
+                        // LOG: Compare what Firestore has vs what we have locally
+                        const changedId = changes[0]?.doc.id;
+                        if (changedId) {
+                            const localCampaign = this.campaigns.find(c => c.id === changedId);
+                            const firestoreCampaign = updatedCampaigns.find(c => c.id === changedId);
+                            console.log('🔍 HASH COMPARISON:', {
+                                incomingHash,
+                                currentHash,
+                                matches: incomingHash === currentHash,
+                                changed_campaign_id: changedId,
+                                local_campaign: localCampaign ? {
+                                    type: localCampaign.type,
+                                    is_resend: localCampaign.is_resend,
+                                    time: localCampaign.time
+                                } : 'NOT FOUND',
+                                firestore_campaign: firestoreCampaign ? {
+                                    type: firestoreCampaign.type,
+                                    is_resend: firestoreCampaign.is_resend,
+                                    time: firestoreCampaign.time
+                                } : 'NOT FOUND'
+                            });
+                        }
 
                         // Only update if data actually changed (prevents bounce from own changes)
                         if (incomingHash === currentHash) {
