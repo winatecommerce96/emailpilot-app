@@ -53,24 +53,23 @@ jobs:
 
       - name: Build and Deploy to Cloud Run
         run: |
-          SERVICE_NAME="emailpilot-app"
-          IMAGE="gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${GITHUB_SHA::7}"
+          echo "🏗️  Submitting build to Cloud Build..."
+          # cloudbuild.yaml handles both build and deploy
+          # Use --async to avoid VPC-SC log permission issues
+          BUILD_ID=$(gcloud builds submit --config=cloudbuild.yaml --async --format='value(id)')
+          echo "Build ID: $BUILD_ID"
 
-          echo "🏗️  Building image: $IMAGE"
-          gcloud builds submit --tag "$IMAGE" --timeout=20m
+          # Wait for build to complete
+          echo "⏳ Waiting for build and deployment to complete..."
+          gcloud builds log --stream $BUILD_ID || true  # Don't fail if we can't stream logs
 
-          echo "🚀 Deploying to Cloud Run..."
-          gcloud run deploy ${SERVICE_NAME} \
-            --image "$IMAGE" \
-            --platform managed \
-            --region us-central1 \
-            --allow-unauthenticated \
-            --memory 2Gi \
-            --cpu 2 \
-            --timeout 1200 \
-            --max-instances 10 \
-            --set-env-vars GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},ENVIRONMENT=production \
-            --update-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest,SECRET_KEY=emailpilot-secret-key:latest,CLERK_SECRET_KEY=clerk-secret-key:latest,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:latest,GEMINI_API_KEY=gemini-api-key:latest
+          # Check build status
+          BUILD_STATUS=$(gcloud builds describe $BUILD_ID --format='value(status)')
+          if [ "$BUILD_STATUS" != "SUCCESS" ]; then
+            echo "❌ Build failed with status: $BUILD_STATUS"
+            exit 1
+          fi
+          echo "✅ Build and deployment completed successfully"
 
       - name: Get deployment URL
         id: get_url
