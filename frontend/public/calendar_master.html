@@ -6128,7 +6128,7 @@
             }
 
             // Handle drop on adjacent month dates
-            handleDropAdjacentMonth(e, targetDate) {
+            async handleDropAdjacentMonth(e, targetDate) {
                 e.preventDefault();
 
                 // Use this.draggedCampaignId instead of e.dataTransfer (matches handleDrop pattern)
@@ -6164,6 +6164,10 @@
                 this.selectedDate = new Date(targetDate);
                 updateMonthDisplay();
                 localStorage.setItem('lastSelectedMonth', this.selectedDate.toISOString());
+
+                // Load events for the new month and restart sync (like month navigation buttons do)
+                await this.loadFromCloud();
+                this.startSyncPolling();
 
                 // Re-render to show in new month
                 this.renderCalendar();
