@@ -102,10 +102,17 @@ class CalendarEventUpdate(BaseModel):
     event_type: Optional[str] = None
     status: Optional[str] = None
     send_time: Optional[str] = None
+    time: Optional[str] = None  # Support both 'time' and 'send_time'
     segment: Optional[str] = None
     subject_a: Optional[str] = None
     subject_b: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    channel: Optional[str] = None
+    is_resend: Optional[bool] = None  # Critical: tracks if this is a resend campaign
+    gradient: Optional[str] = None  # Visual styling
+    emoji: Optional[str] = None  # Visual styling
+    expected_metrics: Optional[Dict[str, Any]] = None  # Performance expectations
+    client_id: Optional[str] = None  # Allow updating client association
 
 class BulkEventsCreate(BaseModel):
     """Request model for bulk creating events"""
