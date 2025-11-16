@@ -4627,7 +4627,7 @@
             <!-- AI Chat Interface -->
             <div id="aiChatSection" class="glass-card p-6 mb-8 requires-client" style="opacity: 1 !important; pointer-events: auto !important;">
                 <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-black gradient-text">AI Assistant</h3>
+                    <h3 class="text-xl font-black gradient-text">Ask EmailPilot</h3>
                     <select id="llmSelector" class="glow-button bg-transparent border border-white/20 rounded-lg px-3 py-2">
                         <option value="openai">OpenAI GPT-4</option>
                         <option value="anthropic">Anthropic Claude</option>
@@ -4638,7 +4638,7 @@
                 <!-- Chat History -->
                 <div id="chatHistory" class="bg-black/30 rounded-lg p-4 h-64 overflow-y-auto mb-4 space-y-3">
                     <div class="ai-message">
-                        <div class="text-sm text-blue-400 mb-1">AI Assistant</div>
+                        <div class="text-sm text-blue-400 mb-1">Ask EmailPilot</div>
                         <div class="text-white/90">Hello! I can help you manage your email campaigns. Try commands like:</div>
                         <ul class="text-white/70 text-sm mt-2 ml-4 list-disc">
                             <li>"Add a promotional campaign on the 15th"</li>
@@ -5276,7 +5276,7 @@
                 // Check for changes and notifications
                 setTimeout(() => checkForChanges(), 1000);
                 
-                // Re-enable AI Assistant now that a client is selected
+                // Re-enable Ask EmailPilot now that a client is selected
                 const chatInput = document.getElementById('chatInput');
                 const chatHistory = document.getElementById('chatHistory');
                 
@@ -5289,7 +5289,7 @@
                     // Only replace if no conversation has started
                     chatHistory.innerHTML = `
                         <div class="ai-message">
-                            <div class="text-sm text-blue-400 mb-1">AI Assistant</div>
+                            <div class="text-sm text-blue-400 mb-1">Ask EmailPilot</div>
                             <div class="text-white/90">Hello! I'm ready to help you manage ${this.selectedClient.name}'s campaigns. Try commands like:</div>
                             <ul class="text-white/70 text-sm mt-2 ml-4 list-disc">
                                 <li>"Add a promotional campaign on the 15th"</li>
@@ -6113,6 +6113,18 @@
                 const campaignId = e.dataTransfer.getData('text/plain');
                 const campaign = this.campaigns.find(c => c.id === campaignId);
                 if (!campaign) return;
+
+                // Debug logging to diagnose date issue
+                console.log('🐛 DROP DEBUG:', {
+                    targetDate: targetDate,
+                    targetDateType: typeof targetDate,
+                    targetDateString: targetDate.toString(),
+                    targetDateISO: targetDate.toISOString(),
+                    month: targetDate.getMonth(),
+                    monthName: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][targetDate.getMonth()],
+                    day: targetDate.getDate(),
+                    year: targetDate.getFullYear()
+                });
 
                 // Update the campaign's date
                 this.saveState();
@@ -7548,7 +7560,7 @@
                     messageDiv.className = `message ${message.role}`;
                     messageDiv.innerHTML = `
                         <div class="mb-2 p-3 rounded-lg ${message.role === 'user' ? 'bg-blue-500/10 text-blue-300' : 'bg-white/5 text-white/90'}">
-                            <div class="font-semibold mb-1">${message.role === 'user' ? 'You' : 'AI Assistant'}:</div>
+                            <div class="font-semibold mb-1">${message.role === 'user' ? 'You' : 'EmailPilot'}:</div>
                             <div>${message.content}</div>
                         </div>
                     `;
@@ -8071,7 +8083,7 @@
                     `;
                 } else {
                     messageDiv.innerHTML = `
-                        <div class="text-sm text-blue-400 mb-1">AI Assistant</div>
+                        <div class="text-sm text-blue-400 mb-1">Ask EmailPilot</div>
                         <div class="text-white/90">${formattedMessage}</div>
                     `;
                 }
@@ -11451,7 +11463,7 @@
         async function sendChatMessage() {
             // Check if a client is selected first
             if (!window.calendarManager || !window.calendarManager.selectedClient) {
-                showToast('Please select a client first before using the AI Assistant', 'warning');
+                showToast('Please select a client first before using Ask EmailPilot', 'warning');
                 return;
             }
             
@@ -12961,8 +12973,8 @@
         document.addEventListener('keydown', (e) => {
             // Skip if typing in input field
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-                // Exception: allow / key to focus search
-                if (e.key === '/') {
+                // Exception: allow Ctrl+K to focus search
+                if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     document.getElementById('searchInput')?.focus();
                 }
@@ -12999,7 +13011,7 @@
             else if (e.key === 'n' || e.key === 'N') {
                 e.preventDefault();
                 document.getElementById('createCampaignModal')?.classList.add('show');
-            } else if (e.key === '/') {
+            } else if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 document.getElementById('searchInput')?.focus();
             } else if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
@@ -13157,13 +13169,13 @@
                 if (!window.calendarManager || !window.calendarManager.selectedClient) {
                     // Disable input and show message
                     chatInput.disabled = true;
-                    chatInput.placeholder = 'Select a client above to use AI Assistant';
+                    chatInput.placeholder = 'Select a client above to use Ask EmailPilot';
                     
                     if (chatHistory) {
                         chatHistory.innerHTML = `
                             <div class="ai-message">
                                 <div class="text-sm text-yellow-400 mb-1">⚠️ Client Required</div>
-                                <div class="text-white/90">Please select a client from the dropdown above to use the AI Assistant.</div>
+                                <div class="text-white/90">Please select a client from the dropdown above to use Ask EmailPilot.</div>
                                 <div class="text-white/60 text-sm mt-2">Once you select a client, I can help you:</div>
                                 <ul class="text-white/50 text-sm mt-2 ml-4 list-disc">
                                     <li>Add and manage email campaigns</li>
