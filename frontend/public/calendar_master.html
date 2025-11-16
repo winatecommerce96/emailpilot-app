@@ -7294,13 +7294,51 @@
                     return;
                 }
 
-                // Calculate month range
+                // Calculate visible date range (including adjacent month dates in the grid)
                 const year = this.selectedDate.getFullYear();
-                const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
-                const monthStart = `${year}-${month}-01`;
-                const monthEnd = `${year}-${month}-31`;
+                const month = this.selectedDate.getMonth(); // 0-11
 
-                console.log(`🔥 Firestore real-time sync starting for client: ${clientId}, month: ${monthStart} to ${monthEnd}`);
+                // Get first day of month and calculate how many previous month days are visible
+                const firstDayOfMonth = new Date(year, month, 1);
+                const firstDay = firstDayOfMonth.getDay(); // 0 = Sunday
+
+                // Calculate previous month info
+                const prevMonth = month === 0 ? 11 : month - 1;
+                const prevMonthYear = month === 0 ? year - 1 : year;
+                const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
+
+                // Calculate current month info
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                // Calculate next month info
+                const totalCellsForCurrentMonth = firstDay + daysInMonth;
+                const cellsNeeded = Math.ceil(totalCellsForCurrentMonth / 7) * 7; // Round up to complete weeks
+                const nextMonthDays = cellsNeeded - totalCellsForCurrentMonth;
+
+                // Start date: include previous month's trailing days if needed
+                let queryStartDate;
+                if (firstDay > 0) {
+                    const prevMonthStartDay = daysInPrevMonth - firstDay + 1;
+                    queryStartDate = new Date(prevMonthYear, prevMonth, prevMonthStartDay);
+                } else {
+                    queryStartDate = new Date(year, month, 1);
+                }
+
+                // End date: include next month's leading days if needed
+                let queryEndDate;
+                if (nextMonthDays > 0) {
+                    const nextMonth = month === 11 ? 0 : month + 1;
+                    const nextMonthYear = month === 11 ? year + 1 : year;
+                    queryEndDate = new Date(nextMonthYear, nextMonth, nextMonthDays);
+                } else {
+                    queryEndDate = new Date(year, month, daysInMonth);
+                }
+
+                // Format as YYYY-MM-DD strings for Firestore query
+                const monthStart = queryStartDate.toISOString().split('T')[0];
+                const monthEnd = queryEndDate.toISOString().split('T')[0];
+
+                console.log(`🔥 Firestore real-time sync starting for client: ${clientId}, month: ${monthStart} to ${monthEnd} (includes adjacent month dates)`);
 
                 // Verify Firestore is initialized
                 if (typeof db === 'undefined' || !db) {
