@@ -138,6 +138,9 @@ from app.api.klaviyo_discovery import router as klaviyo_discovery_router
 # Import admin client management router
 from app.api.admin_clients import router as admin_clients_router
 
+# Import public clients router (for calendar)
+from app.api.clients_public import router as clients_public_router
+
 # Import multi-platform clients module (NEW)
 import sys
 sys.path.insert(0, '/Users/Damon/klaviyo/klaviyo-audit-automation')
@@ -875,6 +878,9 @@ app.include_router(klaviyo_discovery_router, prefix="/api/klaviyo", tags=["Klavi
 
 # Admin client management router - already has /api/admin/clients prefix internally
 app.include_router(admin_clients_router, tags=["Admin Client Management"])
+
+# Public clients router (for calendar) - no auth required
+app.include_router(clients_public_router, prefix="/api/clients", tags=["Public Clients"])
 
 # Multi-platform clients router (NEW - Klaviyo, Braze, Mailchimp, Fishbowl)
 # TEMPORARILY DISABLED - router import causing hang
