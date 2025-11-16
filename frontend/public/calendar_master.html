@@ -545,6 +545,17 @@
             border-radius: 20px;
             position: relative;
             transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            color: rgba(255, 255, 255, 0.9);  /* Light text on dark background */
+        }
+
+        .glass-card p,
+        .glass-card h1,
+        .glass-card h2,
+        .glass-card h3,
+        .glass-card h4,
+        .glass-card h5,
+        .glass-card h6 {
+            color: rgba(255, 255, 255, 0.95);  /* Even lighter for headings */
         }
         
         .glass-card:before {
@@ -7523,7 +7534,8 @@
                                 description: event.description || event.content || '',
                                 gradient: event.gradient || this.getTypeGradient(event.event_type),
                                 emoji: event.emoji || this.getTypeEmoji(event.event_type),
-                                metrics: event.expected_metrics || event.metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 }
+                                metrics: event.expected_metrics || event.metrics || { openRate: 0.25, clickRate: 0.05, revenue: 5000 },
+                                is_resend: event.is_resend || event.event_type === 'resend'  // Include is_resend from Firestore
                             });
                         });
 
@@ -10976,7 +10988,14 @@
                     calendarManager.campaigns[index] = campaignData;
 
                     // Fast-path update (single PUT request) - AWAIT to ensure completion
-                    console.log('💾 Saving campaign update:', { id: campaignData.id, type: campaignData.type, time: campaignData.time });
+                    console.log('💾 Saving campaign update:', {
+                        id: campaignData.id,
+                        type: campaignData.type,
+                        time: campaignData.time,
+                        is_resend: campaignData.is_resend,
+                        messageTypeDropdown: document.getElementById('campaignMessageType').value,
+                        hiddenTypeField: document.getElementById('campaignType').value
+                    });
                     const saveSuccess = await calendarManager.quickUpdate(campaignData);
 
                     if (saveSuccess) {
