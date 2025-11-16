@@ -6502,9 +6502,9 @@
                 document.getElementById('campaignType').value = campaign.type; // Hidden field
 
                 document.getElementById('campaignDate').value = campaign.date.toISOString().split('T')[0];
-                document.getElementById('campaignTime').value = campaign.time || '10:00';
+                document.getElementById('campaignTime').value = campaign.time || campaign.send_time || '10:00';
                 document.getElementById('campaignSubjects').value = campaign.subject_lines?.join(', ') || '';
-                document.getElementById('campaignSegment').value = campaign.target_segment || campaign.segment || '';
+                document.getElementById('campaignSegment').value = campaign.target_segment || campaign.segment || campaign.segments || '';
 
                 // Update modal title for edit mode
                 const modalTitle = document.querySelector('#createCampaignModal h3');
@@ -8294,8 +8294,28 @@
                 };
                 return emojis[type] || '📧';
             }
+
+            // Format time to 12-hour format
+            formatTimeTo12Hour(time) {
+                if (!time) return '10:00 AM';
+                // If already has AM/PM, return as is
+                if (/am|pm/i.test(time)) return time;
+                // Parse 24-hour format (e.g., "15:28")
+                const parts = time.split(':');
+                if (parts.length < 2) return time;
+                const hours = parseInt(parts[0]);
+                const minutes = parts[1];
+                const period = hours >= 12 ? 'PM' : 'AM';
+                const displayHours = hours % 12 || 12;
+                return `${displayHours}:${minutes} ${period}`;
+            }
         }
-        
+
+        // Global helper function for time formatting
+        function formatTimeTo12Hour(time) {
+            return calendarManager.formatTimeTo12Hour(time);
+        }
+
         // Theme Management Functions
         function initTheme() {
             const savedTheme = localStorage.getItem('calendarTheme') || 'dark';
@@ -11502,7 +11522,7 @@
             // Add all the extra fields if they exist
             const extraFields = [];
             if (event.week_number) extraFields.push(`Week #${event.week_number}`);
-            if (event.send_time) extraFields.push(`Send Time: ${event.send_time}`);
+            if (event.send_time) extraFields.push(`Send Time: ${formatTimeTo12Hour(event.send_time)}`);
             if (event.segments || event.segment) extraFields.push(`Segment: ${event.segments || event.segment}`);
             if (event.subject_line_a) extraFields.push(`Subject A: ${event.subject_line_a}`);
             if (event.subject_line_b) extraFields.push(`Subject B: ${event.subject_line_b}`);
