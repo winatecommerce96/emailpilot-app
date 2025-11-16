@@ -6741,15 +6741,25 @@
                     is_resend: campaign.is_resend || false
                 };
 
+                console.log('📤 quickUpdate sending:', { id: campaign.id, event_type: eventData.event_type, time: eventData.time });
+
                 try {
-                    await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
+                    const response = await authenticatedFetch(`/api/calendar/events/${campaign.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
+
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        console.error('❌ quickUpdate failed with status:', response.status, errorData);
+                        return false;
+                    }
+
+                    console.log('✅ quickUpdate succeeded for campaign:', campaign.id);
                     return true;
                 } catch (err) {
-                    console.error('Quick update failed:', err);
+                    console.error('❌ quickUpdate exception:', err);
                     return false;
                 }
             }
@@ -6771,20 +6781,28 @@
                     is_resend: campaign.is_resend || false
                 };
 
+                console.log('📤 quickCreate sending:', { event_type: eventData.event_type, time: eventData.time });
+
                 try {
                     const response = await authenticatedFetch('/api/calendar/events', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
-                    if (response.ok) {
-                        const result = await response.json();
-                        // Update local campaign ID with Firestore ID
-                        campaign.id = result.id || result.event_id || campaign.id;
+
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        console.error('❌ quickCreate failed with status:', response.status, errorData);
+                        return false;
                     }
+
+                    const result = await response.json();
+                    // Update local campaign ID with Firestore ID
+                    campaign.id = result.id || result.event_id || campaign.id;
+                    console.log('✅ quickCreate succeeded, campaign ID:', campaign.id);
                     return true;
                 } catch (err) {
-                    console.warn('Quick create failed:', err);
+                    console.error('❌ quickCreate exception:', err);
                     return false;
                 }
             }
@@ -10899,7 +10917,7 @@
             }
         }
 
-        function createCampaign(event) {
+        async function createCampaign(event) {
             event.preventDefault();
 
             const form = event.target;
@@ -10946,17 +10964,37 @@
                     monthChanged = (originalMonth !== newMonth || originalYear !== newYear);
 
                     calendarManager.campaigns[index] = campaignData;
-                    showToast('Campaign updated successfully!');
-                    // Fast-path update (single PUT request)
-                    calendarManager.quickUpdate(campaignData);
+
+                    // Fast-path update (single PUT request) - AWAIT to ensure completion
+                    console.log('💾 Saving campaign update:', { id: campaignData.id, type: campaignData.type, time: campaignData.time });
+                    const saveSuccess = await calendarManager.quickUpdate(campaignData);
+
+                    if (saveSuccess) {
+                        showToast('Campaign updated successfully!');
+                    } else {
+                        showToast('Failed to save changes - please try again', 'error');
+                        // Revert local change if save failed
+                        calendarManager.campaigns[index] = originalCampaign;
+                        return; // Don't close modal or proceed
+                    }
                 }
             } else {
                 // Add new campaign
                 calendarManager.saveState();
                 calendarManager.campaigns.push(campaignData);
-                showToast('Campaign created successfully!');
-                // Fast-path create (single POST request)
-                calendarManager.quickCreate(campaignData);
+
+                // Fast-path create (single POST request) - AWAIT to ensure completion
+                console.log('💾 Creating campaign:', { id: campaignData.id, type: campaignData.type, time: campaignData.time });
+                const createSuccess = await calendarManager.quickCreate(campaignData);
+
+                if (createSuccess) {
+                    showToast('Campaign created successfully!');
+                } else {
+                    showToast('Failed to create campaign - please try again', 'error');
+                    // Remove from local array if create failed
+                    calendarManager.campaigns.pop();
+                    return; // Don't close modal or proceed
+                }
             }
 
             // If month changed during edit, navigate to the new month
