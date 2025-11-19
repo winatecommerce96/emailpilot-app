@@ -1070,9 +1070,10 @@ _BASE_DIR = _Path(__file__).resolve().parent
 # This serves files like /static/dist/app.js, /static/components/, etc.
 app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
 
-# Serve the Vite-built frontend as the primary static directory
-# This mount serves the compiled SPA files directly at root
-app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
+# CLEANUP PHASE 2: Commented out to allow calendar as default landing page
+# The root route handler at line ~1102 serves calendar_master.html instead
+# To restore React SPA at root, uncomment this mount and remove the @app.get("/") handler
+# app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
 # Explicit route for test HTML files
 @app.get("/test-endpoints.html")
 async def serve_test_endpoints():
