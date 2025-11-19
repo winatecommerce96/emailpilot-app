@@ -14324,7 +14324,7 @@
 
             try {
                 // Fetch clients and projects from backend
-                const response = await fetch('http://localhost:8000/api/admin/asana/configuration/clients-and-projects');
+                const response = await fetch('/api/admin/asana/configuration/clients-and-projects');
 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
