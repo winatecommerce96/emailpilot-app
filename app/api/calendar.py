@@ -1282,20 +1282,20 @@ async def get_strategy_summary(
 # ============================================================================
 
 # DISABLED: This stub endpoint conflicts with the real implementation in calendar_holidays.py
-# The real endpoint is registered via calendar_holidays_router with prefix="/api/calendar/holidays"
-# @router.get("/holidays/")
-# async def get_holidays(
-#     year: Optional[int] = None,
-#     month: Optional[int] = None,
-#     include_klaviyo: Optional[bool] = False,
-#     include_seasons: Optional[bool] = False
-# ):
-#     """
-#     Stub endpoint - returns empty holidays list.
-#
-#     TODO: Implement actual holiday data fetching logic.
-#     """
-#     return {"holidays": [], "active_seasons": []}
+@router.get("/holidays/")
+async def get_holidays(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    include_klaviyo: Optional[bool] = False,
+    include_seasons: Optional[bool] = False
+):
+    """
+    Returns holiday data for the calendar frontend.
+
+    Note: Currently returns empty data as a stub. The calendar frontend
+    gracefully handles empty holiday data.
+    """
+    return {"holidays": [], "active_seasons": []}
 
 # ============================================================================
 # Calendar Approval Workflow Endpoints
