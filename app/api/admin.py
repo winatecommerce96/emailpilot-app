@@ -19,12 +19,12 @@ import re
 from collections import namedtuple
 
 from app.core.settings import get_settings
-from app.services.secrets import mask_sensitive, SecretNotFoundError
+from app.services.secret_manager import mask_sensitive, SecretNotFoundError
 from app.deps import get_secret_manager_service, get_db
 from google.cloud import firestore
 
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 
@@ -1312,6 +1312,44 @@ async def diagnostics_summary(secret_manager: "SecretManagerService" = Depends(g
         out["checks"]["weekly_self_test"] = {"status": "error", "error": str(e)}
         out["success"] = False
     return out
+
+@router.get("/asana/configuration/clients-and-projects")
+async def get_asana_configuration(db: firestore.Client = Depends(get_db)):
+    """
+    Get Asana configuration including projects and client mappings.
+
+    This is currently a stub endpoint that returns empty configuration.
+    The calendar frontend gracefully handles empty Asana configuration.
+    """
+    try:
+        # Fetch clients from Firestore to populate the client list
+        clients_ref = db.collection('clients')
+        clients_snapshot = clients_ref.stream()
+
+        clients = []
+        for doc in clients_snapshot:
+            client_data = doc.to_dict()
+            clients.append({
+                "id": doc.id,
+                "name": client_data.get("name", doc.id),
+                "asana_project_gid": client_data.get("asana_project_gid", None)
+            })
+
+        return {
+            "success": True,
+            "asana_projects": [],  # Empty list - no Asana projects configured yet
+            "account_management_project_gid": None,  # No account management project set
+            "clients": clients
+        }
+    except Exception as e:
+        logger.error(f"Error fetching Asana configuration: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "asana_projects": [],
+            "account_management_project_gid": None,
+            "clients": []
+        }
 
 @router.post("/restart")
 async def restart_server(background_tasks: BackgroundTasks):
