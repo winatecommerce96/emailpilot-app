@@ -4424,7 +4424,7 @@
     <header class="relative z-10 border-b border-white/10" style="padding: var(--space-3) var(--space-4);">
         <div style="max-width: var(--container-max); margin: 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;">
             <div class="fade-in" style="flex-shrink: 0; display: flex; align-items: center; gap: var(--space-3);">
-                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png" alt="EmailPilot Logo" style="height: 60px; width: auto; display: block;">
+                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png" alt="EmailPilot Logo" style="height: 120px; width: auto; display: block;">
                 <div>
                     <h1 class="text-hero" style="margin-bottom: var(--space-1);">
                         <span class="gradient-text">Campaign Co-Pilot</span>
@@ -5256,10 +5256,19 @@
                 }, 2000);
                 
                 try {
-                    // Use public endpoint - no auth required (trailing slash required)
-                    const response = await fetch('/api/clients/');
+                    // Fetch directly from orchestrator - source of truth for client data
+                    const orchestratorUrl = 'https://emailpilot-orchestrator-935786836546.us-central1.run.app/api/clients';
+                    const response = await fetch(orchestratorUrl);
                     if (response.ok) {
                         const clients = await response.json();
+
+                        // Flatten asana_project_link from metadata to top level for calendar compatibility
+                        clients.forEach(client => {
+                            if (client.metadata && client.metadata.asana_project_link) {
+                                client.asana_project_link = client.metadata.asana_project_link;
+                            }
+                        });
+
                         // Show all clients from shared library
                         this.clients = clients;
                         this.renderClientList();
@@ -9855,8 +9864,10 @@
             // Show the aviation loading animation
             showAviationLoader();
 
-            // First save the calendar data
-            await calendarManager.saveToCloud();
+            // BUGFIX: Removed saveToCloud() call that was creating duplicates (line 9868)
+            // Creating an approval page should only READ campaign data, not save it.
+            // The campaigns are already saved when edited in the calendar.
+            // This was causing 521 duplicate documents (24 campaigns × ~22 saves = 521 total)
 
             // client is already declared above at line 6477
             const date = calendarManager.selectedDate;
@@ -9867,8 +9878,8 @@
 
             // Generate approval page ID and URL (use padded string for ID)
             const approvalId = `${client.client_slug || client.id}-${year}-${monthStr}`;
-            // Public approval URL (no authentication required)
-            const approvalUrl = `https://app.emailpilot.ai/calendar-approval/${approvalId}`;
+            // Public approval URL (works in both local and production)
+            const approvalUrl = `${window.location.origin}/calendar-approval/${approvalId}`;
             
             try {
                 // Store approval page data in Firestore
@@ -13399,10 +13410,6 @@
                             <span class="text-2xl">↶</span>
                             <span class="font-semibold">Undo Last Change</span>
                         </button>
-                        <button onclick="calendarManager.renderCalendar(); calendarManager.updateStats(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-blue-500/50 transition-all flex items-center gap-3">
-                            <span class="text-2xl">🔄</span>
-                            <span class="font-semibold">Refresh Calendar</span>
-                        </button>
                         <button onclick="openHolidayManager(); document.getElementById('commandPaletteModal').remove();" class="w-full glass-card p-4 text-left hover:border-yellow-500/50 transition-all flex items-center gap-3">
                             <span class="text-2xl">📅</span>
                             <span class="font-semibold">Holiday & Event Management</span>
@@ -14086,20 +14093,6 @@
                         <div class="text-sm text-white/60">See client feedback</div>
                     </div>
                 </button>
-                <button onclick="undoLastChange(); closeCommandModal();" class="command-item">
-                    <span class="text-2xl">↩️</span>
-                    <div>
-                        <div class="font-semibold">Undo Last Change</div>
-                        <div class="text-sm text-white/60">Revert recent action</div>
-                    </div>
-                </button>
-                <button onclick="window.location.reload(); closeCommandModal();" class="command-item">
-                    <span class="text-2xl">🔄</span>
-                    <div>
-                        <div class="font-semibold">Refresh Calendar</div>
-                        <div class="text-sm text-white/60">Reload data</div>
-                    </div>
-                </button>
                 <button onclick="openHolidayManager(); closeCommandModal();" class="command-item">
                     <span class="text-2xl">🎄</span>
                     <div>
@@ -14145,6 +14138,59 @@
                 <button onclick="closeCommandModal()" class="glow-button mt-4 w-full">
                     Cancel
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Configurator Modal -->
+    <div id="projectConfigModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl font-bold mb-2">Configure Asana Projects</h2>
+                <p class="text-white/60">Map each client to their Asana project and set the Account Management project</p>
+            </div>
+
+            <!-- Loading State -->
+            <div id="projectConfigLoading" style="text-align: center; padding: 40px;">
+                <div class="loading-spinner"></div>
+                <p class="mt-4">Loading configuration...</p>
+            </div>
+
+            <!-- Configuration Form -->
+            <div id="projectConfigForm" style="display: none;">
+                <!-- Account Management Project -->
+                <div class="mb-6 p-4" style="background: rgba(255,255,255,0.05); border-radius: 8px;">
+                    <label class="block font-semibold mb-2">
+                        <span class="text-xl">🏢</span> Account Management Project
+                    </label>
+                    <select id="accountMgmtProject" class="w-full p-3" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white;">
+                        <option value="">-- Select Account Management Project --</option>
+                    </select>
+                    <p class="text-sm text-white/60 mt-2">Tasks will be multi-homed in this project for centralized tracking</p>
+                </div>
+
+                <!-- Client Projects -->
+                <div class="mb-6">
+                    <h3 class="font-semibold text-xl mb-4">
+                        <span class="text-xl">👥</span> Client Projects
+                    </h3>
+                    <div id="clientProjectsList" class="space-y-3">
+                        <!-- Client project mappings will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-4 mt-8">
+                    <button onclick="saveProjectConfiguration()" class="glow-button flex-1">
+                        <span class="text-xl">💾</span> Save Configuration
+                    </button>
+                    <button onclick="closeProjectConfigurator()" class="secondary-button flex-1">
+                        Cancel
+                    </button>
+                </div>
+
+                <!-- Status Message -->
+                <div id="projectConfigStatus" class="mt-4" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -14211,13 +14257,6 @@
                             <div class="text-sm text-white/60">Revert recent action</div>
                         </div>
                     </button>
-                    <button onclick="window.location.reload(); closeCommandModal();" class="command-item">
-                        <span class="text-2xl">🔄</span>
-                        <div>
-                            <div class="font-semibold">Refresh Calendar</div>
-                            <div class="text-sm text-white/60">Reload data</div>
-                        </div>
-                    </button>
                     <button onclick="openHolidayManager(); closeCommandModal();" class="command-item">
                         <span class="text-2xl">🎄</span>
                         <div>
@@ -14237,6 +14276,13 @@
                         <div>
                             <div class="font-semibold">View Stats</div>
                             <div class="text-sm text-white/60">Calendar analytics</div>
+                        </div>
+                    </button>
+                    <button onclick="openProjectConfigurator(); closeCommandModal();" class="command-item">
+                        <span class="text-2xl">⚙️</span>
+                        <div>
+                            <div class="font-semibold">Configure Projects</div>
+                            <div class="text-sm text-white/60">Map clients to Asana projects</div>
                         </div>
                     </button>
                     <button onclick="if(confirm('Clear all campaigns for this month? This action cannot be undone.')) { clearMonthWithLoading(); closeCommandModal(); } else { closeCommandModal(); }" class="command-item">
@@ -14263,6 +14309,165 @@
             document.getElementById('commandModal').style.display = 'none';
         }
 
+        // Project Configurator Functions
+        async function openProjectConfigurator() {
+            const modal = document.getElementById('projectConfigModal');
+            const loadingDiv = document.getElementById('projectConfigLoading');
+            const formDiv = document.getElementById('projectConfigForm');
+            const statusDiv = document.getElementById('projectConfigStatus');
+
+            // Show modal with loading state
+            modal.style.display = 'flex';
+            loadingDiv.style.display = 'block';
+            formDiv.style.display = 'none';
+            statusDiv.style.display = 'none';
+
+            try {
+                // Fetch clients and projects from backend
+                const response = await fetch('http://localhost:8000/api/admin/asana/configuration/clients-and-projects');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error('Failed to load configuration data');
+                }
+
+                // Populate Account Management Project dropdown
+                const accountMgmtSelect = document.getElementById('accountMgmtProject');
+                accountMgmtSelect.innerHTML = '<option value="">-- Select Account Management Project --</option>';
+
+                data.asana_projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.gid;
+                    option.textContent = project.name;
+                    if (project.gid === data.account_management_project_gid) {
+                        option.selected = true;
+                    }
+                    accountMgmtSelect.appendChild(option);
+                });
+
+                // Populate Client Projects list
+                const clientsList = document.getElementById('clientProjectsList');
+                clientsList.innerHTML = '';
+
+                data.clients.forEach(client => {
+                    const clientRow = document.createElement('div');
+                    clientRow.className = 'p-3';
+                    clientRow.style.cssText = 'background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);';
+
+                    clientRow.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <div class="flex-1">
+                                <div class="font-semibold">${client.name}</div>
+                                <div class="text-sm text-white/60">${client.client_slug}</div>
+                            </div>
+                            <div class="flex-1">
+                                <select
+                                    id="client-project-${client.id}"
+                                    data-client-id="${client.id}"
+                                    class="w-full p-2"
+                                    style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-size: 14px;"
+                                >
+                                    <option value="">-- No Project --</option>
+                                    ${data.asana_projects.map(p =>
+                                        `<option value="${p.gid}" ${p.gid === client.asana_project_gid ? 'selected' : ''}>${p.name}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        </div>
+                    `;
+
+                    clientsList.appendChild(clientRow);
+                });
+
+                // Hide loading, show form
+                loadingDiv.style.display = 'none';
+                formDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading project configuration:', error);
+                loadingDiv.innerHTML = `
+                    <div style="color: #ef4444; text-align: center;">
+                        <div class="text-2xl mb-2">⚠️</div>
+                        <div class="font-semibold">Failed to load configuration</div>
+                        <div class="text-sm mt-2">${error.message}</div>
+                        <button onclick="closeProjectConfigurator()" class="glow-button mt-4">Close</button>
+                    </div>
+                `;
+            }
+        }
+
+        function closeProjectConfigurator() {
+            document.getElementById('projectConfigModal').style.display = 'none';
+        }
+
+        async function saveProjectConfiguration() {
+            const statusDiv = document.getElementById('projectConfigStatus');
+            const accountMgmtGid = document.getElementById('accountMgmtProject').value;
+
+            // Collect all client-project mappings
+            const clientMappings = {};
+            document.querySelectorAll('[data-client-id]').forEach(select => {
+                const clientId = select.getAttribute('data-client-id');
+                const projectGid = select.value || null;
+                clientMappings[clientId] = projectGid;
+            });
+
+            // Show saving status
+            statusDiv.style.display = 'block';
+            statusDiv.style.cssText = 'padding: 12px; background: rgba(59, 130, 246, 0.2); border-radius: 8px; color: #60a5fa;';
+            statusDiv.innerHTML = '💾 Saving configuration...';
+
+            try {
+                const response = await fetch('http://localhost:8000/api/admin/asana/configuration/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        client_mappings: clientMappings,
+                        account_management_project_gid: accountMgmtGid || null
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.style.cssText = 'padding: 12px; background: rgba(16, 185, 129, 0.2); border-radius: 8px; color: #34d399;';
+                    statusDiv.innerHTML = `
+                        <div class="font-semibold">✅ Configuration saved successfully!</div>
+                        <div class="text-sm mt-1">Updated ${result.updated_count} client(s)</div>
+                        ${result.account_management_message ? `<div class="text-sm mt-1">${result.account_management_message}</div>` : ''}
+                        ${result.errors && result.errors.length > 0 ? `<div class="text-sm mt-2 text-yellow-400">⚠️ ${result.errors.join(', ')}</div>` : ''}
+                    `;
+
+                    // Close modal after 3 seconds
+                    setTimeout(() => {
+                        closeProjectConfigurator();
+                        showToast('Project configuration saved', 'success');
+                    }, 3000);
+                } else {
+                    throw new Error(result.message || 'Save failed');
+                }
+
+            } catch (error) {
+                console.error('Error saving configuration:', error);
+                statusDiv.style.cssText = 'padding: 12px; background: rgba(239, 68, 68, 0.2); border-radius: 8px; color: #f87171;';
+                statusDiv.innerHTML = `
+                    <div class="font-semibold">❌ Failed to save configuration</div>
+                    <div class="text-sm mt-1">${error.message}</div>
+                `;
+            }
+        }
+
         // Placeholder functions for command actions (some may already exist)
         function createClientApprovalPage() {
             if (typeof createApprovalPage === 'function') {
@@ -14280,13 +14485,6 @@
             }
         }
 
-        function undoLastChange() {
-            if (typeof window.calendarManager !== 'undefined' && window.calendarManager.undoManager) {
-                window.calendarManager.undoManager.undo();
-            } else {
-                showToast('No actions to undo', 'info');
-            }
-        }
 
         function openHolidayManager() {
             if (typeof window.openHolidayManager !== 'undefined' && window.openHolidayManager !== openHolidayManager) {
