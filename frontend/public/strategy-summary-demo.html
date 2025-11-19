@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Summary Demo - EmailPilot</title>
+
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Strategy Summary CSS -->
+    <link rel="stylesheet" href="/static/css/strategy-summary.css">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #000000;
+            color: #FFFFFF;
+        }
+
+        .demo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .demo-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .demo-title {
+            font-size: 36px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3369DC 0%, #8A6CF7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+
+        .demo-subtitle {
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .demo-controls {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+
+        .demo-button {
+            background: linear-gradient(135deg, #3369DC 0%, #8A6CF7 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .demo-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(51, 105, 220, 0.3);
+        }
+
+        .demo-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .demo-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: white;
+            width: 100%;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .demo-input:focus {
+            outline: none;
+            border-color: #3369DC;
+        }
+
+        .code-block {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            color: #C5FF75;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <!-- Header -->
+        <div class="demo-header">
+            <h1 class="demo-title">Strategy Summary Component Demo</h1>
+            <p class="demo-subtitle">Test the AI-generated campaign strategy feature</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="demo-controls">
+            <h3 style="margin-bottom: 16px; font-weight: 600;">Test Controls</h3>
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                <input
+                    type="text"
+                    id="clientIdInput"
+                    class="demo-input"
+                    placeholder="Enter client ID (e.g., test-client-strategy)"
+                    value="test-client-strategy"
+                >
+                <button class="demo-button" onclick="loadStrategy()">
+                    <i class="fas fa-download"></i> Load Strategy
+                </button>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button class="demo-button" onclick="toggleStrategy()">
+                    <i class="fas fa-expand-alt"></i> Toggle Expand
+                </button>
+                <button class="demo-button" onclick="clearCache()">
+                    <i class="fas fa-trash"></i> Clear Cache
+                </button>
+                <button class="demo-button" onclick="showStats()">
+                    <i class="fas fa-info-circle"></i> Show Stats
+                </button>
+            </div>
+
+            <div id="statsOutput" class="code-block" style="display: none;">
+                <pre id="statsContent"></pre>
+            </div>
+        </div>
+
+        <!-- Strategy Summary Component Container -->
+        <div id="strategy-summary-container"></div>
+
+        <!-- Integration Instructions -->
+        <div style="margin-top: 48px; padding-top: 48px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <h2 style="font-size: 24px; font-weight: 600; margin-bottom: 24px;">
+                <i class="fas fa-code"></i> Integration Guide
+            </h2>
+
+            <div style="color: rgba(255, 255, 255, 0.8); line-height: 1.75;">
+                <h3 style="font-size: 18px; font-weight: 600; margin: 24px 0 12px 0;">1. Add Required Files</h3>
+                <div class="code-block">
+                    <pre>&lt;!-- In your HTML &lt;head&gt; --&gt;
+&lt;link rel="stylesheet" href="/static/css/strategy-summary.css"&gt;
+
+&lt;!-- Before closing &lt;/body&gt; --&gt;
+&lt;script src="/static/js/strategy-summary-types.js"&gt;&lt;/script&gt;
+&lt;script src="/static/js/strategy-summary-api.js"&gt;&lt;/script&gt;
+&lt;script src="/static/js/strategy-summary-component.js"&gt;&lt;/script&gt;</pre>
+                </div>
+
+                <h3 style="font-size: 18px; font-weight: 600; margin: 24px 0 12px 0;">2. Add Container to Your Page</h3>
+                <div class="code-block">
+                    <pre>&lt;!-- Place this where you want the strategy summary to appear --&gt;
+&lt;div id="strategy-summary-container"&gt;&lt;/div&gt;</pre>
+                </div>
+
+                <h3 style="font-size: 18px; font-weight: 600; margin: 24px 0 12px 0;">3. Initialize the Component</h3>
+                <div class="code-block">
+                    <pre>&lt;script&gt;
+// Create component instance
+const strategySummary = new StrategySummaryComponent('strategy-summary-container');
+
+// Initialize with client ID
+await strategySummary.init('your-client-id');
+
+// Or load manually
+await strategySummary.load('your-client-id');
+&lt;/script&gt;</pre>
+                </div>
+
+                <h3 style="font-size: 18px; font-weight: 600; margin: 24px 0 12px 0;">4. Example Integration in Calendar</h3>
+                <div class="code-block">
+                    <pre>// Add to your calendar initialization code
+async function initCalendar(clientId) {
+    // ... existing calendar code ...
+
+    // Load strategy summary
+    const strategySummary = new StrategySummaryComponent('strategy-summary-container');
+    await strategySummary.init(clientId);
+}</pre>
+                </div>
+
+                <p style="margin-top: 24px; padding: 16px; background: rgba(51, 105, 220, 0.1); border-left: 4px solid #3369DC; border-radius: 4px;">
+                    <strong>Note:</strong> The strategy summary will automatically hide if no data is found, so it's safe to initialize on all pages.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Strategy Summary Components -->
+    <script src="/static/js/strategy-summary-types.js"></script>
+    <script src="/static/js/strategy-summary-api.js"></script>
+    <script src="/static/js/strategy-summary-component.js"></script>
+
+    <!-- Demo JavaScript -->
+    <script>
+        // Global instance
+        let strategySummary = null;
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            strategySummary = new StrategySummaryComponent('strategy-summary-container');
+            await strategySummary.init('test-client-strategy');
+        });
+
+        // Load strategy for specified client
+        async function loadStrategy() {
+            const clientId = document.getElementById('clientIdInput').value.trim();
+            if (!clientId) {
+                alert('Please enter a client ID');
+                return;
+            }
+
+            try {
+                await strategySummary.load(clientId);
+                console.log('[Demo] Strategy loaded for:', clientId);
+            } catch (error) {
+                console.error('[Demo] Load error:', error);
+                alert('Failed to load strategy: ' + error.message);
+            }
+        }
+
+        // Toggle expand/collapse
+        function toggleStrategy() {
+            if (strategySummary) {
+                strategySummary.toggle();
+            }
+        }
+
+        // Clear API cache
+        function clearCache() {
+            if (window.strategySummaryAPI) {
+                window.strategySummaryAPI.clearCache();
+                console.log('[Demo] Cache cleared');
+                alert('Cache cleared successfully');
+            }
+        }
+
+        // Show cache stats
+        function showStats() {
+            const statsOutput = document.getElementById('statsOutput');
+            const statsContent = document.getElementById('statsContent');
+
+            if (statsOutput.style.display === 'none') {
+                const stats = window.strategySummaryAPI.getCacheStats();
+                statsContent.textContent = JSON.stringify(stats, null, 2);
+                statsOutput.style.display = 'block';
+            } else {
+                statsOutput.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

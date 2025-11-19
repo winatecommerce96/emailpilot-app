@@ -20,23 +20,42 @@ from google.cloud import secretmanager
 from app.api.clerk_auth import verify_clerk_session
 from app.deps.firestore import get_db
 from app.services.asana_client import AsanaClient
+from app.services.asana_calendar_integration import create_calendar_approval_task
+from app.schemas.calendar import (
+    BulkEventsCreate as BulkEventsCreateSchema,
+    BulkEventsResponse,
+    StrategySummaryResponse
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Helper to get Asana token from Secret Manager
+# Helper to get Asana token from environment variable or Secret Manager
 async def get_asana_token() -> Optional[str]:
-    """Get Asana API token from Secret Manager"""
+    """Get Asana API token from environment variable or Secret Manager
+
+    Following the pattern from asana-brief-creation app:
+    1. Check ASANA_ACCESS_TOKEN environment variable first
+    2. Fall back to Secret Manager if not found
+    """
+    # Check environment variable first (same as asana-brief-creation)
+    token = os.getenv("ASANA_ACCESS_TOKEN")
+    if token:
+        logger.info("Using ASANA_ACCESS_TOKEN from environment variable")
+        return token.strip()
+
+    # Fall back to Secret Manager
     try:
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")
-        secret_name = f"projects/{project_id}/secrets/asana-api-token/versions/latest"
+        secret_name = f"projects/{project_id}/secrets/asana-access-token/versions/latest"
 
         client = secretmanager.SecretManagerServiceClient()
         response = client.access_secret_version(request={"name": secret_name})
         token = response.payload.data.decode("UTF-8").strip()
+        logger.info("Using Asana token from Secret Manager")
         return token
     except Exception as e:
-        logger.warning(f"Could not retrieve Asana token: {e}")
+        logger.warning(f"Could not retrieve Asana token from Secret Manager: {e}")
         return None
 
 # Global state for lazy-initialized calendar components
@@ -113,11 +132,6 @@ class CalendarEventUpdate(BaseModel):
     emoji: Optional[str] = None  # Visual styling
     expected_metrics: Optional[Dict[str, Any]] = None  # Performance expectations
     client_id: Optional[str] = None  # Allow updating client association
-
-class BulkEventsCreate(BaseModel):
-    """Request model for bulk creating events"""
-    client_id: str = Field(..., description="Client ID")
-    events: List[CalendarEventCreate] = Field(..., description="List of events to create")
 
 def standard_response(success: bool, data: Any = None, error: Optional[str] = None) -> Dict[str, Any]:
     """Standardized API response format"""
@@ -1108,37 +1122,47 @@ async def get_approval_requests(
             detail=f"Failed to fetch approval requests: {str(e)}"
         )
 
-@router.post("/create-bulk-events")
+@router.post("/create-bulk-events", response_model=BulkEventsResponse)
 async def create_bulk_events(
-    bulk_request: BulkEventsCreate,
+    bulk_request: BulkEventsCreateSchema,
     db: firestore.Client = Depends(get_db)
 ):
     """
-    Create multiple calendar events in a single request.
+    Create multiple calendar events in a single request with optional strategy summary.
 
-    More efficient than creating events one by one.
+    Accepts:
+    - events: List of calendar events to create
+    - strategy_summary (optional): AI-generated marketing strategy for this calendar period
 
-    Returns: List of created event IDs and count.
+    Returns: Created event IDs, count, and strategy summary save status.
     """
     try:
         created_events = []
+        event_ids = []
         batch = db.batch()
 
         # Prepare all events for batch write
         for event in bulk_request.events:
-            event_data = event.dict()
-            event_data['client_id'] = bulk_request.client_id  # Ensure client_id is set
+            event_data = event.model_dump()
+            event_data['client_id'] = bulk_request.client_id
             event_data['created_at'] = datetime.utcnow().isoformat()
             event_data['updated_at'] = datetime.utcnow().isoformat()
+            # Convert date to string for Firestore compatibility
+            event_data['event_date'] = str(event.event_date)
 
             # Create document reference
             doc_ref = db.collection("calendar_events").document()
             batch.set(doc_ref, event_data)
 
+            event_ids.append(doc_ref.id)
             created_events.append({
                 'id': doc_ref.id,
                 'title': event.title,
-                'event_date': event.event_date
+                'event_date': str(event.event_date),
+                'client_id': bulk_request.client_id,
+                'created_at': event_data['created_at'],
+                'updated_at': event_data['updated_at'],
+                'imported_from_doc': False
             })
 
         # Commit batch
@@ -1146,17 +1170,111 @@ async def create_bulk_events(
 
         logger.info(f"Bulk created {len(created_events)} events for client {bulk_request.client_id}")
 
-        return {
-            "success": True,
-            "count": len(created_events),
-            "events": created_events
-        }
+        # Handle strategy summary if provided
+        strategy_summary_saved = False
+        if bulk_request.strategy_summary:
+            try:
+                # Determine date range from events
+                event_dates = [event.event_date for event in bulk_request.events]
+                start_date = min(event_dates)
+                end_date = max(event_dates)
+
+                # Create strategy summary document
+                strategy_data = bulk_request.strategy_summary.model_dump()
+                strategy_data.update({
+                    'client_id': bulk_request.client_id,
+                    'start_date': str(start_date),
+                    'end_date': str(end_date),
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow(),
+                    'generated_by': 'claude-sonnet-4-5-20250929',
+                    'event_count': len(bulk_request.events)
+                })
+
+                # Save to Firestore
+                strategy_ref = db.collection("strategy_summaries").document()
+                strategy_ref.set(strategy_data)
+
+                strategy_summary_saved = True
+                logger.info(f"Saved strategy summary for client {bulk_request.client_id} ({start_date} to {end_date})")
+
+            except Exception as e:
+                logger.error(f"Error saving strategy summary: {e}", exc_info=True)
+                # Don't fail the whole request if strategy save fails
+                strategy_summary_saved = False
+
+        # Return response
+        return BulkEventsResponse(
+            success=True,
+            events_created=len(created_events),
+            strategy_summary_saved=strategy_summary_saved,
+            event_ids=event_ids,
+            sample_events=created_events[:5],  # Return up to 5 sample events
+            message=f"Created {len(created_events)} events" + (
+                " with strategy summary" if strategy_summary_saved else ""
+            )
+        )
 
     except Exception as e:
-        logger.error(f"Error bulk creating events: {e}")
+        logger.error(f"Error bulk creating events: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to bulk create events: {str(e)}"
+        )
+
+@router.get("/strategy-summary/{client_id}", response_model=StrategySummaryResponse, status_code=200)
+async def get_strategy_summary(
+    client_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Retrieve AI-generated strategy summary for a client's calendar period.
+
+    Query parameters:
+    - start_date (optional): Filter by start date (YYYY-MM-DD)
+    - end_date (optional): Filter by end date (YYYY-MM-DD)
+
+    Returns 404 if no strategy summary exists (which is normal for calendars created before this feature).
+    """
+    try:
+        # Query strategy_summaries collection
+        query = db.collection("strategy_summaries").where("client_id", "==", client_id)
+
+        # Apply date filters if provided
+        if start_date:
+            query = query.where("start_date", ">=", start_date)
+        if end_date:
+            query = query.where("end_date", "<=", end_date)
+
+        # Order by created_at descending to get most recent
+        query = query.order_by("created_at", direction=firestore.Query.DESCENDING).limit(1)
+
+        # Execute query
+        results = list(query.stream())
+
+        if not results:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No strategy summary found for client {client_id}"
+            )
+
+        # Return the most recent strategy summary
+        strategy_doc = results[0]
+        strategy_data = strategy_doc.to_dict()
+
+        logger.info(f"Retrieved strategy summary for client {client_id}")
+
+        return StrategySummaryResponse(**strategy_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving strategy summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve strategy summary: {str(e)}"
         )
 
 # ============================================================================
@@ -1215,6 +1333,7 @@ class ChangeRequestSubmit(BaseModel):
 @router.post("/approval/create")
 async def create_approval_page(
     data: ApprovalPageCreate,
+    background_tasks: BackgroundTasks,
     db: firestore.Client = Depends(get_db)
 ):
     """
@@ -1222,6 +1341,9 @@ async def create_approval_page(
 
     This endpoint is called by the internal calendar when "Create Client Approval Page" is clicked.
     It saves the calendar data to Firestore for the client to review.
+
+    If the client has an Asana project link configured, this will also create an Asana task
+    with the approval URL for the client to review.
     """
     try:
         approval_ref = db.collection("approval_pages").document(data.approval_id)
@@ -1235,10 +1357,52 @@ async def create_approval_page(
 
         logger.info(f"Created approval page: {data.approval_id} for client {data.client_name}")
 
+        # Build the public approval URL
+        # TODO: Update this base URL to match your production domain
+        base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+        approval_url = f"{base_url}/calendar-approval/{data.approval_id}"
+
+        # Create Asana task asynchronously (don't block approval creation)
+        async def create_asana_task_background():
+            """Background task to create Asana task without blocking response"""
+            try:
+                asana_result = await create_calendar_approval_task(
+                    client_id=data.client_id,
+                    client_name=data.client_name,
+                    approval_id=data.approval_id,
+                    approval_url=approval_url,
+                    month=data.month_name,
+                    year=data.year,
+                    db=db
+                )
+
+                if asana_result["success"]:
+                    logger.info(f"✅ Asana task created: {asana_result['task_url']}")
+
+                    # Optionally store the Asana task info in the approval document
+                    approval_ref.update({
+                        "asana_task_gid": asana_result["task_gid"],
+                        "asana_task_url": asana_result["task_url"],
+                        "asana_created_at": datetime.utcnow().isoformat()
+                    })
+                else:
+                    logger.warning(f"⚠️  Asana task creation failed: {asana_result.get('error')}")
+                    if asana_result.get("warnings"):
+                        for warning in asana_result["warnings"]:
+                            logger.warning(f"   - {warning}")
+
+            except Exception as e:
+                # Log error but don't fail the approval creation
+                logger.error(f"Background Asana task creation failed: {e}", exc_info=True)
+
+        # Schedule background task
+        background_tasks.add_task(create_asana_task_background)
+
         return {
             "success": True,
             "approval_id": data.approval_id,
-            "message": "Approval page created successfully"
+            "approval_url": approval_url,
+            "message": "Approval page created successfully. Asana task will be created in background."
         }
 
     except Exception as e:
@@ -1257,6 +1421,11 @@ async def create_asana_approval_task(
     Create an Asana task with the approval page link.
 
     Looks up the client's Asana project link and creates a task for the client to review.
+
+    Returns:
+    - On success: {"success": true, "task_gid": "...", "task_url": "...", "config_needed": false}
+    - On missing project config: {"success": false, "error": "No Asana project configured", "config_needed": true, "config_url": "/admin (Configure Projects tab)"}
+    - On other errors: {"success": false, "error": "error message", "config_needed": false}
     """
     try:
         # Get client from Firestore to find Asana project link
@@ -1264,37 +1433,43 @@ async def create_asana_approval_task(
         client_doc = client_ref.get()
 
         if not client_doc.exists:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Client {data.client_id} not found"
-            )
+            return {
+                "success": False,
+                "error": f"Client {data.client_id} not found",
+                "config_needed": False
+            }
 
         client_data = client_doc.to_dict()
         asana_project_link = client_data.get("asana_project_link")
 
         if not asana_project_link:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Client {data.client_name} does not have an Asana project link configured"
-            )
+            return {
+                "success": False,
+                "error": f"No Asana project configured for {data.client_name}",
+                "config_needed": True,
+                "config_url": "/admin (Configure Projects tab)"
+            }
 
         # Get Asana token
         asana_token = await get_asana_token()
         if not asana_token:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Asana API token not configured"
-            )
+            return {
+                "success": False,
+                "error": "Asana API token not configured",
+                "config_needed": False
+            }
 
         # Extract project GID from URL
         asana_client = AsanaClient(asana_token)
         project_gid = asana_client.parse_project_gid_from_url(asana_project_link)
 
         if not project_gid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Could not parse Asana project GID from URL: {asana_project_link}"
-            )
+            return {
+                "success": False,
+                "error": f"Could not parse Asana project GID from URL: {asana_project_link}",
+                "config_needed": True,
+                "config_url": "/admin (Configure Projects tab)"
+            }
 
         # Create Asana task
         task_name = f"📅 Review {data.month} {data.year} Campaign Calendar"
@@ -1324,17 +1499,17 @@ Once approved, we'll move forward with campaign execution."""
             "success": True,
             "task_gid": task_gid,
             "task_url": task_url,
+            "config_needed": False,
             "message": "Asana task created successfully"
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error creating Asana task: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create Asana task: {str(e)}"
-        )
+        logger.error(f"Error creating Asana task: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": f"Failed to create Asana task: {str(e)}",
+            "config_needed": False
+        }
 
 @router.get("/approval/{approval_id}")
 async def get_approval(
