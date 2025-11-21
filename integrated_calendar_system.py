@@ -122,7 +122,7 @@ class IntegratedCalendarSystem:
         
         try:
             # Import Secret Manager service
-            from app.services.secrets import SecretManagerService
+            from app.services.secret_manager import SecretManagerService
             
             # Get project ID from environment or use default
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")

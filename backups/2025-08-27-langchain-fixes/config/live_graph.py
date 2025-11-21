@@ -122,7 +122,7 @@ def pull_klaviyo_node(state: CalendarState) -> CalendarState:
         if not klaviyo_key and klaviyo_secret_name:
             logger.info(f"📝 Found secret reference: {klaviyo_secret_name}")
             try:
-                from app.services.secrets import SecretManagerService
+                from app.services.secret_manager import SecretManagerService
                 secret_manager = SecretManagerService(os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321"))
                 
                 # The secret name is already formatted correctly
@@ -145,7 +145,7 @@ def pull_klaviyo_node(state: CalendarState) -> CalendarState:
         if not klaviyo_key:
             # Final fallback - try standard secret names
             try:
-                from app.services.secrets import SecretManagerService
+                from app.services.secret_manager import SecretManagerService
                 secret_manager = SecretManagerService(os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321"))
                 
                 # Try client-specific key

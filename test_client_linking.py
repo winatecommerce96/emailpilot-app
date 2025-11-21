@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '.'))
 
 from app.services.client_linking import ClientLinkingService
 from app.services.klaviyo_discovery import KlaviyoDiscoveryService
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 async def test_client_linking():
     """Test client linking functionality"""

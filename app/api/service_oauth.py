@@ -4,7 +4,7 @@ from app.deps import get_db, get_secret_manager_service
 from app.services.auth import get_current_user
 from google.cloud import firestore
 from app.core.settings import get_settings, Settings
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 import httpx
 import secrets
 import json

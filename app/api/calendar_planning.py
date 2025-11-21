@@ -18,7 +18,7 @@ from app.services.gemini_service import GeminiService
 from app.services.client_key_resolver import get_client_key_resolver
 from app.deps.firestore import get_db
 from app.deps.secrets import get_secret_manager_service
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/calendar/planning", tags=["Calendar Planning"])

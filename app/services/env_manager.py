@@ -6,7 +6,7 @@ import os
 import logging
 from fastapi import Depends
 from app.deps import get_secret_manager_service
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from pathlib import Path
 from typing import Dict, Optional, Any
 from datetime import datetime

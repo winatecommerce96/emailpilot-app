@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any
 from google.cloud import firestore
 from fastapi import Depends
 from app.deps.firestore import get_db
-from app.services.secrets import SecretManagerService, SecretNotFoundError
+from app.services.secret_manager import SecretManagerService, SecretNotFoundError
 from app.deps import get_secret_manager_service
 
 logger = logging.getLogger(__name__)

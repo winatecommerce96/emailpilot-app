@@ -14,7 +14,7 @@ import uuid
 from google.cloud import firestore
 
 from app.deps import get_db
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.deps import get_secret_manager_service
 from app.services.mcp_calendar_service import MCPCalendarService
 

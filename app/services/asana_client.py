@@ -13,7 +13,7 @@ class AsanaClient:
     """Lightweight Asana API client using PAT (Personal Access Token).
 
     Notes:
-    - Uses Bearer token from Secret Manager (typically stored as `asana-api-token`).
+    - Uses Bearer token from Secret Manager (stored as `asana-access-token`).
     - Minimal helpers for common list operations with pagination.
     """
 
@@ -138,14 +138,29 @@ class AsanaClient:
         due_on: Optional[str] = None,
         assignee: Optional[str] = None,
         custom_fields: Optional[Dict[str, Any]] = None,
+        projects: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Create an Asana task in the specified project."""
+        """Create an Asana task in the specified project.
+
+        Args:
+            name: Task name
+            project_gid: Primary project GID (for backwards compatibility)
+            notes: Task description
+            due_on: Due date (YYYY-MM-DD format)
+            assignee: Assignee GID
+            custom_fields: Custom field values (dict of field_gid: value)
+            projects: List of project GIDs to multi-home the task (overrides project_gid if provided)
+        """
         if not name or not project_gid:
             raise ValueError("Task name and project_gid are required")
+
+        # Use projects list if provided, otherwise use single project_gid
+        project_list = projects if projects else [project_gid]
+
         payload = {
             "data": {
                 "name": name,
-                "projects": [project_gid],
+                "projects": project_list,
             }
         }
         if notes:
@@ -180,3 +195,104 @@ class AsanaClient:
         if opt_fields:
             params["opt_fields"] = opt_fields
         return await self._get(f"/tasks/{task_gid}", params=params)
+
+    async def get_project_custom_fields(self, project_gid: str) -> List[Dict[str, Any]]:
+        """Get custom fields for a project.
+
+        Returns list of custom field objects with 'gid', 'name', 'type', etc.
+        """
+        if not project_gid:
+            raise ValueError("project_gid is required")
+
+        data = await self._get(f"/projects/{project_gid}", params={"opt_fields": "custom_field_settings.custom_field"})
+        custom_field_settings = data.get("data", {}).get("custom_field_settings", [])
+
+        return [setting.get("custom_field", {}) for setting in custom_field_settings]
+
+    async def find_custom_field_by_name(self, project_gid: str, field_name: str) -> Optional[Dict[str, Any]]:
+        """Find a custom field in a project by name (case-insensitive).
+
+        Returns the custom field object if found, None otherwise.
+        """
+        custom_fields = await self.get_project_custom_fields(project_gid)
+
+        for field in custom_fields:
+            if field.get("name", "").lower() == field_name.lower():
+                return field
+
+        return None
+
+    async def get_project(self, project_gid: str, opt_fields: Optional[str] = None) -> Dict[str, Any]:
+        """Get project details.
+
+        Args:
+            project_gid: Project GID
+            opt_fields: Optional fields to include in response
+        """
+        if not project_gid:
+            raise ValueError("project_gid is required")
+
+        params: Dict[str, Any] = {}
+        if opt_fields:
+            params["opt_fields"] = opt_fields
+
+        return await self._get(f"/projects/{project_gid}", params=params)
+
+    async def get_workspace_projects(self, workspace_gid: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all projects in a workspace.
+
+        Args:
+            workspace_gid: Workspace GID (optional, will fetch from /me if not provided)
+
+        Returns:
+            List of project objects
+        """
+        # If no workspace GID provided, get it from /me
+        if not workspace_gid:
+            me = await self.me()
+            workspaces = me.get("data", {}).get("workspaces", [])
+            if not workspaces:
+                logger.warning("No workspaces found for current user")
+                return []
+            workspace_gid = workspaces[0].get("gid")
+            logger.info(f"Using workspace {workspace_gid}")
+
+        # Get all projects with pagination
+        projects: List[Dict[str, Any]] = []
+        next_offset: Optional[str] = None
+        params: Dict[str, Any] = {
+            "workspace": workspace_gid,
+            "opt_fields": "gid,name,archived"
+        }
+
+        while True:
+            if next_offset:
+                params["offset"] = next_offset
+            page = await self._get("/projects", params=params)
+            items = page.get("data", [])
+            projects.extend(items)
+            next_page = page.get("next_page") or {}
+            next_offset = next_page.get("offset")
+            if not next_offset:
+                break
+
+        logger.info(f"Found {len(projects)} projects in workspace")
+        return projects
+
+    async def get_project_sections(self, project_gid: str) -> List[Dict[str, Any]]:
+        """Get all sections for a project.
+
+        Args:
+            project_gid: Project GID
+
+        Returns:
+            List of section objects with 'gid' and 'name'
+        """
+        if not project_gid:
+            raise ValueError("project_gid is required")
+
+        data = await self._get(f"/projects/{project_gid}/sections")
+        sections = data.get("data", [])
+
+        logger.info(f"Found {len(sections)} sections in project {project_gid}")
+        return sections

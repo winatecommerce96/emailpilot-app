@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from google.cloud import firestore
 from app.services.firestore import build_firestore_client
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

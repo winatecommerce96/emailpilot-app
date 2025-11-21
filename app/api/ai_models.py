@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from google.cloud import firestore
 from app.deps import get_db
 from app.deps.secrets import get_secret_manager_service
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.services.ai_models_service import AIModelsService
 from app.services.model_catalog import get_model_catalog
 import json

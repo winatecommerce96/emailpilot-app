@@ -1,0 +1,48 @@
+{
+  "client_id": "test-client-strategy",
+  "events": [
+    {
+      "client_id": "test-client-strategy",
+      "title": "Product Launch Email",
+      "event_date": "2026-02-15",
+      "content": "Announce new product line",
+      "event_type": "email",
+      "color": "bg-blue-500 text-white",
+      "segment": "VIP Customers",
+      "send_time": "10:00 AM",
+      "subject_a": "Introducing Our Latest Innovation"
+    },
+    {
+      "client_id": "test-client-strategy",
+      "title": "Follow-up Email",
+      "event_date": "2026-02-18",
+      "content": "Reminder about product launch",
+      "event_type": "email",
+      "color": "bg-green-500 text-white",
+      "segment": "All Active Users",
+      "send_time": "2:00 PM",
+      "subject_a": "Do Not Miss Out on Our New Collection"
+    },
+    {
+      "client_id": "test-client-strategy",
+      "title": "Final Offer Email",
+      "event_date": "2026-02-22",
+      "content": "Last chance promotion",
+      "event_type": "email",
+      "color": "bg-red-500 text-white",
+      "segment": "Cart Abandoners",
+      "send_time": "6:00 PM",
+      "subject_a": "Last Chance: 20% Off Ends Tonight"
+    }
+  ],
+  "strategy_summary": {
+    "key_insights": [
+      "Focus on early adopters and VIP customers first",
+      "Build urgency with time-limited offers",
+      "Segment messaging based on engagement level"
+    ],
+    "targeting_approach": "Start with VIP customers for exclusive early access, then expand to broader audience with different messaging. Target cart abandoners last with urgency-driven offers.",
+    "timing_strategy": "Tuesday morning for VIP launch (highest open rates), Friday afternoon for broad announcement (weekend planning), Sunday evening for final push (decision time).",
+    "content_strategy": "Lead with exclusivity and innovation for VIPs, emphasize value and benefits for general audience, create urgency and FOMO for late-stage prospects."
+  }
+}

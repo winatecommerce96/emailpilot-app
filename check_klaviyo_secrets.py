@@ -35,7 +35,7 @@ def check_klaviyo_secrets():
     
     try:
         # Import after setting up path
-        from app.services.secrets import SecretManagerService, SecretNotFoundError, SecretError
+        from app.services.secret_manager import SecretManagerService, SecretNotFoundError, SecretError
         
         # Initialize SecretManager directly
         secret_manager = SecretManagerService(project_id=project_id)
@@ -126,7 +126,7 @@ def check_klaviyo_secrets():
 def list_all_secrets():
     """List all secrets in the project for debugging"""
     try:
-        from app.services.secrets import SecretManagerService
+        from app.services.secret_manager import SecretManagerService
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
         if not project_id:
             print("❌ GOOGLE_CLOUD_PROJECT not set")

@@ -276,7 +276,7 @@ import signal
 import requests
 
 # Import the new SecretManagerService
-from app.services.secrets import SecretManagerService, SecretError, SecretNotFoundError, SecretPermissionError
+from app.services.secret_manager import SecretManagerService, SecretError, SecretNotFoundError, SecretPermissionError
 
 # Import settings for configuration
 from app.core.settings import get_settings

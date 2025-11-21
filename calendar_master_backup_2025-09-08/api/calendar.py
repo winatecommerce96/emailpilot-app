@@ -39,7 +39,7 @@ from app.schemas.calendar import CampaignPlanRequest, CampaignPlanResponse, Cale
 from app.services.gemini_service import GeminiService
 
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

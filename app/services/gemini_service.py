@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timedelta
 
 from app.schemas.calendar import CalendarEventResponse, AIResponse, AIAction
-from app.services.secrets import SecretManagerService, SecretNotFoundError
+from app.services.secret_manager import SecretManagerService, SecretNotFoundError
 from app.deps import get_secret_manager_service
 
 logger = logging.getLogger(__name__)

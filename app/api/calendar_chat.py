@@ -188,20 +188,23 @@ class CalendarCommandParser:
     
     @staticmethod
     def parse_delete_command(message: str) -> Optional[Dict[str, Any]]:
-        """Parse delete campaign commands."""
+        """Parse delete campaign/event commands."""
         delete_patterns = [
-            r"delete\s+(?:the\s+)?campaign\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
-            r"remove\s+(?:the\s+)?campaign\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
-            r"cancel\s+(?:the\s+)?(?:email|campaign)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            # With event/campaign/email keyword
+            r"delete\s+(?:the\s+)?(?:event|campaign|email)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            r"remove\s+(?:the\s+)?(?:event|campaign|email)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            r"cancel\s+(?:the\s+)?(?:event|campaign|email)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            # More flexible: delete + "the" + day
+            r"(?:delete|remove|cancel)\s+(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
         ]
-        
+
         message_lower = message.lower()
-        
+
         for pattern in delete_patterns:
             match = re.search(pattern, message_lower)
             if match:
                 day = int(match.group(1))
-                
+
                 return {
                     "action": "delete",
                     "day": day

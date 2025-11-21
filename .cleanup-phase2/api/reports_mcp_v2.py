@@ -34,7 +34,7 @@ except ImportError:
 
 # Type checking imports
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
     from app.services.ai_models_service import AIModelsService
     from app.services.slack_alerts import SlackAlertService
 

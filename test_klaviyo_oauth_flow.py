@@ -20,7 +20,7 @@ from typing import Dict, Any, Optional
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.services.klaviyo_discovery import KlaviyoDiscoveryService
 from google.cloud import firestore
 import httpx

@@ -20,12 +20,12 @@ from app.services.client_key_resolver import ClientKeyResolver, get_client_key_r
 
 # Type checking imports
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
     from app.services.klaviyo_client import KlaviyoClient
 
 # Import Secret Manager service and KlaviyoClient for runtime
 try:
-    from app.services.secrets import SecretManagerService as _SecretManagerService
+    from app.services.secret_manager import SecretManagerService as _SecretManagerService
     from app.services.klaviyo_client import KlaviyoClient as _KlaviyoClient
     
     def get_secret(name: str) -> Optional[str]:
@@ -255,7 +255,7 @@ async def get_environment_info(settings: Settings = Depends(get_settings)):
         secret_manager_available = False
         secret_manager_error = None
         try:
-            from app.services.secrets import SecretManagerService
+            from app.services.secret_manager import SecretManagerService
             if firestore_project:
                 test_service = SecretManagerService(firestore_project)
                 # Quick test - try to list secrets
@@ -387,6 +387,41 @@ async def get_client_details(
         logger.error("Error fetching client details: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
+# Legacy endpoint for old calendar HTML files (calendar_v4_nov8.html, etc.)
+@router.get("/clients")
+async def get_all_clients_legacy():
+    """Legacy GET /api/admin/clients - fetches from orchestrator with asana_project_link"""
+    import httpx
+    import logging
+
+    logger = logging.getLogger(__name__)
+    orchestrator_url = "https://emailpilot-orchestrator-935786836546.us-central1.run.app/api/clients"
+
+    logger.info(f"🔄 [LEGACY] GET /api/admin/clients called - fetching from orchestrator: {orchestrator_url}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(orchestrator_url, timeout=10.0)
+            logger.info(f"📡 [LEGACY] Orchestrator response status: {response.status_code}")
+
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ [LEGACY] Successfully fetched {len(data)} clients from orchestrator")
+
+                # Flatten asana_project_link from metadata to top level for old calendar compatibility
+                for client in data:
+                    if 'metadata' in client and 'asana_project_link' in client['metadata']:
+                        client['asana_project_link'] = client['metadata']['asana_project_link']
+                        logger.info(f"📌 [LEGACY] Flattened asana_project_link for {client.get('name')}")
+
+                return data
+            else:
+                logger.warning(f"⚠️ [LEGACY] Orchestrator returned non-200: {response.status_code}")
+                raise HTTPException(status_code=502, detail=f"Orchestrator returned {response.status_code}")
+
+    except Exception as e:
+        logger.error(f"❌ [LEGACY] Error fetching from orchestrator: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch from orchestrator: {str(e)}")
 
 @router.post("/clients")
 async def create_client(

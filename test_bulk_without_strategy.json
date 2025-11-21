@@ -1,0 +1,21 @@
+{
+  "client_id": "test-client-no-strategy",
+  "events": [
+    {
+      "client_id": "test-client-no-strategy",
+      "title": "Weekly Newsletter",
+      "event_date": "2026-03-01",
+      "content": "Standard weekly newsletter",
+      "event_type": "email",
+      "color": "bg-purple-500 text-white"
+    },
+    {
+      "client_id": "test-client-no-strategy",
+      "title": "Product Update",
+      "event_date": "2026-03-05",
+      "content": "New product features",
+      "event_type": "email",
+      "color": "bg-blue-500 text-white"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ No files written to disk, no environment variables needed.
 import os
 from google.cloud import firestore
 from google.oauth2 import service_account
-from app.services.secrets import SecretError
+from app.services.secret_manager import SecretError
 
 def build_firestore_client(project_id: str, sa_json: dict = None) -> firestore.Client:
     """Build Firestore client with service account credentials or default credentials."""

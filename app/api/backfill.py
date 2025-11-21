@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from app.services.klaviyo_data_service import KlaviyoDataService
 from app.deps.firestore import get_db
 from app.services.client_key_resolver import ClientKeyResolver
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from google.cloud import firestore
 import os
 

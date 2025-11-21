@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from google.cloud import firestore
 from google.cloud import secretmanager
+import httpx
 
 # Import authentication dependency
 from app.api.clerk_auth import verify_clerk_session
@@ -337,78 +338,67 @@ async def run_workflow(
     db: firestore.Client = Depends(get_db)
 ):
     """
-    Execute workflow stage or full workflow.
+    Execute workflow via emailpilot-simple API.
 
-    Requires authentication. Jobs are associated with the authenticated user.
-
-    For full workflow:
-    - Returns immediately with job_id
-    - Workflow executes in background
-    - Poll GET /calendar/jobs/{job_id} for status
-
-    For individual stages:
-    - Executes synchronously
-    - Returns results directly
+    Triggers the emailpilot-simple checkpoint workflow which:
+    - Runs Stage 1 (MCP data gathering) and Stage 2 (Calendar generation)
+    - Returns a job_id to poll for status
+    - Calendar data is pushed via /api/calendar/import when ready
     """
-    await initialize_calendar_components()
-
-    user_id = current_user.get("user_id") or current_user.get("email")
-    calendar_tool = _calendar_state['calendar_tool']
-
     client_name = request.client_name
     start_date = request.start_date
     end_date = request.end_date
     stage = request.stage
-    prompt_name = request.prompt_name
 
-    logger.info(f"User {user_id} requested workflow: client={client_name}, stage={stage}")
+    logger.info(f"Triggering emailpilot-simple workflow: client={client_name}, stage={stage}")
+
+    # Get emailpilot-simple URL from environment or default to localhost:9000
+    emailpilot_simple_url = os.getenv("EMAILPILOT_SIMPLE_URL", "http://localhost:9000")
 
     if stage == 'full':
-        # Full workflow - execute in background
-        job_id = str(uuid.uuid4())
+        # Call emailpilot-simple checkpoint workflow
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{emailpilot_simple_url}/api/workflows/checkpoint",
+                    json={
+                        "clientName": client_name,
+                        "startDate": start_date,
+                        "endDate": end_date,
+                        "userInstructions": request.prompt_name or ""
+                    }
+                )
 
-        job_data = {
-            'job_id': job_id,
-            'status': 'queued',
-            'client_name': client_name,
-            'start_date': start_date,
-            'end_date': end_date,
-            'user_id': user_id,
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat(),
-            'current_stage': None,
-            'results': None,
-            'error': None
-        }
+                if response.status_code == 200:
+                    result = response.json()
+                    job_id = result.get("data", {}).get("job_id") or result.get("job_id")
+                    workflow_id = result.get("data", {}).get("workflow_id") or result.get("workflow_id")
 
-        # Store in memory
-        _calendar_state['workflow_status'][job_id] = job_data
+                    logger.info(f"emailpilot-simple workflow started: job_id={job_id}, workflow_id={workflow_id}")
 
-        # Persist to Firestore
-        db.collection("calendar_jobs").document(job_id).set(job_data)
+                    return standard_response(
+                        success=True,
+                        data={
+                            'job_id': job_id,
+                            'workflow_id': workflow_id,
+                            'status': 'queued',
+                            'message': 'Workflow started via emailpilot-simple. Calendar will be imported automatically when ready.',
+                            'status_url': f"{emailpilot_simple_url}/api/workflows/status/{job_id}"
+                        }
+                    )
+                else:
+                    error_msg = f"emailpilot-simple returned {response.status_code}: {response.text}"
+                    logger.error(error_msg)
+                    raise HTTPException(status_code=response.status_code, detail=error_msg)
 
-        # Schedule background task
-        background_tasks.add_task(
-            execute_workflow_background,
-            job_id,
-            client_name,
-            start_date,
-            end_date,
-            user_id,
-            calendar_tool,
-            db
-        )
-
-        logger.info(f"[Job {job_id}] Queued for user {user_id}")
-
-        return standard_response(
-            success=True,
-            data={
-                'job_id': job_id,
-                'status': 'queued',
-                'message': 'Workflow started in background. Poll /api/calendar/jobs/{job_id} for status.'
-            }
-        )
+        except httpx.ConnectError as e:
+            error_msg = f"Cannot connect to emailpilot-simple at {emailpilot_simple_url}. Is it running?"
+            logger.error(f"{error_msg}: {e}")
+            raise HTTPException(status_code=503, detail=error_msg)
+        except httpx.TimeoutException as e:
+            error_msg = f"Timeout connecting to emailpilot-simple"
+            logger.error(f"{error_msg}: {e}")
+            raise HTTPException(status_code=504, detail=error_msg)
 
     # Individual stage execution (synchronous)
     try:
@@ -1701,6 +1691,273 @@ async def get_conversation(client: str):
     """
     return {"messages": [], "client": client}
 
+# ============================================================================
+# Workflow Integration Endpoints (Brief Generation)
+# ============================================================================
+
+class WorkflowCalendarUpdate(BaseModel):
+    """Request model for updating calendar in workflow"""
+    detailed_calendar: Dict[str, Any] = Field(..., description="The full, modified calendar JSON")
+    simplified_calendar: Optional[Dict[str, Any]] = Field(None, description="Optional simplified view")
+
+class WorkflowApproveRequest(BaseModel):
+    """Request model for approving workflow for brief generation"""
+    reviewer_id: Optional[str] = Field(None, description="Optional reviewer identifier")
+
+@router.put("/workflow/{workflow_id}/calendar")
+async def save_workflow_calendar(
+    workflow_id: str,
+    data: WorkflowCalendarUpdate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Save modified calendar data for a workflow.
+
+    This endpoint is called when the user saves changes to the calendar
+    before generating briefs. The workflow_id corresponds to the approval_id.
+    """
+    try:
+        # Use approval_pages collection with workflow_id as document ID
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        # Update calendar data
+        update_data = {
+            "events": data.detailed_calendar.get("campaigns", data.detailed_calendar.get("events", [])),
+            "workflow_calendar_updated": True,
+            "workflow_calendar_updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        if data.simplified_calendar:
+            update_data["simplified_calendar"] = data.simplified_calendar
+
+        workflow_ref.update(update_data)
+
+        logger.info(f"Saved workflow calendar for {workflow_id}")
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "message": "Calendar saved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving workflow calendar: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save calendar: {str(e)}"
+        )
+
+@router.post("/workflow/{workflow_id}/approve-for-briefs")
+async def approve_workflow_for_briefs(
+    workflow_id: str,
+    data: WorkflowApproveRequest,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Approve workflow and mark it ready for brief generation.
+
+    This endpoint is called after the calendar has been reviewed and approved.
+    It marks the workflow as ready for the next stage (brief generation).
+    """
+    try:
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        workflow_data = workflow_doc.to_dict()
+        current_status = workflow_data.get("status", "pending")
+
+        # Verify calendar is approved before allowing brief generation
+        if current_status != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Calendar must be approved before generating briefs. Current status: {current_status}"
+            )
+
+        # Update workflow status
+        update_data = {
+            "brief_generation_approved": True,
+            "brief_generation_approved_at": datetime.utcnow().isoformat(),
+            "brief_generation_approved_by": data.reviewer_id,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        workflow_ref.update(update_data)
+
+        logger.info(f"Workflow {workflow_id} approved for brief generation")
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "status": "approved_for_briefs",
+            "message": "Workflow approved for brief generation"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving workflow for briefs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve workflow: {str(e)}"
+        )
+
+@router.post("/workflow/{workflow_id}/generate-briefs")
+async def generate_briefs(
+    workflow_id: str,
+    background_tasks: BackgroundTasks,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Trigger brief generation for the approved workflow.
+
+    This endpoint starts the brief generation process using the approved
+    calendar data. It runs asynchronously in the background.
+    """
+    try:
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        workflow_data = workflow_doc.to_dict()
+
+        # Verify calendar is approved
+        if workflow_data.get("status") != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Calendar must be approved before generating briefs"
+            )
+
+        # Update status to generating
+        workflow_ref.update({
+            "brief_generation_status": "generating",
+            "brief_generation_started_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        })
+
+        # Get calendar events for brief generation
+        events = workflow_data.get("events", [])
+        client_id = workflow_data.get("client_id")
+        client_name = workflow_data.get("client_name")
+
+        # Background task for brief generation
+        async def generate_briefs_task():
+            try:
+                # TODO: Implement actual brief generation logic
+                # This would call AI service to generate briefs for each campaign
+
+                # For now, mark as complete with placeholder
+                briefs = []
+                for i, event in enumerate(events):
+                    brief = {
+                        "event_id": event.get("id", f"event_{i}"),
+                        "event_name": event.get("title", event.get("name", f"Campaign {i+1}")),
+                        "brief_content": f"Brief for {event.get('title', event.get('name', 'Campaign'))} - To be generated",
+                        "status": "pending_generation",
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                    briefs.append(brief)
+
+                # Update workflow with briefs
+                workflow_ref.update({
+                    "briefs": briefs,
+                    "brief_generation_status": "complete",
+                    "brief_generation_completed_at": datetime.utcnow().isoformat(),
+                    "total_briefs": len(briefs),
+                    "updated_at": datetime.utcnow().isoformat()
+                })
+
+                logger.info(f"Generated {len(briefs)} briefs for workflow {workflow_id}")
+
+            except Exception as e:
+                logger.error(f"Error generating briefs: {e}")
+                workflow_ref.update({
+                    "brief_generation_status": "error",
+                    "brief_generation_error": str(e),
+                    "updated_at": datetime.utcnow().isoformat()
+                })
+
+        # Add to background tasks
+        background_tasks.add_task(generate_briefs_task)
+
+        logger.info(f"Started brief generation for workflow {workflow_id}")
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "status": "generating",
+            "message": f"Brief generation started for {len(events)} campaigns",
+            "total_campaigns": len(events)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting brief generation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start brief generation: {str(e)}"
+        )
+
+@router.get("/workflow/{workflow_id}/status")
+async def get_workflow_status(
+    workflow_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get current status of workflow including brief generation progress.
+    """
+    try:
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        workflow_data = workflow_doc.to_dict()
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "calendar_status": workflow_data.get("status", "pending"),
+            "brief_generation_approved": workflow_data.get("brief_generation_approved", False),
+            "brief_generation_status": workflow_data.get("brief_generation_status", "not_started"),
+            "total_briefs": workflow_data.get("total_briefs", 0),
+            "briefs": workflow_data.get("briefs", [])
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting workflow status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get workflow status: {str(e)}"
+        )
+
 # DISABLED: This stub endpoint conflicts with the real implementation in calendar_grader.py
 # The real endpoint is registered via calendar_grader_router with prefix="/api/calendar"
 # @router.post("/grade")
@@ -1730,3 +1987,249 @@ async def get_conversation(client: str):
 #         "message": "AI chat not yet implemented",
 #         "response": "The AI Assistant feature is coming soon!"
 #     }
+
+
+# ============================================================================
+# WORKFLOW IMPORT ENDPOINT
+# Receives campaign data from EmailPilot Simple after Stage 1-2 completion
+# ============================================================================
+
+class WorkflowImportEvent(BaseModel):
+    """Event object from workflow import"""
+    date: str = Field(..., description="Campaign date in YYYY-MM-DD format")
+    title: str = Field(..., description="Campaign title")
+    type: str = Field(..., description="Event type: promotional, content, engagement, etc.")
+    description: str = Field(..., description="Campaign type for classification")
+    send_time: str = Field(..., description="Send time in HH:MM format")
+    segment: Optional[str] = Field(None, description="Target segment")
+    strategy: Optional[Dict[str, Any]] = Field(None, description="Per-event strategy details")
+
+    # Email creative fields
+    subject_a: Optional[str] = Field(None, description="Primary subject line")
+    subject_b: Optional[str] = Field(None, description="A/B test variant subject line")
+    preview_text: Optional[str] = Field(None, description="Email preview text")
+    main_cta: Optional[str] = Field(None, description="Call-to-action button text")
+    offer: Optional[str] = Field(None, description="Offer summary")
+
+    # Content planning fields
+    content_brief: Optional[str] = Field(None, description="Content description for brief generation")
+    template_type: Optional[str] = Field(None, description="Email template/layout type")
+
+class WorkflowSendStrategy(BaseModel):
+    """Overall send strategy for the calendar period"""
+    period_overview: Optional[str] = None
+    key_objectives: Optional[Any] = None  # Can be List[str] or str
+    cadence_strategy: Optional[str] = None
+    audience_strategy: Optional[str] = None
+    performance_goals: Optional[str] = None
+
+class WorkflowImportRequest(BaseModel):
+    """Request schema for workflow calendar import"""
+    client_id: str = Field(..., description="Client identifier")
+    send_strategy: Optional[WorkflowSendStrategy] = Field(None, description="Overall strategy for the period")
+    events: List[WorkflowImportEvent] = Field(..., description="Array of campaign events")
+
+@router.post("/import")
+async def import_from_workflow(
+    request: WorkflowImportRequest,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Import calendar events from EmailPilot Simple workflow.
+
+    This endpoint receives campaign calendar data after Stage 1-2 completion,
+    including per-event strategy and overall send strategy for the period.
+
+    Returns:
+        Success response with count of imported events and strategy status.
+    """
+    try:
+        created_events = []
+        event_ids = []
+        batch = db.batch()
+
+        # Map event type colors for UI display
+        type_colors = {
+            'promotional': 'bg-red-100 text-red-800',
+            'content': 'bg-blue-100 text-blue-800',
+            'engagement': 'bg-green-100 text-green-800',
+            'product_launch': 'bg-purple-100 text-purple-800',
+            'seasonal': 'bg-orange-100 text-orange-800',
+            'educational': 'bg-cyan-100 text-cyan-800',
+            'win_back': 'bg-yellow-100 text-yellow-800',
+            'nurture': 'bg-indigo-100 text-indigo-800',
+            'lifecycle': 'bg-pink-100 text-pink-800'
+        }
+
+        # Process each event
+        for event in request.events:
+            # Build event data with field mapping
+            event_data = {
+                'client_id': request.client_id,
+                'title': event.title,
+                'event_date': event.date,  # Store as string YYYY-MM-DD
+                'event_type': event.type,
+                'campaign_type': event.description,  # Store campaign classification
+                'content': event.content_brief or event.description,  # Use content_brief if available
+                'send_time': event.send_time,
+                'segment': event.segment,
+                'color': type_colors.get(event.type, type_colors.get(event.description, 'bg-gray-200 text-gray-800')),
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat(),
+                'imported_from_workflow': True,
+                'import_source': 'emailpilot-simple',
+
+                # Email creative fields
+                'subject_a': event.subject_a,
+                'subject_b': event.subject_b,
+                'preview_text': event.preview_text,
+                'main_cta': event.main_cta,
+                'offer': event.offer,
+
+                # Content planning fields
+                'content_brief': event.content_brief,
+                'template_type': event.template_type
+            }
+
+            # Store per-event strategy if provided
+            if event.strategy:
+                event_data['strategy'] = event.strategy
+
+                # Also extract key strategy fields for easy querying
+                if 'performance_forecast' in event.strategy:
+                    forecast = event.strategy['performance_forecast']
+                    event_data['estimated_sends'] = forecast.get('estimated_sends')
+                    event_data['predicted_open_rate'] = forecast.get('predicted_open_rate')
+                    event_data['predicted_click_rate'] = forecast.get('predicted_click_rate')
+                    event_data['predicted_conversion_rate'] = forecast.get('predicted_conversion_rate')
+                    event_data['estimated_revenue'] = forecast.get('estimated_revenue')
+                    event_data['confidence_level'] = forecast.get('confidence_level')
+
+                if 'ab_test' in event.strategy:
+                    event_data['ab_test'] = event.strategy['ab_test'].get('element')
+                    event_data['ab_test_hypothesis'] = event.strategy['ab_test'].get('hypothesis')
+
+            # Create document
+            doc_ref = db.collection("calendar_events").document()
+            batch.set(doc_ref, event_data)
+
+            event_ids.append(doc_ref.id)
+            created_events.append({
+                'id': doc_ref.id,
+                'title': event.title,
+                'event_date': event.date,
+                'event_type': event.type
+            })
+
+        # Commit all events
+        batch.commit()
+        logger.info(f"Workflow import: Created {len(created_events)} events for client {request.client_id}")
+
+        # Handle send_strategy -> strategy_summaries
+        has_send_strategy = False
+        if request.send_strategy:
+            try:
+                # Get date range from events
+                event_dates = [event.date for event in request.events]
+                start_date = min(event_dates)
+                end_date = max(event_dates)
+
+                # Map send_strategy to strategy_summary format
+                key_objectives = request.send_strategy.key_objectives
+                if isinstance(key_objectives, str):
+                    key_objectives = [key_objectives]
+                elif not key_objectives:
+                    key_objectives = []
+
+                strategy_data = {
+                    'client_id': request.client_id,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'key_insights': key_objectives,
+                    'targeting_approach': request.send_strategy.audience_strategy or '',
+                    'timing_strategy': request.send_strategy.cadence_strategy or '',
+                    'content_strategy': request.send_strategy.period_overview or '',
+                    'performance_goals': request.send_strategy.performance_goals or '',
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow(),
+                    'generated_by': 'emailpilot-simple-workflow',
+                    'event_count': len(request.events),
+                    'import_source': 'workflow'
+                }
+
+                # Save to strategy_summaries collection
+                strategy_ref = db.collection("strategy_summaries").document()
+                strategy_ref.set(strategy_data)
+
+                has_send_strategy = True
+                logger.info(f"Saved send strategy for client {request.client_id} ({start_date} to {end_date})")
+
+            except Exception as e:
+                logger.error(f"Error saving send strategy: {e}")
+                # Don't fail the request if strategy save fails
+
+        return {
+            "success": True,
+            "message": "Calendar imported successfully" + (" with strategy" if has_send_strategy else ""),
+            "events_imported": len(created_events),
+            "client_id": request.client_id,
+            "has_send_strategy": has_send_strategy,
+            "event_ids": event_ids
+        }
+
+    except Exception as e:
+        logger.error(f"Error importing from workflow: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": "Failed to import calendar",
+            "details": str(e)
+        }
+
+
+@router.get("/strategy-summary/{client_id}")
+async def get_strategy_summary(
+    client_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """Get the most recent strategy summary for a client"""
+    try:
+        # Query strategy_summaries for this client, ordered by created_at descending
+        strategy_ref = db.collection("strategy_summaries")
+        query = strategy_ref.where("client_id", "==", client_id).order_by(
+            "created_at", direction=firestore.Query.DESCENDING
+        ).limit(1)
+
+        docs = query.stream()
+        strategy_doc = None
+        for doc in docs:
+            strategy_doc = doc.to_dict()
+            break
+
+        if strategy_doc:
+            return {
+                "success": True,
+                "client_id": client_id,
+                "strategy": {
+                    "period_overview": strategy_doc.get("content_strategy") or strategy_doc.get("period_overview"),
+                    "key_objectives": strategy_doc.get("key_objectives"),
+                    "cadence_strategy": strategy_doc.get("timing_strategy") or strategy_doc.get("cadence_strategy"),
+                    "audience_strategy": strategy_doc.get("audience_strategy"),
+                    "performance_goals": strategy_doc.get("performance_goals"),
+                    "start_date": strategy_doc.get("start_date"),
+                    "end_date": strategy_doc.get("end_date"),
+                    "event_count": strategy_doc.get("event_count")
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "client_id": client_id,
+                "strategy": None
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching strategy summary: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

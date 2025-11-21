@@ -13,7 +13,7 @@ import os
 
 from app.services.klaviyo_discovery import KlaviyoDiscoveryService
 from app.services.client_linking import ClientLinkingService
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.services.auth import get_current_user
 from pydantic import BaseModel
 

@@ -10,7 +10,7 @@ import logging
 import httpx
 from datetime import datetime
 
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

@@ -22,7 +22,7 @@ from app.repositories.clients_repo import ClientsRepository
 from app.services.auth import get_current_user
 from app.services.crypto_service import get_crypto_service
 from app.services.klaviyo_oauth_service import KlaviyoOAuthService
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 
