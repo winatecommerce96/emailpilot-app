@@ -6091,7 +6091,7 @@
 
             renderMultiDayBars(container, year, month, firstDay, daysInMonth) {
                 // Remove any existing bar container
-                const existingBars = container.parentElement.querySelector('.multi-day-bars-overlay');
+                const existingBars = container.querySelector('.multi-day-bars-overlay');
                 if (existingBars) existingBars.remove();
 
                 if (!this.multiDayCampaigns || this.multiDayCampaigns.length === 0) return;
@@ -6105,11 +6105,13 @@
                 const dayCells = container.querySelectorAll('.calendar-day');
                 if (dayCells.length === 0) return;
 
+                // Make container relative for absolute positioning
+                container.style.position = 'relative';
+
                 // Calculate cell dimensions after render
                 setTimeout(() => {
                     const firstCell = dayCells[0];
-                    const cellWidth = firstCell.offsetWidth;
-                    const cellHeight = firstCell.offsetHeight;
+                    const containerRect = container.getBoundingClientRect();
 
                     // Track vertical slots used per row to stack multiple events
                     const rowSlots = {};
@@ -6158,14 +6160,23 @@
                             }
                             rowSlots[row][slot] = segmentEndIndex + 1;
 
-                            // Calculate bar position
-                            const startCol = segmentStartIndex % 7;
-                            const endCol = segmentEndIndex % 7;
-                            const spanCells = endCol - startCol + 1;
+                            // Get actual cell positions from DOM
+                            const startCell = dayCells[segmentStartIndex];
+                            const endCell = dayCells[segmentEndIndex];
 
-                            const left = startCol * cellWidth + 2;
-                            const width = spanCells * cellWidth - 4;
-                            const top = row * cellHeight + 28 + (slot * 24);
+                            if (!startCell || !endCell) {
+                                currentDate.setDate(currentDate.getDate() + 1);
+                                continue;
+                            }
+
+                            const startRect = startCell.getBoundingClientRect();
+                            const endRect = endCell.getBoundingClientRect();
+
+                            // Calculate position relative to container
+                            const left = startRect.left - containerRect.left + 2;
+                            const width = (endRect.right - startRect.left) - 4;
+                            // Position 50px from top of cell (below day number and holidays)
+                            const top = startRect.top - containerRect.top + 50 + (slot * 26);
 
                             // Determine if bar continues from/to adjacent weeks
                             const continuesLeft = segmentStartDate > startDate;
@@ -6192,8 +6203,7 @@
                         }
                     });
 
-                    container.parentElement.style.position = 'relative';
-                    container.parentElement.appendChild(barsOverlay);
+                    container.appendChild(barsOverlay);
                 }, 0);
             }
 
@@ -6960,12 +6970,53 @@
                 showSaveStatus('saving', 'Saving to cloud...');
                 
                 try {
-                    // Get month range
+                    // Calculate visible date range (including adjacent month dates in the grid)
+                    // This must match the date range in loadCampaigns and startSyncPolling
                     const year = this.selectedDate.getFullYear();
-                    const month = String(this.selectedDate.getMonth() + 1).padStart(2, '0');
-                    const monthStart = `${year}-${month}-01`;
-                    const monthEnd = `${year}-${month}-31`;
-                    
+                    const month = this.selectedDate.getMonth(); // 0-11
+
+                    // Get first day of month and calculate how many previous month days are visible
+                    const firstDayOfMonth = new Date(year, month, 1);
+                    const firstDay = firstDayOfMonth.getDay(); // 0 = Sunday
+
+                    // Calculate previous month info
+                    const prevMonth = month === 0 ? 11 : month - 1;
+                    const prevMonthYear = month === 0 ? year - 1 : year;
+                    const daysInPrevMonth = new Date(prevMonthYear, prevMonth + 1, 0).getDate();
+
+                    // Calculate current month info
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                    // Calculate next month info
+                    const totalCellsForCurrentMonth = firstDay + daysInMonth;
+                    const cellsNeeded = Math.ceil(totalCellsForCurrentMonth / 7) * 7;
+                    const nextMonthDays = cellsNeeded - totalCellsForCurrentMonth;
+
+                    // Start date: include previous month's trailing days if needed
+                    let queryStartDate;
+                    if (firstDay > 0) {
+                        const prevMonthStartDay = daysInPrevMonth - firstDay + 1;
+                        queryStartDate = new Date(prevMonthYear, prevMonth, prevMonthStartDay);
+                    } else {
+                        queryStartDate = new Date(year, month, 1);
+                    }
+
+                    // End date: include next month's leading days if needed
+                    let queryEndDate;
+                    if (nextMonthDays > 0) {
+                        const nextMonth = month === 11 ? 0 : month + 1;
+                        const nextMonthYear = month === 11 ? year + 1 : year;
+                        queryEndDate = new Date(nextMonthYear, nextMonth, nextMonthDays);
+                    } else {
+                        queryEndDate = new Date(year, month, daysInMonth);
+                    }
+
+                    // Format as YYYY-MM-DD strings for API query
+                    const monthStart = queryStartDate.toISOString().split('T')[0];
+                    const monthEnd = queryEndDate.toISOString().split('T')[0];
+
+                    console.log(`💾 Saving events: ${monthStart} to ${monthEnd} (includes adjacent month dates)`);
+
                     // Fetch existing events
                     const existingResponse = await authenticatedFetch(`/api/calendar/events?client_id=${clientId}&start_date=${monthStart}&end_date=${monthEnd}`);
                     
