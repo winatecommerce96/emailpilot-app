@@ -5087,7 +5087,7 @@
                 <h4 class="text-lg font-semibold mb-3">Or Import from JSON</h4>
                 <div class="form-group">
                     <label class="form-label">Paste JSON or Upload File</label>
-                    <textarea id="multiDayJsonInput" class="form-input" rows="4" placeholder='[{"date": "2026-01-15", "title": "Campaign Name", "type": "promotional", "description": "Details..."}]'></textarea>
+                    <textarea id="multiDayJsonInput" class="form-input" rows="4" placeholder='[{"startDate": "2026-01-15", "endDate": "2026-01-20", "title": "New Year Sale", "type": "promotional", "description": "5-day promotion"}]'></textarea>
                 </div>
                 <div class="flex gap-3">
                     <button type="button" onclick="importMultiDayJson()" class="glow-button primary flex-1">Import JSON</button>
@@ -9894,13 +9894,13 @@
                 if (events.events && Array.isArray(events.events)) {
                     events = events.events;
                 } else {
-                    showJsonImportError(['JSON must be an array of events or have an "events" property containing an array']);
+                    showJsonImportError(['JSON must be an array of reminders or have an "events" property containing an array']);
                     return;
                 }
             }
 
             if (events.length === 0) {
-                showJsonImportError(['No events found in JSON array']);
+                showJsonImportError(['No reminders found in JSON array']);
                 return;
             }
 
@@ -9910,57 +9910,95 @@
             for (let i = 0; i < events.length; i++) {
                 const event = events[i];
                 try {
-                    // Validate required fields
-                    if (!event.date) {
-                        errorMessages.push(`Event ${i + 1}: Missing required "date" field`);
+                    // Validate required fields - need either date (single day) or startDate/endDate (multi-day)
+                    const hasDate = event.date || (event.startDate && event.endDate);
+                    if (!hasDate) {
+                        errorMessages.push(`Reminder ${i + 1}: Missing required date fields (need "date" or "startDate"/"endDate")`);
                         errors++;
                         continue;
                     }
 
                     // Validate date format
                     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-                    if (!dateRegex.test(event.date)) {
-                        errorMessages.push(`Event ${i + 1}: Invalid date format "${event.date}" (use YYYY-MM-DD)`);
+
+                    let startDate, endDate;
+
+                    if (event.startDate && event.endDate) {
+                        // Multi-day format
+                        if (!dateRegex.test(event.startDate)) {
+                            errorMessages.push(`Reminder ${i + 1}: Invalid startDate format "${event.startDate}" (use YYYY-MM-DD)`);
+                            errors++;
+                            continue;
+                        }
+                        if (!dateRegex.test(event.endDate)) {
+                            errorMessages.push(`Reminder ${i + 1}: Invalid endDate format "${event.endDate}" (use YYYY-MM-DD)`);
+                            errors++;
+                            continue;
+                        }
+                        startDate = event.startDate;
+                        endDate = event.endDate;
+                    } else {
+                        // Single date - use same date for start and end
+                        if (!dateRegex.test(event.date)) {
+                            errorMessages.push(`Reminder ${i + 1}: Invalid date format "${event.date}" (use YYYY-MM-DD)`);
+                            errors++;
+                            continue;
+                        }
+                        startDate = event.date;
+                        endDate = event.date;
+                    }
+
+                    // Validate dates are valid
+                    const parsedStart = new Date(startDate);
+                    const parsedEnd = new Date(endDate);
+                    if (isNaN(parsedStart.getTime())) {
+                        errorMessages.push(`Reminder ${i + 1}: Invalid start date "${startDate}"`);
+                        errors++;
+                        continue;
+                    }
+                    if (isNaN(parsedEnd.getTime())) {
+                        errorMessages.push(`Reminder ${i + 1}: Invalid end date "${endDate}"`);
                         errors++;
                         continue;
                     }
 
-                    // Validate date is valid
-                    const parsedDate = new Date(event.date);
-                    if (isNaN(parsedDate.getTime())) {
-                        errorMessages.push(`Event ${i + 1}: Invalid date "${event.date}"`);
+                    // Validate end date is not before start date
+                    if (parsedEnd < parsedStart) {
+                        errorMessages.push(`Reminder ${i + 1}: End date cannot be before start date`);
                         errors++;
                         continue;
                     }
 
                     // Warn if missing title
                     if (!event.title && !event.name) {
-                        errorMessages.push(`Event ${i + 1} (${event.date}): No title provided, using "Imported Campaign"`);
+                        errorMessages.push(`Reminder ${i + 1} (${startDate}): No title provided, using "Imported Reminder"`);
                     }
 
-                    // Create campaign with event data
-                    const campaign = {
+                    // Create multi-day campaign (reminder) matching the format used by addMultiDayCampaign
+                    const multiDayCampaign = {
                         id: `imported_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        title: event.title || event.name || 'Imported Campaign',
-                        date: event.date,
-                        type: event.type || 'campaign',
-                        channel: event.channel || 'email',
-                        segment: event.segment || 'all',
+                        name: event.title || event.name || 'Imported Reminder',
+                        startDate: startDate,
+                        endDate: endDate,
+                        type: event.type || 'promotional',
                         description: event.description || '',
-                        send_time: event.send_time || '10:00',
-                        status: event.status || 'scheduled',
-                        approved: event.approved || false,
-                        strategy: event.strategy || null
+                        color: calendarManager.getMultiDayColor(event.type || 'promotional')
                     };
 
-                    // Add to calendar manager
-                    await calendarManager.addCampaign(campaign);
+                    // Add to multiDayCampaigns array (reminders like holidays)
+                    calendarManager.multiDayCampaigns.push(multiDayCampaign);
                     imported++;
                 } catch (error) {
-                    console.error('Error importing event:', event, error);
-                    errorMessages.push(`Event ${i + 1}: ${error.message}`);
+                    console.error('Error importing reminder:', event, error);
+                    errorMessages.push(`Reminder ${i + 1}: ${error.message}`);
                     errors++;
                 }
+            }
+
+            // Update calendar display and save if any imports succeeded
+            if (imported > 0) {
+                calendarManager.renderCalendar();
+                calendarManager.saveToCloud();
             }
 
             // Show results
@@ -9969,11 +10007,11 @@
             } else if (errors > 0) {
                 // Partial success - show warnings but close modal
                 closeMultiDayCampaignModal();
-                showToast(`Imported ${imported} events (${errors} errors - check console)`, 'warning');
+                showToast(`Imported ${imported} reminders (${errors} errors - check console)`, 'warning');
                 console.warn('Import errors:', errorMessages);
             } else {
                 closeMultiDayCampaignModal();
-                showToast(`Successfully imported ${imported} events`, 'success');
+                showToast(`Successfully imported ${imported} reminders`, 'success');
             }
 
             // Clear the JSON input on success
