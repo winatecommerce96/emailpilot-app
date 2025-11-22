@@ -11054,10 +11054,17 @@
             }
         }
 
+        // Get workflow base URL - localhost for local dev, production for deployed
+        function getWorkflowBaseUrl() {
+            return window.location.hostname === 'localhost'
+                ? 'http://localhost:9000'
+                : 'https://emailpilot-simple-p3cxgvcsla-uc.a.run.app';
+        }
+
         async function terminateWorkflow() {
             try {
                 console.log('🛑 Terminating workflow...');
-                const response = await fetch('https://emailpilot-simple-p3cxgvcsla-uc.a.run.app/api/system/terminate', {
+                const response = await fetch(`${getWorkflowBaseUrl()}/api/system/terminate`, {
                     method: 'POST'
                 });
 
@@ -11122,7 +11129,7 @@
                     }
 
                     try {
-                        const response = await fetch(`https://emailpilot-simple-p3cxgvcsla-uc.a.run.app/api/workflows/status/${jobId}`);
+                        const response = await fetch(`${getWorkflowBaseUrl()}/api/workflows/status/${jobId}`);
                         if (!response.ok) {
                             throw new Error(`Status check failed: ${response.status}`);
                         }
@@ -11230,7 +11237,7 @@
                 console.log('📤 Multi-day campaigns:', multiDayCampaigns);
                 console.log('📤 Affinity segments:', affinitySegments);
 
-                const response = await fetch('https://emailpilot-simple-p3cxgvcsla-uc.a.run.app/api/workflows/checkpoint', {
+                const response = await fetch(`${getWorkflowBaseUrl()}/api/workflows/checkpoint`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
