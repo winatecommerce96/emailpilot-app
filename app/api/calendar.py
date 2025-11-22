@@ -79,7 +79,7 @@ class WorkflowRequest(BaseModel):
     start_date: str = Field(..., description="Start date in YYYY-MM-DD format")
     end_date: str = Field(..., description="End date in YYYY-MM-DD format")
     stage: str = Field(default='full', description="Workflow stage: 'full', 'rag', 'mcp', 'generate'")
-    prompt_name: Optional[str] = Field(default=None, description="Optional custom prompt name")
+    userInstructions: Optional[str] = Field(default=None, description="User instructions including additional context and multi-day events")
 
 class PromptRequest(BaseModel):
     """Request model for prompt management"""
@@ -365,7 +365,7 @@ async def run_workflow(
                         "clientName": client_name,
                         "startDate": start_date,
                         "endDate": end_date,
-                        "userInstructions": request.prompt_name or ""
+                        "userInstructions": request.userInstructions or ""
                     }
                 )
 
