@@ -6085,8 +6085,9 @@
                     container.appendChild(dayDiv);
                 }
 
-                // Render multi-day spanning bars after grid is built
-                this.renderMultiDayBars(container, year, month, firstDay, daysInMonth);
+                // TODO: Implement proper integrated multi-day spanning bars
+                // The overlay approach doesn't integrate with the calendar flow
+                // this.renderMultiDayBars(container, year, month, firstDay, daysInMonth);
             }
 
             renderMultiDayBars(container, year, month, firstDay, daysInMonth) {
@@ -6175,8 +6176,8 @@
                             // Calculate position relative to container
                             const left = startRect.left - containerRect.left + 2;
                             const width = (endRect.right - startRect.left) - 4;
-                            // Position 50px from top of cell (below day number and holidays)
-                            const top = startRect.top - containerRect.top + 50 + (slot * 26);
+                            // Position 42px from top of cell (below day number and holidays, above campaign cards)
+                            const top = startRect.top - containerRect.top + 42 + (slot * 24);
 
                             // Determine if bar continues from/to adjacent weeks
                             const continuesLeft = segmentStartDate > startDate;
