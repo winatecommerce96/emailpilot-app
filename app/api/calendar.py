@@ -1990,6 +1990,200 @@ async def get_workflow_status(
 
 
 # ============================================================================
+# Multi-Day Events CRUD Endpoints (Firestore-backed)
+# ============================================================================
+
+class MultiDayEventCreate(BaseModel):
+    """Request model for creating a multi-day event"""
+    client_id: str = Field(..., description="Client ID")
+    name: str = Field(..., description="Event name")
+    start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date (YYYY-MM-DD)")
+    event_type: Optional[str] = Field("reminder", description="Event type")
+    emoji: Optional[str] = Field("📅", description="Display emoji")
+    description: Optional[str] = Field("", description="Event description")
+    color: Optional[str] = Field("multi-day-campaign", description="Color class")
+
+class MultiDayEventUpdate(BaseModel):
+    """Request model for updating a multi-day event"""
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    event_type: Optional[str] = None
+    emoji: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+@router.get("/multiday-events")
+async def get_multiday_events(
+    client_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get multi-day events for a client within a date range.
+
+    Multi-day events span multiple dates, so we check if any part of the event
+    overlaps with the requested date range.
+
+    Query params:
+    - client_id: Required client identifier
+    - start_date: Optional filter start date (YYYY-MM-DD)
+    - end_date: Optional filter end date (YYYY-MM-DD)
+    """
+    try:
+        # Query all multi-day events for client
+        query = db.collection("multiday_events").where("client_id", "==", client_id)
+
+        docs = query.stream()
+
+        events = []
+        for doc in docs:
+            event_data = doc.to_dict()
+            event_data['id'] = doc.id
+
+            # If date range specified, filter events that overlap with the range
+            if start_date and end_date:
+                event_start = event_data.get('start_date', '')
+                event_end = event_data.get('end_date', '')
+
+                # Check for overlap: event ends after range starts AND event starts before range ends
+                if event_end >= start_date and event_start <= end_date:
+                    events.append(event_data)
+            else:
+                events.append(event_data)
+
+        logger.info(f"Retrieved {len(events)} multi-day events for client {client_id}")
+
+        return {"events": events}
+
+    except Exception as e:
+        logger.error(f"Error fetching multi-day events: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch multi-day events: {str(e)}"
+        )
+
+@router.post("/multiday-events")
+async def create_multiday_event(
+    event: MultiDayEventCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create a new multi-day event.
+
+    Returns the created event with its ID.
+    """
+    try:
+        # Prepare event data
+        event_data = event.dict()
+        event_data['created_at'] = datetime.utcnow().isoformat()
+        event_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Create document in Firestore
+        doc_ref = db.collection("multiday_events").document()
+        doc_ref.set(event_data)
+
+        # Return created event with ID
+        event_data['id'] = doc_ref.id
+
+        logger.info(f"Created multi-day event {doc_ref.id} for client {event.client_id}")
+
+        return event_data
+
+    except Exception as e:
+        logger.error(f"Error creating multi-day event: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create multi-day event: {str(e)}"
+        )
+
+@router.put("/multiday-events/{event_id}")
+async def update_multiday_event(
+    event_id: str,
+    event_update: MultiDayEventUpdate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Update an existing multi-day event.
+
+    Returns the updated event.
+    """
+    try:
+        doc_ref = db.collection("multiday_events").document(event_id)
+
+        # Check if document exists
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Multi-day event {event_id} not found"
+            )
+
+        # Prepare update data (only include non-None fields)
+        update_data = {k: v for k, v in event_update.dict().items() if v is not None}
+        update_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Update document
+        doc_ref.update(update_data)
+
+        # Fetch and return updated event
+        updated_doc = doc_ref.get()
+        event_data = updated_doc.to_dict()
+        event_data['id'] = event_id
+
+        logger.info(f"Updated multi-day event {event_id}")
+
+        return event_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating multi-day event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update multi-day event: {str(e)}"
+        )
+
+@router.delete("/multiday-events/{event_id}")
+async def delete_multiday_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Delete a multi-day event.
+
+    Returns success message.
+    """
+    try:
+        doc_ref = db.collection("multiday_events").document(event_id)
+
+        # Check if document exists
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Multi-day event {event_id} not found"
+            )
+
+        # Delete document
+        doc_ref.delete()
+
+        logger.info(f"Deleted multi-day event {event_id}")
+
+        return {"success": True, "message": f"Multi-day event {event_id} deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting multi-day event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete multi-day event: {str(e)}"
+        )
+
+# ============================================================================
 # WORKFLOW IMPORT ENDPOINT
 # Receives campaign data from EmailPilot Simple after Stage 1-2 completion
 # ============================================================================
