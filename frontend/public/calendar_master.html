@@ -6603,15 +6603,30 @@
                 const weekStartTime = new Date(weekStart).setHours(0, 0, 0, 0);
                 const weekEndTime = new Date(weekEnd).setHours(23, 59, 59, 999);
 
+                // Parse dates as local time to avoid UTC timezone shift
+                const parseLocalDate = (dateStr) => {
+                    if (dateStr instanceof Date) return new Date(dateStr);
+                    const parts = dateStr.split('-');
+                    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                };
+
                 return this.multiDayCampaigns.filter(campaign => {
-                    const eventStart = new Date(campaign.startDate).setHours(0, 0, 0, 0);
-                    const eventEnd = new Date(campaign.endDate).setHours(23, 59, 59, 999);
+                    const eventStart = parseLocalDate(campaign.startDate).setHours(0, 0, 0, 0);
+                    const eventEnd = parseLocalDate(campaign.endDate).setHours(23, 59, 59, 999);
 
                     // Event overlaps with week if it starts before week ends and ends after week starts
                     return eventStart <= weekEndTime && eventEnd >= weekStartTime;
                 }).map(campaign => {
-                    const eventStart = new Date(campaign.startDate);
-                    const eventEnd = new Date(campaign.endDate);
+                    // Parse dates as local time to avoid UTC timezone shift
+                    // "2026-01-01" should be Jan 1st local, not Dec 31st UTC
+                    const parseLocalDate = (dateStr) => {
+                        if (dateStr instanceof Date) return new Date(dateStr);
+                        const parts = dateStr.split('-');
+                        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    };
+
+                    const eventStart = parseLocalDate(campaign.startDate);
+                    const eventEnd = parseLocalDate(campaign.endDate);
                     eventStart.setHours(0, 0, 0, 0);
                     eventEnd.setHours(0, 0, 0, 0);
 
@@ -6707,13 +6722,14 @@
                             // Set grid column span
                             eventEl.style.gridColumn = `${event.startCol + 1} / ${event.endCol + 2}`;
 
-                            // Only show name on first segment
-                            const showName = !event.continuesLeft;
+                            // Always show name on every week segment for easier identification
+                            // Only show duration badge on first segment
+                            const isFirstSegment = !event.continuesLeft;
 
                             eventEl.innerHTML = `
                                 <span class="event-icon">${event.emoji || '📅'}</span>
-                                ${showName ? `<span class="event-name">${event.name}</span>` : ''}
-                                ${showName && event.duration > 1 ? `<span class="event-duration">${event.duration}d</span>` : ''}
+                                <span class="event-name">${event.name}</span>
+                                ${isFirstSegment && event.duration > 1 ? `<span class="event-duration">${event.duration}d</span>` : ''}
                             `;
 
                             eventEl.title = `${event.name} (${event.duration} days)`;
