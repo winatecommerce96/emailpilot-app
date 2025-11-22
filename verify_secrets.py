@@ -1,5 +1,5 @@
 import os
-from app.services.secrets import SecretManagerService, SecretNotFoundError
+from app.services.secret_manager import SecretManagerService, SecretNotFoundError
 
 def check_secrets():
     """Checks for the required Google OAuth secrets."""

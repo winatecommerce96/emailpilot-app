@@ -17,7 +17,7 @@ router = APIRouter()
 # Import the Firestore client
 from app.deps import get_db, get_secret_manager_service
 from app.services.gemini_service import GeminiService
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 
 

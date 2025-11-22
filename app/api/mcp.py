@@ -19,7 +19,7 @@ from app.schemas.mcp_client import (
     MCPTestResponse,
     ModelProvider
 )
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.services.mcp_service import get_mcp_service, MCPServiceManager
 import logging
 from sqlalchemy import func, and_

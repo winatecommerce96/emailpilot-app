@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firestore Permissions Checker</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #00ff00;
+        }
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+        .warning { color: #ffaa00; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Firestore Permissions Diagnostic Tool</h1>
+    <div id="results"></div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = message;
+            document.getElementById('results').appendChild(div);
+        };
+
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB0RrH7hbER2R-SzXfNmFe0O32HhH7HBEM",
+            authDomain: "emailpilot-438321.firebaseapp.com",
+            projectId: "emailpilot-438321",
+            storageBucket: "emailpilot-438321.appspot.com",
+            messagingSenderId: "104067375141",
+            appId: "1:104067375141:web:2b65c86eec8e8c8b4c9f3a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        log('✅ Firebase initialized', 'success');
+
+        // Test 1: Try to read calendar_events collection
+        log('🔍 Test 1: Attempting to read calendar_events collection...', 'info');
+
+        db.collection('calendar_events')
+            .where('client_id', '==', 'buca-di-beppo')
+            .where('event_date', '>=', '2025-12-01')
+            .where('event_date', '<=', '2025-12-31')
+            .get()
+            .then((snapshot) => {
+                if (snapshot.size > 0) {
+                    log(`✅ SUCCESS: Read ${snapshot.size} documents from Firestore`, 'success');
+                    log('🎉 Security rules are correctly configured!', 'success');
+                    log('', 'info');
+                    log('Real-time sync should now work between windows.', 'success');
+                } else {
+                    log('⚠️ WARNING: Query succeeded but returned 0 documents', 'warning');
+                    log('This might mean:', 'info');
+                    log('  - No events exist for this date range', 'info');
+                    log('  - OR the client_id doesn\'t match', 'info');
+                }
+            })
+            .catch((error) => {
+                log(`❌ ERROR: ${error.code}`, 'error');
+                log(`Message: ${error.message}`, 'error');
+                log('', 'info');
+
+                if (error.code === 'permission-denied') {
+                    log('🚨 FIRESTORE SECURITY RULES NOT UPDATED!', 'error');
+                    log('', 'info');
+                    log('To fix this:', 'warning');
+                    log('1. Go to https://console.firebase.google.com/project/emailpilot-438321/firestore/rules', 'info');
+                    log('2. Update the rules to allow read access', 'info');
+                    log('3. Click Publish', 'info');
+                    log('', 'info');
+                    log('See FIRESTORE_SECURITY_RULES.txt for the exact rules to use.', 'info');
+                } else {
+                    log(`Unexpected error: ${error.code}`, 'error');
+                }
+            });
+
+        // Test 2: Try to listen for real-time updates
+        log('', 'info');
+        log('🔍 Test 2: Setting up real-time listener...', 'info');
+
+        const unsubscribe = db.collection('calendar_events')
+            .where('client_id', '==', 'buca-di-beppo')
+            .where('event_date', '>=', '2025-12-01')
+            .where('event_date', '<=', '2025-12-31')
+            .onSnapshot((snapshot) => {
+                log(`✅ Real-time listener working: ${snapshot.size} documents`, 'success');
+
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        log(`  + Added: ${change.doc.data().title}`, 'success');
+                    }
+                    if (change.type === 'modified') {
+                        log(`  ~ Modified: ${change.doc.data().title}`, 'warning');
+                    }
+                    if (change.type === 'removed') {
+                        log(`  - Removed: ${change.doc.data().title}`, 'error');
+                    }
+                });
+            }, (error) => {
+                log(`❌ Real-time listener error: ${error.code}`, 'error');
+                log(`Message: ${error.message}`, 'error');
+            });
+    </script>
+</body>
+</html>

@@ -1,46 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+// import { useAuth } from '@clerk/clerk-react';  // DISABLED FOR LOCAL DEV
 import Login from "./components/Login.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 
 function App() {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    // BYPASSED: Authentication disabled for local development
+    // const { isSignedIn, isLoaded } = useAuth();
+    const isSignedIn = true;  // Always authenticated in local dev
+    const isLoaded = true;
 
-    useEffect(() => {
-        const verifySession = async () => {
-            const token = localStorage.getItem('access_token');
-            if (!token) {
-                setIsAuthenticated(false);
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/auth/google/me', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (response.ok) {
-                    setIsAuthenticated(true);
-                } else {
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('session_id');
-                    setIsAuthenticated(false);
-                }
-            } catch (error) {
-                console.error("Session verification failed:", error);
-                setIsAuthenticated(false);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        verifySession();
-    }, []);
-
-    if (isLoading) {
+    if (!isLoaded) {
         return (
             <div className="card">
                 <h1>Loading...</h1>
@@ -55,12 +25,12 @@ function App() {
                 <Route
                     path="/dashboard/*"
                     element={
-                        isAuthenticated ? <Dashboard /> : <Navigate to="/login" />
+                        isSignedIn ? <Dashboard /> : <Navigate to="/login" />
                     }
                 />
-                <Route 
-                    path="*" 
-                    element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} />} 
+                <Route
+                    path="*"
+                    element={<Navigate to={isSignedIn ? "/dashboard" : "/login"} />}
                 />
             </Routes>
         </HashRouter>

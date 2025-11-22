@@ -1,14 +1,17 @@
 # Cloud Build configuration for EmailPilot with Calendar Workflow and Authentication
 steps:
-  # Step 1: Build the container image
+  # Step 1: Build the container image with Clerk key as build argument
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '--build-arg'
+      - 'VITE_CLERK_PUBLISHABLE_KEY=$$VITE_CLERK_PUBLISHABLE_KEY'
       - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:$BUILD_ID'
       - '-t'
       - 'gcr.io/$PROJECT_ID/emailpilot-api:latest'
       - '.'
+    secretEnv: ['VITE_CLERK_PUBLISHABLE_KEY']
     id: 'build-image'
 
   # Step 2: Push the image with BUILD_ID tag
@@ -56,7 +59,7 @@ steps:
       - 'ENVIRONMENT=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
       # Secret Manager secrets (sensitive values)
       - '--update-secrets'
-      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,SECRET_KEY=emailpilot-secret-key:latest,CLERK_SECRET_KEY=clerk-secret-key:latest,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:latest'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,SECRET_KEY=emailpilot-secret-key:latest,CLERK_SECRET_KEY=clerk-secret-key:latest,NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:latest,GEMINI_API_KEY=gemini-api-key:latest'
     id: 'deploy-to-cloud-run'
 
 # Images to be pushed to Container Registry
@@ -68,5 +71,11 @@ images:
 options:
   machineType: 'N1_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
+
+# Secret configuration for build-time access
+availableSecrets:
+  secretManager:
+  - versionName: projects/$PROJECT_ID/secrets/VITE_CLERK_PUBLISHABLE_KEY/versions/latest
+    env: 'VITE_CLERK_PUBLISHABLE_KEY'
 
 timeout: '1200s'

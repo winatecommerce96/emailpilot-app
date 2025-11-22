@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Optional
-from app.services.secrets import SecretManagerService, SecretError
+from app.services.secret_manager import SecretManagerService, SecretError
 
 logger = logging.getLogger(__name__)
 

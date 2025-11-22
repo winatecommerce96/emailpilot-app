@@ -46,33 +46,37 @@ class MCPServerRegistry:
     def _initialize_default_servers(self):
         """Initialize with known MCP servers"""
         default_servers = [
+            # Legacy localhost servers (deprecated - use Cloud Run services below)
             MCPServerSpec(
                 id="klaviyo_enhanced",
                 name="Klaviyo Enhanced MCP",
                 description="Enhanced Node.js wrapper for Klaviyo API with 20+ operations",
-                url="http://localhost:9095",
-                port=9095,
+                url="https://klaviyo-mcp-service-p3cxgvcsla-uc.a.run.app",
+                port=443,
                 type="marketing",
                 provider="klaviyo",
                 version="1.0.0",
                 status="unknown",
                 capabilities=["campaigns", "metrics", "segments", "profiles", "flows", "templates"],
                 health_endpoint="/health",
-                tools_endpoint="/mcp/tools", 
+                tools_endpoint="/mcp/tools",
                 invoke_endpoint="/mcp/invoke",
                 auth_required=True,
                 metadata={
                     "startup_cmd": ["npm", "start"],
                     "working_dir": "services/klaviyo_mcp_enhanced",
-                    "startup_time": 5
+                    "startup_time": 5,
+                    "deprecated": True,
+                    "replacement": "klaviyo_mcp_service_cloudrun",
+                    "redirects_to": "klaviyo_mcp_service_cloudrun"
                 }
             ),
             MCPServerSpec(
                 id="klaviyo_python",
                 name="Python Klaviyo MCP",
                 description="Python FastAPI implementation for Klaviyo operations",
-                url="http://localhost:9090",
-                port=9090,
+                url="https://klaviyo-mcp-service-p3cxgvcsla-uc.a.run.app",
+                port=443,
                 type="marketing",
                 provider="klaviyo",
                 version="1.0.0",
@@ -85,7 +89,10 @@ class MCPServerRegistry:
                 metadata={
                     "startup_cmd": ["uvicorn", "main:app", "--port", "9090", "--host", "localhost"],
                     "working_dir": "services/klaviyo_api",
-                    "startup_time": 3
+                    "startup_time": 3,
+                    "deprecated": True,
+                    "replacement": "klaviyo_mcp_service_cloudrun",
+                    "redirects_to": "klaviyo_mcp_service_cloudrun"
                 }
             ),
             MCPServerSpec(
@@ -110,7 +117,7 @@ class MCPServerRegistry:
             ),
             MCPServerSpec(
                 id="analytics_mcp",
-                name="Analytics MCP Server", 
+                name="Analytics MCP Server",
                 description="Google Analytics 4 and Adobe Analytics integration (Coming Soon)",
                 url="http://localhost:9097",
                 port=9097,
@@ -132,8 +139,8 @@ class MCPServerRegistry:
                 id="mcp_gateway",
                 name="MCP Smart Gateway",
                 description="Intelligent routing to best available MCP server",
-                url="http://localhost:8000/api/mcp/gateway",
-                port=8000,
+                url="https://emailpilot-app-p3cxgvcsla-uc.a.run.app",
+                port=443,
                 type="gateway",
                 provider="emailpilot",
                 version="1.0.0",
@@ -145,7 +152,382 @@ class MCPServerRegistry:
                 auth_required=False,
                 metadata={
                     "router_type": "smart",
-                    "fallback_enabled": True
+                    "fallback_enabled": True,
+                    "deprecated": True,
+                    "replacement": "emailpilot_app_cloudrun",
+                    "redirects_to": "emailpilot_app_cloudrun"
+                }
+            ),
+
+            # =============================================================
+            # PRODUCTION CLOUD RUN SERVICES
+            # =============================================================
+
+            # Core Application Services
+            MCPServerSpec(
+                id="emailpilot_app_cloudrun",
+                name="EmailPilot Main Application",
+                description="Main EmailPilot application with calendar and authentication",
+                url="https://emailpilot-app-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="application",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["calendar", "auth", "admin", "mcp_registry"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True,
+                    "deployment_type": "production"
+                }
+            ),
+            MCPServerSpec(
+                id="emailpilot_cloudrun",
+                name="EmailPilot Core",
+                description="Core EmailPilot service",
+                url="https://emailpilot-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="application",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["core_operations"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="emailpilot_ai_app_cloudrun",
+                name="EmailPilot AI Application",
+                description="AI-enhanced EmailPilot interface and interactions",
+                url="https://emailpilot-ai-app-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="application",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["ai_chat", "ai_recommendations", "smart_workflows"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="emailpilot_simple_cloudrun",
+                name="EmailPilot Simple",
+                description="Simplified EmailPilot interface for basic email automation",
+                url="https://emailpilot-simple-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="application",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["basic_email_automation", "simplified_ui"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+
+            # API and Orchestration Services
+            MCPServerSpec(
+                id="emailpilot_api_cloudrun",
+                name="EmailPilot API Service",
+                description="Core API service for EmailPilot backend operations",
+                url="https://emailpilot-api-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="api",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["api_operations", "data_access", "integration"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="emailpilot_orchestrator_cloudrun",
+                name="EmailPilot Orchestrator",
+                description="Workflow orchestration and multi-agent coordination",
+                url="https://emailpilot-orchestrator-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="orchestration",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["workflow_orchestration", "agent_coordination", "task_management"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+
+            # Calendar Service
+            MCPServerSpec(
+                id="emailpilot_calendar_cloudrun",
+                name="EmailPilot Calendar",
+                description="Campaign calendar planning and scheduling",
+                url="https://emailpilot-calendar-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="calendar",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["calendar_planning", "scheduling", "campaign_timeline"],
+                health_endpoint="/health",
+                tools_endpoint="/api/calendar/tools",
+                invoke_endpoint="/api/calendar/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+
+            # Marketing/Klaviyo Services
+            MCPServerSpec(
+                id="klaviyo_mcp_service_cloudrun",
+                name="Klaviyo MCP Service",
+                description="Production Klaviyo MCP service with full API coverage",
+                url="https://klaviyo-mcp-service-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="marketing",
+                provider="klaviyo",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["campaigns", "metrics", "segments", "profiles", "flows", "templates", "lists"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+
+            # MCP Infrastructure Services
+            MCPServerSpec(
+                id="mcp_health_cloudrun",
+                name="MCP Health Service",
+                description="Health monitoring and status checks for MCP services",
+                url="https://mcp-health-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="monitoring",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["health_checks", "system_monitoring", "status_reporting"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="mcp_models_cloudrun",
+                name="MCP Models Service",
+                description="AI model management and LLM selection",
+                url="https://mcp-models-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="ai",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["model_management", "llm_selection", "ai_routing"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="mcp_clients_cloudrun",
+                name="MCP Clients Service",
+                description="Client-specific MCP configurations and multi-tenant management",
+                url="https://mcp-clients-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="client_management",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["client_management", "multi_tenant", "configuration"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+
+            # Integration Services
+            MCPServerSpec(
+                id="asana_copy_review_cloudrun",
+                name="Asana Copy Review",
+                description="Asana integration for copy review and approval workflows",
+                url="https://asana-copy-review-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="integration",
+                provider="asana",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["copy_review", "approval_workflow", "asana_integration"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="braze_analytics_cloudrun",
+                name="Braze Analytics",
+                description="Braze integration for analytics and campaign tracking",
+                url="https://braze-analytics-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="integration",
+                provider="braze",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["analytics", "campaign_tracking", "braze_integration"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="email_sms_mcp_server_cloudrun",
+                name="Email/SMS MCP Server",
+                description="Combined email and SMS communication MCP server",
+                url="https://email-sms-mcp-server-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="communication",
+                provider="emailpilot",
+                version="1.0.0",
+                status="error",  # Known to be in FAILED state
+                capabilities=["email_operations", "sms_operations", "multi_channel"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True,
+                    "known_issue": "HealthCheckContainerError - container not listening on PORT 8080"
+                }
+            ),
+
+            # Payment Services
+            MCPServerSpec(
+                id="payments_backend_cloudrun",
+                name="Payments Backend",
+                description="Payment processing and subscription management backend",
+                url="https://payments-backend-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="payments",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["payment_processing", "subscription_management", "billing"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
+                }
+            ),
+            MCPServerSpec(
+                id="payments_frontend_cloudrun",
+                name="Payments Frontend",
+                description="Payment UI and checkout interface",
+                url="https://payments-frontend-p3cxgvcsla-uc.a.run.app",
+                port=443,
+                type="payments",
+                provider="emailpilot",
+                version="1.0.0",
+                status="unknown",
+                capabilities=["payment_ui", "checkout", "subscription_ui"],
+                health_endpoint="/health",
+                tools_endpoint="/api/tools",
+                invoke_endpoint="/api/invoke",
+                auth_required=True,
+                metadata={
+                    "cloud_run_service": True,
+                    "region": "us-central1",
+                    "project_id": "emailpilot-438321",
+                    "clerk_enabled": True
                 }
             )
         ]

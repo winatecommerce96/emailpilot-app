@@ -21,6 +21,8 @@ from datetime import datetime
 import logging
 import time
 
+logger = logging.getLogger(__name__)
+
 # Import AI Orchestrator as primary interface
 try:
     from app.core.ai_orchestrator import get_ai_orchestrator, ai_complete
@@ -43,7 +45,7 @@ from fastapi import Depends
 import httpx
 
 from app.deps import get_secret_manager_service, get_db
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

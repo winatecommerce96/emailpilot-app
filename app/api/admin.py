@@ -19,12 +19,12 @@ import re
 from collections import namedtuple
 
 from app.core.settings import get_settings
-from app.services.secrets import mask_sensitive, SecretNotFoundError
+from app.services.secret_manager import mask_sensitive, SecretNotFoundError
 from app.deps import get_secret_manager_service, get_db
 from google.cloud import firestore
 
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 
@@ -1312,6 +1312,11 @@ async def diagnostics_summary(secret_manager: "SecretManagerService" = Depends(g
         out["checks"]["weekly_self_test"] = {"status": "error", "error": str(e)}
         out["success"] = False
     return out
+
+# REMOVED: Stub endpoint that was blocking the real Asana implementation
+# The actual implementation is in app/api/admin_asana.py:433
+# which is mounted at /api/admin/asana/configuration/clients-and-projects
+# and properly fetches projects from Asana API
 
 @router.post("/restart")
 async def restart_server(background_tasks: BackgroundTasks):

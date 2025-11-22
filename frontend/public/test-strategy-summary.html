@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Summary Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/strategy-summary.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #000000;
+            color: #FFFFFF;
+            padding: 40px;
+        }
+        .test-result {
+            padding: 16px;
+            margin: 8px 0;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+        }
+        .test-fail {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+        .test-info {
+            background: rgba(51, 105, 220, 0.1);
+            border: 1px solid rgba(51, 105, 220, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 24px;">
+        Strategy Summary Integration Test
+    </h1>
+
+    <div id="test-results"></div>
+
+    <h2 style="font-size: 24px; font-weight: 600; margin: 32px 0 16px 0;">
+        Live Component:
+    </h2>
+    <div id="strategy-summary-container"></div>
+
+    <!-- Load Strategy Summary Components -->
+    <script src="/static/js/strategy-summary-types.js"></script>
+    <script src="/static/js/strategy-summary-api.js"></script>
+    <script src="/static/js/strategy-summary-component.js"></script>
+
+    <!-- Integration Test Script -->
+    <script>
+        const testResults = document.getElementById('test-results');
+        let passCount = 0;
+        let failCount = 0;
+
+        function logTest(name, passed, details = '') {
+            const div = document.createElement('div');
+            div.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            div.innerHTML = `
+                <strong>${passed ? '✓' : '✗'} ${name}</strong>
+                ${details ? `<br><small>${details}</small>` : ''}
+            `;
+            testResults.appendChild(div);
+
+            if (passed) passCount++;
+            else failCount++;
+        }
+
+        function logInfo(message) {
+            const div = document.createElement('div');
+            div.className = 'test-result test-info';
+            div.innerHTML = `<strong>ℹ ${message}</strong>`;
+            testResults.appendChild(div);
+        }
+
+        async function runTests() {
+            logInfo('Starting Strategy Summary Integration Tests...');
+
+            // Test 1: Check if API class is available
+            logTest(
+                'StrategySummaryAPI class loaded',
+                typeof StrategySummaryAPI === 'function',
+                `Type: ${typeof StrategySummaryAPI}`
+            );
+
+            // Test 2: Check if Component class is available
+            logTest(
+                'StrategySummaryComponent class loaded',
+                typeof StrategySummaryComponent === 'function',
+                `Type: ${typeof StrategySummaryComponent}`
+            );
+
+            // Test 3: Check if singleton API instance exists
+            logTest(
+                'Singleton API instance created',
+                window.strategySummaryAPI instanceof StrategySummaryAPI,
+                `Instance: ${!!window.strategySummaryAPI}`
+            );
+
+            // Test 4: Test API endpoint directly
+            logInfo('Testing backend API endpoint...');
+            try {
+                const response = await fetch('/api/calendar/strategy-summary/test-client-strategy');
+                const isSuccess = response.ok;
+                logTest(
+                    'Backend API endpoint accessible',
+                    isSuccess,
+                    `Status: ${response.status} ${response.statusText}`
+                );
+
+                if (isSuccess) {
+                    const data = await response.json();
+                    logTest(
+                        'Backend returns valid JSON',
+                        typeof data === 'object' && data.client_id,
+                        `Client ID: ${data.client_id}`
+                    );
+
+                    logTest(
+                        'Strategy has required fields',
+                        data.key_insights && data.targeting_approach && data.timing_strategy,
+                        `Fields: ${Object.keys(data).length} properties`
+                    );
+                }
+            } catch (error) {
+                logTest('Backend API endpoint accessible', false, `Error: ${error.message}`);
+            }
+
+            // Test 5: Test API client fetch method
+            logInfo('Testing API client methods...');
+            try {
+                const data = await window.strategySummaryAPI.fetchStrategySummary('test-client-strategy');
+                logTest(
+                    'API client fetches data successfully',
+                    data !== null && data.client_id === 'test-client-strategy',
+                    `Retrieved client: ${data?.client_id}`
+                );
+
+                // Test caching
+                const cachedData = await window.strategySummaryAPI.fetchStrategySummary('test-client-strategy');
+                logTest(
+                    'API client caching works',
+                    cachedData === data,
+                    'Second fetch returned cached data'
+                );
+
+                // Test cache stats
+                const stats = window.strategySummaryAPI.getCacheStats();
+                logTest(
+                    'Cache statistics available',
+                    stats.size > 0,
+                    `Cache size: ${stats.size} entries`
+                );
+            } catch (error) {
+                logTest('API client fetch method', false, `Error: ${error.message}`);
+            }
+
+            // Test 6: Test component initialization
+            logInfo('Testing UI component...');
+            try {
+                const component = new StrategySummaryComponent('strategy-summary-container');
+                logTest(
+                    'Component instantiates successfully',
+                    component !== null && component.containerId === 'strategy-summary-container',
+                    `Container ID: ${component.containerId}`
+                );
+
+                // Test 7: Test component init and load
+                await component.init('test-client-strategy');
+                logTest(
+                    'Component initializes with client ID',
+                    component.clientId === 'test-client-strategy',
+                    `Client: ${component.clientId}`
+                );
+
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Test 8: Check if component rendered
+                const container = document.getElementById('strategy-summary-container');
+                const hasContent = container.innerHTML.includes('strategy-summary-card');
+                logTest(
+                    'Component renders to DOM',
+                    hasContent,
+                    `Container has ${container.children.length} child elements`
+                );
+
+                // Test 9: Check if data is displayed
+                const hasInsights = container.innerHTML.includes('Key Insights');
+                logTest(
+                    'Component displays strategy data',
+                    hasInsights,
+                    'Found "Key Insights" section in rendered HTML'
+                );
+
+                // Test 10: Test toggle functionality
+                component.toggle();
+                await new Promise(resolve => setTimeout(resolve, 100));
+                logTest(
+                    'Component toggle works',
+                    component.state.expanded === true,
+                    `Expanded state: ${component.state.expanded}`
+                );
+
+                // Store global reference for manual testing
+                window.strategySummary = component;
+
+            } catch (error) {
+                logTest('Component initialization', false, `Error: ${error.message}`);
+            }
+
+            // Test 11: Test 404 handling
+            logInfo('Testing edge cases...');
+            try {
+                const nonExistent = await window.strategySummaryAPI.fetchStrategySummary('non-existent-client');
+                logTest(
+                    'API handles 404 gracefully',
+                    nonExistent === null,
+                    `Returns null for non-existent client`
+                );
+            } catch (error) {
+                logTest('404 handling', false, `Error: ${error.message}`);
+            }
+
+            // Summary
+            logInfo(`Tests complete: ${passCount} passed, ${failCount} failed`);
+        }
+
+        // Run tests on page load
+        window.addEventListener('DOMContentLoaded', runTests);
+    </script>
+</body>
+</html>

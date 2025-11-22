@@ -19,12 +19,12 @@ import re
 from collections import namedtuple
 
 from app.core.settings import get_settings
-from app.services.secrets import mask_sensitive, SecretNotFoundError
+from app.services.secret_manager import mask_sensitive, SecretNotFoundError
 from app.deps import get_secret_manager_service, get_db
 from google.cloud import firestore
 
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

@@ -1,84 +1,13 @@
-from fastapi import FastAPI, Depends
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware.sessions import SessionMiddleware
-from app.deps.firestore import get_db
-from app.api import auth_v2, calendar, admin_clients, mcp_registry, clients_public
+# Proxy module - imports the full app from main_firestore.py
+# This maintains backwards compatibility with Dockerfile using app.main:app
+
+import sys
 import os
 
-app = FastAPI()
+# Add parent directory to path so we can import main_firestore
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Add session middleware for admin authentication
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"),
-    max_age=86400 * 7  # 7 days
-)
+from main_firestore import app
 
-# Mount static files if frontend directory exists (optional for API-only deployment)
-frontend_dir = "frontend/public"
-if os.path.exists(frontend_dir):
-    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
-
-# Register authentication routes
-app.include_router(auth_v2.router, prefix="/api/auth/v2", tags=["authentication"])
-
-# Register calendar routes
-app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
-
-# Register admin client management routes
-app.include_router(admin_clients.router, tags=["admin"])
-
-# Register MCP registry routes
-app.include_router(mcp_registry.router, tags=["mcp-registry"])
-
-# Register public clients route (no auth required for calendar)
-app.include_router(clients_public.router, prefix="/api/clients", tags=["clients-public"])
-
-@app.get("/")
-async def root():
-    """Serve the main calendar interface at root path or API info"""
-    frontend_file = 'frontend/public/calendar_master.html'
-    if os.path.exists(frontend_file):
-        return FileResponse(frontend_file)
-    return {
-        "message": "EmailPilot API",
-        "status": "running",
-        "endpoints": {
-            "calendar": "/api/calendar/workflow",
-            "auth": "/api/auth/v2/login",
-            "health": "/health"
-        }
-    }
-
-@app.get("/calendar")
-async def serve_calendar():
-    """Serve calendar at /calendar path for load balancer routing"""
-    frontend_file = 'frontend/public/calendar_master.html'
-    if os.path.exists(frontend_file):
-        return FileResponse(frontend_file)
-    return {"error": "Calendar not found", "message": "Frontend not deployed"}
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "revision": os.getenv("K_REVISION")}
-
-@app.get("/goals/{user_id}")
-def get_goals(user_id: str, db = Depends(get_db)):
-    docs = db.collection("goals").where("userId", "==", user_id).stream()
-    return [d.to_dict() | {"id": d.id} for d in docs]
-
-# Serve calendar approval page (only if frontend exists)
-@app.get("/calendar-approval.html")
-async def serve_calendar_approval():
-    frontend_file = 'frontend/public/calendar-approval.html'
-    if os.path.exists(frontend_file):
-        return FileResponse(frontend_file)
-    return {"error": "Frontend not deployed", "message": "This is an API-only deployment"}
-
-@app.get("/static/calendar-approval.html")
-async def serve_static_approval():
-    frontend_file = 'frontend/public/static/calendar-approval.html'
-    if os.path.exists(frontend_file):
-        return FileResponse(frontend_file)
-    return {"error": "Frontend not deployed", "message": "This is an API-only deployment"}
+# Re-export the app
+__all__ = ['app']

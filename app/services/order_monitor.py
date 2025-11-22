@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import httpx
 
 from google.cloud import firestore
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

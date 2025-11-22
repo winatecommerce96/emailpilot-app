@@ -14,13 +14,50 @@ import os
 import sys
 from pathlib import Path
 from google.cloud import firestore
+from google.cloud import secretmanager
+import httpx
 
 # Import authentication dependency
 from app.api.clerk_auth import verify_clerk_session
 from app.deps.firestore import get_db
+from app.services.asana_client import AsanaClient
+from app.services.asana_calendar_integration import create_calendar_approval_task
+from app.schemas.calendar import (
+    BulkEventsCreate as BulkEventsCreateSchema,
+    BulkEventsResponse,
+    StrategySummaryResponse
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Helper to get Asana token from environment variable or Secret Manager
+async def get_asana_token() -> Optional[str]:
+    """Get Asana API token from environment variable or Secret Manager
+
+    Following the pattern from asana-brief-creation app:
+    1. Check ASANA_ACCESS_TOKEN environment variable first
+    2. Fall back to Secret Manager if not found
+    """
+    # Check environment variable first (same as asana-brief-creation)
+    token = os.getenv("ASANA_ACCESS_TOKEN")
+    if token:
+        logger.info("Using ASANA_ACCESS_TOKEN from environment variable")
+        return token.strip()
+
+    # Fall back to Secret Manager
+    try:
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")
+        secret_name = f"projects/{project_id}/secrets/asana-access-token/versions/latest"
+
+        client = secretmanager.SecretManagerServiceClient()
+        response = client.access_secret_version(request={"name": secret_name})
+        token = response.payload.data.decode("UTF-8").strip()
+        logger.info("Using Asana token from Secret Manager")
+        return token
+    except Exception as e:
+        logger.warning(f"Could not retrieve Asana token from Secret Manager: {e}")
+        return None
 
 # Global state for lazy-initialized calendar components
 _calendar_state = {
@@ -42,7 +79,7 @@ class WorkflowRequest(BaseModel):
     start_date: str = Field(..., description="Start date in YYYY-MM-DD format")
     end_date: str = Field(..., description="End date in YYYY-MM-DD format")
     stage: str = Field(default='full', description="Workflow stage: 'full', 'rag', 'mcp', 'generate'")
-    prompt_name: Optional[str] = Field(default=None, description="Optional custom prompt name")
+    userInstructions: Optional[str] = Field(default=None, description="User instructions including additional context and multi-day events")
 
 class PromptRequest(BaseModel):
     """Request model for prompt management"""
@@ -85,15 +122,17 @@ class CalendarEventUpdate(BaseModel):
     event_type: Optional[str] = None
     status: Optional[str] = None
     send_time: Optional[str] = None
+    time: Optional[str] = None  # Support both 'time' and 'send_time'
     segment: Optional[str] = None
     subject_a: Optional[str] = None
     subject_b: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-
-class BulkEventsCreate(BaseModel):
-    """Request model for bulk creating events"""
-    client_id: str = Field(..., description="Client ID")
-    events: List[CalendarEventCreate] = Field(..., description="List of events to create")
+    channel: Optional[str] = None
+    is_resend: Optional[bool] = None  # Critical: tracks if this is a resend campaign
+    gradient: Optional[str] = None  # Visual styling
+    emoji: Optional[str] = None  # Visual styling
+    expected_metrics: Optional[Dict[str, Any]] = None  # Performance expectations
+    client_id: Optional[str] = None  # Allow updating client association
 
 def standard_response(success: bool, data: Any = None, error: Optional[str] = None) -> Dict[str, Any]:
     """Standardized API response format"""
@@ -292,85 +331,74 @@ async def calendar_health(
         }
     )
 
-@router.post("/workflow/run")
+@router.post("/workflow/execute")
 async def run_workflow(
     request: WorkflowRequest,
     background_tasks: BackgroundTasks,
     db: firestore.Client = Depends(get_db)
 ):
     """
-    Execute workflow stage or full workflow.
+    Execute workflow via emailpilot-simple API.
 
-    Requires authentication. Jobs are associated with the authenticated user.
-
-    For full workflow:
-    - Returns immediately with job_id
-    - Workflow executes in background
-    - Poll GET /calendar/jobs/{job_id} for status
-
-    For individual stages:
-    - Executes synchronously
-    - Returns results directly
+    Triggers the emailpilot-simple checkpoint workflow which:
+    - Runs Stage 1 (MCP data gathering) and Stage 2 (Calendar generation)
+    - Returns a job_id to poll for status
+    - Calendar data is pushed via /api/calendar/import when ready
     """
-    await initialize_calendar_components()
-
-    user_id = current_user.get("user_id") or current_user.get("email")
-    calendar_tool = _calendar_state['calendar_tool']
-
     client_name = request.client_name
     start_date = request.start_date
     end_date = request.end_date
     stage = request.stage
-    prompt_name = request.prompt_name
 
-    logger.info(f"User {user_id} requested workflow: client={client_name}, stage={stage}")
+    logger.info(f"Triggering emailpilot-simple workflow: client={client_name}, stage={stage}")
+
+    # Get emailpilot-simple URL from environment or default to localhost:9000
+    emailpilot_simple_url = os.getenv("EMAILPILOT_SIMPLE_URL", "http://localhost:9000")
 
     if stage == 'full':
-        # Full workflow - execute in background
-        job_id = str(uuid.uuid4())
+        # Call emailpilot-simple checkpoint workflow
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{emailpilot_simple_url}/api/workflows/checkpoint",
+                    json={
+                        "clientName": client_name,
+                        "startDate": start_date,
+                        "endDate": end_date,
+                        "userInstructions": request.userInstructions or ""
+                    }
+                )
 
-        job_data = {
-            'job_id': job_id,
-            'status': 'queued',
-            'client_name': client_name,
-            'start_date': start_date,
-            'end_date': end_date,
-            'user_id': user_id,
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat(),
-            'current_stage': None,
-            'results': None,
-            'error': None
-        }
+                if response.status_code == 200:
+                    result = response.json()
+                    job_id = result.get("data", {}).get("job_id") or result.get("job_id")
+                    workflow_id = result.get("data", {}).get("workflow_id") or result.get("workflow_id")
 
-        # Store in memory
-        _calendar_state['workflow_status'][job_id] = job_data
+                    logger.info(f"emailpilot-simple workflow started: job_id={job_id}, workflow_id={workflow_id}")
 
-        # Persist to Firestore
-        db.collection("calendar_jobs").document(job_id).set(job_data)
+                    return standard_response(
+                        success=True,
+                        data={
+                            'job_id': job_id,
+                            'workflow_id': workflow_id,
+                            'status': 'queued',
+                            'message': 'Workflow started via emailpilot-simple. Calendar will be imported automatically when ready.',
+                            'status_url': f"{emailpilot_simple_url}/api/workflows/status/{job_id}"
+                        }
+                    )
+                else:
+                    error_msg = f"emailpilot-simple returned {response.status_code}: {response.text}"
+                    logger.error(error_msg)
+                    raise HTTPException(status_code=response.status_code, detail=error_msg)
 
-        # Schedule background task
-        background_tasks.add_task(
-            execute_workflow_background,
-            job_id,
-            client_name,
-            start_date,
-            end_date,
-            user_id,
-            calendar_tool,
-            db
-        )
-
-        logger.info(f"[Job {job_id}] Queued for user {user_id}")
-
-        return standard_response(
-            success=True,
-            data={
-                'job_id': job_id,
-                'status': 'queued',
-                'message': 'Workflow started in background. Poll /api/calendar/jobs/{job_id} for status.'
-            }
-        )
+        except httpx.ConnectError as e:
+            error_msg = f"Cannot connect to emailpilot-simple at {emailpilot_simple_url}. Is it running?"
+            logger.error(f"{error_msg}: {e}")
+            raise HTTPException(status_code=503, detail=error_msg)
+        except httpx.TimeoutException as e:
+            error_msg = f"Timeout connecting to emailpilot-simple"
+            logger.error(f"{error_msg}: {e}")
+            raise HTTPException(status_code=504, detail=error_msg)
 
     # Individual stage execution (synchronous)
     try:
@@ -763,9 +791,9 @@ async def get_events(
 
         # Add date range filters if provided
         if start_date:
-            query = query.where("date", ">=", start_date)
+            query = query.where("event_date", ">=", start_date)
         if end_date:
-            query = query.where("date", "<=", end_date)
+            query = query.where("event_date", "<=", end_date)
 
         # Execute query
         docs = query.stream()
@@ -907,37 +935,224 @@ async def delete_event(
             detail=f"Failed to delete event: {str(e)}"
         )
 
-@router.post("/create-bulk-events")
-async def create_bulk_events(
-    bulk_request: BulkEventsCreate,
+# ============================================================================
+# Client Approval Endpoints (Firestore-backed)
+# ============================================================================
+
+@router.post("/events/{event_id}/request-approval")
+async def request_approval(
+    event_id: str,
     db: firestore.Client = Depends(get_db)
 ):
     """
-    Create multiple calendar events in a single request.
+    Mark a calendar event as 'pending_approval' to request client approval.
 
-    More efficient than creating events one by one.
+    Updates the event status and adds approval metadata.
+    """
+    try:
+        event_ref = db.collection("calendar_events").document(event_id)
+        event_doc = event_ref.get()
 
-    Returns: List of created event IDs and count.
+        if not event_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Update event with approval request
+        update_data = {
+            "approval_status": "pending_approval",
+            "approval_requested_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        event_ref.update(update_data)
+        logger.info(f"Approval requested for event {event_id}")
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "approval_status": "pending_approval",
+            "message": "Approval request submitted"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error requesting approval for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to request approval: {str(e)}"
+        )
+
+@router.post("/events/{event_id}/approve")
+async def approve_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Approve a calendar event.
+
+    Marks the event as 'approved' and records approval timestamp.
+    """
+    try:
+        event_ref = db.collection("calendar_events").document(event_id)
+        event_doc = event_ref.get()
+
+        if not event_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Update event with approval
+        update_data = {
+            "approval_status": "approved",
+            "approved_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        event_ref.update(update_data)
+        logger.info(f"Event {event_id} approved")
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "approval_status": "approved",
+            "message": "Event approved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve event: {str(e)}"
+        )
+
+@router.post("/events/{event_id}/reject")
+async def reject_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Reject a calendar event.
+
+    Marks the event as 'rejected' and records rejection timestamp.
+    """
+    try:
+        event_ref = db.collection("calendar_events").document(event_id)
+        event_doc = event_ref.get()
+
+        if not event_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Event {event_id} not found"
+            )
+
+        # Update event with rejection
+        update_data = {
+            "approval_status": "rejected",
+            "rejected_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        event_ref.update(update_data)
+        logger.info(f"Event {event_id} rejected")
+
+        return {
+            "success": True,
+            "event_id": event_id,
+            "approval_status": "rejected",
+            "message": "Event rejected"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rejecting event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reject event: {str(e)}"
+        )
+
+@router.get("/approval-requests")
+async def get_approval_requests(
+    client_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get all events pending approval for a client.
+
+    Returns events with approval_status = 'pending_approval'.
+    """
+    try:
+        events_ref = db.collection("calendar_events")
+        query = events_ref.where("client_id", "==", client_id).where("approval_status", "==", "pending_approval")
+
+        events = []
+        for doc in query.stream():
+            event_data = doc.to_dict()
+            event_data['id'] = doc.id
+            events.append(event_data)
+
+        logger.info(f"Found {len(events)} pending approval requests for client {client_id}")
+
+        return {
+            "success": True,
+            "count": len(events),
+            "events": events
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching approval requests: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch approval requests: {str(e)}"
+        )
+
+@router.post("/create-bulk-events", response_model=BulkEventsResponse)
+async def create_bulk_events(
+    bulk_request: BulkEventsCreateSchema,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create multiple calendar events in a single request with optional strategy summary.
+
+    Accepts:
+    - events: List of calendar events to create
+    - strategy_summary (optional): AI-generated marketing strategy for this calendar period
+
+    Returns: Created event IDs, count, and strategy summary save status.
     """
     try:
         created_events = []
+        event_ids = []
         batch = db.batch()
 
         # Prepare all events for batch write
         for event in bulk_request.events:
-            event_data = event.dict()
-            event_data['client_id'] = bulk_request.client_id  # Ensure client_id is set
+            event_data = event.model_dump()
+            event_data['client_id'] = bulk_request.client_id
             event_data['created_at'] = datetime.utcnow().isoformat()
             event_data['updated_at'] = datetime.utcnow().isoformat()
+            # Convert date to string for Firestore compatibility
+            event_data['event_date'] = str(event.event_date)
 
             # Create document reference
             doc_ref = db.collection("calendar_events").document()
             batch.set(doc_ref, event_data)
 
+            event_ids.append(doc_ref.id)
             created_events.append({
                 'id': doc_ref.id,
                 'title': event.title,
-                'event_date': event.event_date
+                'event_date': str(event.event_date),
+                'client_id': bulk_request.client_id,
+                'created_at': event_data['created_at'],
+                'updated_at': event_data['updated_at'],
+                'imported_from_doc': False
             })
 
         # Commit batch
@@ -945,15 +1160,1270 @@ async def create_bulk_events(
 
         logger.info(f"Bulk created {len(created_events)} events for client {bulk_request.client_id}")
 
-        return {
-            "success": True,
-            "count": len(created_events),
-            "events": created_events
-        }
+        # Handle strategy summary if provided
+        strategy_summary_saved = False
+        if bulk_request.strategy_summary:
+            try:
+                # Determine date range from events
+                event_dates = [event.event_date for event in bulk_request.events]
+                start_date = min(event_dates)
+                end_date = max(event_dates)
+
+                # Create strategy summary document
+                strategy_data = bulk_request.strategy_summary.model_dump()
+                strategy_data.update({
+                    'client_id': bulk_request.client_id,
+                    'start_date': str(start_date),
+                    'end_date': str(end_date),
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow(),
+                    'generated_by': 'claude-sonnet-4-5-20250929',
+                    'event_count': len(bulk_request.events)
+                })
+
+                # Save to Firestore
+                strategy_ref = db.collection("strategy_summaries").document()
+                strategy_ref.set(strategy_data)
+
+                strategy_summary_saved = True
+                logger.info(f"Saved strategy summary for client {bulk_request.client_id} ({start_date} to {end_date})")
+
+            except Exception as e:
+                logger.error(f"Error saving strategy summary: {e}", exc_info=True)
+                # Don't fail the whole request if strategy save fails
+                strategy_summary_saved = False
+
+        # Return response
+        return BulkEventsResponse(
+            success=True,
+            events_created=len(created_events),
+            strategy_summary_saved=strategy_summary_saved,
+            event_ids=event_ids,
+            sample_events=created_events[:5],  # Return up to 5 sample events
+            message=f"Created {len(created_events)} events" + (
+                " with strategy summary" if strategy_summary_saved else ""
+            )
+        )
 
     except Exception as e:
-        logger.error(f"Error bulk creating events: {e}")
+        logger.error(f"Error bulk creating events: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to bulk create events: {str(e)}"
         )
+
+@router.get("/strategy-summary/{client_id}", response_model=StrategySummaryResponse, status_code=200)
+async def get_strategy_summary(
+    client_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Retrieve AI-generated strategy summary for a client's calendar period.
+
+    Query parameters:
+    - start_date (optional): Filter by start date (YYYY-MM-DD)
+    - end_date (optional): Filter by end date (YYYY-MM-DD)
+
+    Returns 404 if no strategy summary exists (which is normal for calendars created before this feature).
+    """
+    try:
+        # Query strategy_summaries collection
+        query = db.collection("strategy_summaries").where("client_id", "==", client_id)
+
+        # Apply date filters if provided
+        if start_date:
+            query = query.where("start_date", ">=", start_date)
+        if end_date:
+            query = query.where("end_date", "<=", end_date)
+
+        # Order by created_at descending to get most recent
+        query = query.order_by("created_at", direction=firestore.Query.DESCENDING).limit(1)
+
+        # Execute query
+        results = list(query.stream())
+
+        if not results:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No strategy summary found for client {client_id}"
+            )
+
+        # Return the most recent strategy summary
+        strategy_doc = results[0]
+        strategy_data = strategy_doc.to_dict()
+
+        logger.info(f"Retrieved strategy summary for client {client_id}")
+
+        return StrategySummaryResponse(**strategy_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving strategy summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve strategy summary: {str(e)}"
+        )
+
+# ============================================================================
+# Stub Endpoints - Prevent 404 Console Errors
+# ============================================================================
+
+# DISABLED: This stub endpoint conflicts with the real implementation in calendar_holidays.py
+@router.get("/holidays/")
+async def get_holidays(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    include_klaviyo: Optional[bool] = False,
+    include_seasons: Optional[bool] = False
+):
+    """
+    Returns holiday data for the calendar frontend.
+
+    Note: Currently returns empty data as a stub. The calendar frontend
+    gracefully handles empty holiday data.
+    """
+    return {"holidays": [], "active_seasons": []}
+
+# ============================================================================
+# Calendar Approval Workflow Endpoints
+# ============================================================================
+
+class ApprovalPageCreate(BaseModel):
+    """Request model for creating an approval page"""
+    approval_id: str
+    client_id: str
+    client_name: str
+    client_slug: Optional[str] = None
+    year: int
+    month: int
+    month_name: str
+    campaigns: List[Dict[str, Any]]
+    created_at: str
+    status: str = "pending"
+    editable: bool = True
+
+class AsanaTaskCreate(BaseModel):
+    """Request model for creating Asana approval task"""
+    client_id: str
+    client_name: str
+    approval_url: str
+    month: str
+    year: int
+
+class ChangeRequestSubmit(BaseModel):
+    """Request model for submitting change requests"""
+    change_request: str
+    tasks: Optional[List[Dict[str, Any]]] = None
+    requested_at: str
+    client_name: str
+
+@router.post("/approval/create")
+async def create_approval_page(
+    data: ApprovalPageCreate,
+    background_tasks: BackgroundTasks,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create a client approval page and store in Firestore.
+
+    This endpoint is called by the internal calendar when "Create Client Approval Page" is clicked.
+    It saves the calendar data to Firestore for the client to review.
+
+    If the client has an Asana project link configured, this will also create an Asana task
+    with the approval URL for the client to review.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(data.approval_id)
+
+        # Store approval page data
+        approval_data = data.model_dump()
+        approval_data['created_at'] = datetime.utcnow().isoformat()
+        approval_data['status'] = 'pending'
+
+        approval_ref.set(approval_data)
+
+        logger.info(f"Created approval page: {data.approval_id} for client {data.client_name}")
+
+        # Build the public approval URL
+        # TODO: Update this base URL to match your production domain
+        base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+        approval_url = f"{base_url}/calendar-approval/{data.approval_id}"
+
+        # Create Asana task asynchronously (don't block approval creation)
+        async def create_asana_task_background():
+            """Background task to create Asana task without blocking response"""
+            try:
+                asana_result = await create_calendar_approval_task(
+                    client_id=data.client_id,
+                    client_name=data.client_name,
+                    approval_id=data.approval_id,
+                    approval_url=approval_url,
+                    month=data.month_name,
+                    year=data.year,
+                    db=db
+                )
+
+                if asana_result["success"]:
+                    logger.info(f"✅ Asana task created: {asana_result['task_url']}")
+
+                    # Optionally store the Asana task info in the approval document
+                    approval_ref.update({
+                        "asana_task_gid": asana_result["task_gid"],
+                        "asana_task_url": asana_result["task_url"],
+                        "asana_created_at": datetime.utcnow().isoformat()
+                    })
+                else:
+                    logger.warning(f"⚠️  Asana task creation failed: {asana_result.get('error')}")
+                    if asana_result.get("warnings"):
+                        for warning in asana_result["warnings"]:
+                            logger.warning(f"   - {warning}")
+
+            except Exception as e:
+                # Log error but don't fail the approval creation
+                logger.error(f"Background Asana task creation failed: {e}", exc_info=True)
+
+        # Schedule background task
+        background_tasks.add_task(create_asana_task_background)
+
+        return {
+            "success": True,
+            "approval_id": data.approval_id,
+            "approval_url": approval_url,
+            "message": "Approval page created successfully. Asana task will be created in background."
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating approval page: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create approval page: {str(e)}"
+        )
+
+@router.post("/approval/create-asana-task")
+async def create_asana_approval_task(
+    data: AsanaTaskCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create an Asana task with the approval page link.
+
+    Looks up the client's Asana project link and creates a task for the client to review.
+
+    Returns:
+    - On success: {"success": true, "task_gid": "...", "task_url": "...", "config_needed": false}
+    - On missing project config: {"success": false, "error": "No Asana project configured", "config_needed": true, "config_url": "/admin (Configure Projects tab)"}
+    - On other errors: {"success": false, "error": "error message", "config_needed": false}
+    """
+    try:
+        # Get client from Firestore to find Asana project link
+        client_ref = db.collection("clients").document(data.client_id)
+        client_doc = client_ref.get()
+
+        if not client_doc.exists:
+            return {
+                "success": False,
+                "error": f"Client {data.client_id} not found",
+                "config_needed": False
+            }
+
+        client_data = client_doc.to_dict()
+        asana_project_link = client_data.get("asana_project_link")
+
+        if not asana_project_link:
+            return {
+                "success": False,
+                "error": f"No Asana project configured for {data.client_name}",
+                "config_needed": True,
+                "config_url": "/admin (Configure Projects tab)"
+            }
+
+        # Get Asana token
+        asana_token = await get_asana_token()
+        if not asana_token:
+            return {
+                "success": False,
+                "error": "Asana API token not configured",
+                "config_needed": False
+            }
+
+        # Extract project GID from URL
+        asana_client = AsanaClient(asana_token)
+        project_gid = asana_client.parse_project_gid_from_url(asana_project_link)
+
+        if not project_gid:
+            return {
+                "success": False,
+                "error": f"Could not parse Asana project GID from URL: {asana_project_link}",
+                "config_needed": True,
+                "config_url": "/admin (Configure Projects tab)"
+            }
+
+        # Create Asana task
+        task_name = f"📅 Review {data.month} {data.year} Campaign Calendar"
+        task_notes = f"""Please review and approve your campaign calendar for {data.month} {data.year}.
+
+**Approval Link**: {data.approval_url}
+
+Click the link above to:
+✓ View all scheduled campaigns
+✓ Approve the calendar
+✓ Request any changes
+
+Once approved, we'll move forward with campaign execution."""
+
+        result = await asana_client.create_task(
+            name=task_name,
+            project_gid=project_gid,
+            notes=task_notes
+        )
+
+        task_gid = result.get("data", {}).get("gid")
+        task_url = f"https://app.asana.com/0/{project_gid}/{task_gid}" if task_gid else None
+
+        logger.info(f"Created Asana task for {data.client_name}: {task_url}")
+
+        return {
+            "success": True,
+            "task_gid": task_gid,
+            "task_url": task_url,
+            "config_needed": False,
+            "message": "Asana task created successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating Asana task: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": f"Failed to create Asana task: {str(e)}",
+            "config_needed": False
+        }
+
+@router.get("/approval/{approval_id}")
+async def get_approval(
+    approval_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get approval page data for client review.
+
+    This endpoint is called by the public calendar-approval.html page.
+    Returns the calendar data so the client can review it.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(approval_id)
+        approval_doc = approval_ref.get()
+
+        if not approval_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Approval page {approval_id} not found"
+            )
+
+        approval_data = approval_doc.to_dict()
+
+        return {
+            "success": True,
+            "data": approval_data
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving approval page: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve approval page: {str(e)}"
+        )
+
+@router.post("/approval/{approval_id}/accept")
+async def accept_approval(
+    approval_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Mark the calendar as approved by the client.
+
+    Called when the client clicks "Approve Calendar" on the public approval page.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(approval_id)
+        approval_doc = approval_ref.get()
+
+        if not approval_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Approval page {approval_id} not found"
+            )
+
+        # Update approval status
+        approval_ref.update({
+            "status": "approved",
+            "approved_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        })
+
+        logger.info(f"Calendar approved: {approval_id}")
+
+        return {
+            "success": True,
+            "approval_id": approval_id,
+            "status": "approved",
+            "message": "Calendar approved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving calendar: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve calendar: {str(e)}"
+        )
+
+@router.post("/approval/{approval_id}/request-changes")
+async def request_changes(
+    approval_id: str,
+    data: ChangeRequestSubmit,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Submit change requests from the client.
+
+    Called when the client clicks "Request Changes" on the public approval page.
+    Creates an Asana task with the requested changes.
+    """
+    try:
+        approval_ref = db.collection("approval_pages").document(approval_id)
+        approval_doc = approval_ref.get()
+
+        if not approval_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Approval page {approval_id} not found"
+            )
+
+        approval_data = approval_doc.to_dict()
+        client_id = approval_data.get("client_id")
+        client_name = approval_data.get("client_name")
+
+        # Update approval status
+        approval_ref.update({
+            "status": "changes_requested",
+            "change_request": data.change_request,
+            "change_tasks": data.tasks or [],
+            "requested_at": data.requested_at,
+            "updated_at": datetime.utcnow().isoformat()
+        })
+
+        # Try to create Asana task for the change request
+        try:
+            # Get client's Asana project link
+            client_ref = db.collection("clients").document(client_id)
+            client_doc = client_ref.get()
+
+            if client_doc.exists:
+                client_data = client_doc.to_dict()
+                asana_project_link = client_data.get("asana_project_link")
+
+                if asana_project_link:
+                    asana_token = await get_asana_token()
+                    if asana_token:
+                        asana_client = AsanaClient(asana_token)
+                        project_gid = asana_client.parse_project_gid_from_url(asana_project_link)
+
+                        if project_gid:
+                            task_name = f"🔧 Calendar Change Request - {approval_data.get('month_name')} {approval_data.get('year')}"
+                            task_notes = f"""Client has requested changes to the calendar:
+
+{data.change_request}
+
+**Approval Link**: https://app.emailpilot.ai/calendar-approval/{approval_id}
+
+Please review and make the requested changes."""
+
+                            result = await asana_client.create_task(
+                                name=task_name,
+                                project_gid=project_gid,
+                                notes=task_notes
+                            )
+
+                            logger.info(f"Created Asana change request task for {client_name}")
+        except Exception as asana_error:
+            logger.warning(f"Could not create Asana task for change request: {asana_error}")
+            # Continue anyway - the change request is saved
+
+        logger.info(f"Change request submitted for {approval_id}")
+
+        return {
+            "success": True,
+            "approval_id": approval_id,
+            "status": "changes_requested",
+            "message": "Change request submitted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error submitting change request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to submit change request: {str(e)}"
+        )
+
+@router.get("/change-requests/{request_id}")
+async def get_change_requests(request_id: str):
+    """
+    Stub endpoint - returns empty change requests.
+
+    TODO: Implement change request tracking logic.
+    """
+    return {"requests": [], "request_id": request_id}
+
+@router.get("/ai/get-conversation/{client}")
+async def get_conversation(client: str):
+    """
+    Stub endpoint - returns empty conversation history.
+
+    TODO: Implement AI conversation history storage and retrieval.
+    """
+    return {"messages": [], "client": client}
+
+# ============================================================================
+# Workflow Integration Endpoints (Brief Generation)
+# ============================================================================
+
+class WorkflowCalendarUpdate(BaseModel):
+    """Request model for updating calendar in workflow"""
+    detailed_calendar: Dict[str, Any] = Field(..., description="The full, modified calendar JSON")
+    simplified_calendar: Optional[Dict[str, Any]] = Field(None, description="Optional simplified view")
+
+class WorkflowApproveRequest(BaseModel):
+    """Request model for approving workflow for brief generation"""
+    reviewer_id: Optional[str] = Field(None, description="Optional reviewer identifier")
+
+@router.put("/workflow/{workflow_id}/calendar")
+async def save_workflow_calendar(
+    workflow_id: str,
+    data: WorkflowCalendarUpdate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Save modified calendar data for a workflow.
+
+    This endpoint is called when the user saves changes to the calendar
+    before generating briefs. The workflow_id corresponds to the approval_id.
+    """
+    try:
+        # Use approval_pages collection with workflow_id as document ID
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        # Update calendar data
+        update_data = {
+            "events": data.detailed_calendar.get("campaigns", data.detailed_calendar.get("events", [])),
+            "workflow_calendar_updated": True,
+            "workflow_calendar_updated_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        if data.simplified_calendar:
+            update_data["simplified_calendar"] = data.simplified_calendar
+
+        workflow_ref.update(update_data)
+
+        logger.info(f"Saved workflow calendar for {workflow_id}")
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "message": "Calendar saved successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving workflow calendar: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save calendar: {str(e)}"
+        )
+
+@router.post("/workflow/{workflow_id}/approve-for-briefs")
+async def approve_workflow_for_briefs(
+    workflow_id: str,
+    data: WorkflowApproveRequest,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Approve workflow and mark it ready for brief generation.
+
+    This endpoint is called after the calendar has been reviewed and approved.
+    It marks the workflow as ready for the next stage (brief generation).
+    """
+    try:
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        workflow_data = workflow_doc.to_dict()
+        current_status = workflow_data.get("status", "pending")
+
+        # Verify calendar is approved before allowing brief generation
+        if current_status != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Calendar must be approved before generating briefs. Current status: {current_status}"
+            )
+
+        # Update workflow status
+        update_data = {
+            "brief_generation_approved": True,
+            "brief_generation_approved_at": datetime.utcnow().isoformat(),
+            "brief_generation_approved_by": data.reviewer_id,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        workflow_ref.update(update_data)
+
+        logger.info(f"Workflow {workflow_id} approved for brief generation")
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "status": "approved_for_briefs",
+            "message": "Workflow approved for brief generation"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving workflow for briefs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve workflow: {str(e)}"
+        )
+
+@router.post("/workflow/{workflow_id}/generate-briefs")
+async def generate_briefs(
+    workflow_id: str,
+    background_tasks: BackgroundTasks,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Trigger brief generation for the approved workflow.
+
+    This endpoint starts the brief generation process using the approved
+    calendar data. It runs asynchronously in the background.
+    """
+    try:
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        workflow_data = workflow_doc.to_dict()
+
+        # Verify calendar is approved
+        if workflow_data.get("status") != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Calendar must be approved before generating briefs"
+            )
+
+        # Update status to generating
+        workflow_ref.update({
+            "brief_generation_status": "generating",
+            "brief_generation_started_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        })
+
+        # Get calendar events for brief generation
+        events = workflow_data.get("events", [])
+        client_id = workflow_data.get("client_id")
+        client_name = workflow_data.get("client_name")
+
+        # Background task for brief generation
+        async def generate_briefs_task():
+            try:
+                # TODO: Implement actual brief generation logic
+                # This would call AI service to generate briefs for each campaign
+
+                # For now, mark as complete with placeholder
+                briefs = []
+                for i, event in enumerate(events):
+                    brief = {
+                        "event_id": event.get("id", f"event_{i}"),
+                        "event_name": event.get("title", event.get("name", f"Campaign {i+1}")),
+                        "brief_content": f"Brief for {event.get('title', event.get('name', 'Campaign'))} - To be generated",
+                        "status": "pending_generation",
+                        "created_at": datetime.utcnow().isoformat()
+                    }
+                    briefs.append(brief)
+
+                # Update workflow with briefs
+                workflow_ref.update({
+                    "briefs": briefs,
+                    "brief_generation_status": "complete",
+                    "brief_generation_completed_at": datetime.utcnow().isoformat(),
+                    "total_briefs": len(briefs),
+                    "updated_at": datetime.utcnow().isoformat()
+                })
+
+                logger.info(f"Generated {len(briefs)} briefs for workflow {workflow_id}")
+
+            except Exception as e:
+                logger.error(f"Error generating briefs: {e}")
+                workflow_ref.update({
+                    "brief_generation_status": "error",
+                    "brief_generation_error": str(e),
+                    "updated_at": datetime.utcnow().isoformat()
+                })
+
+        # Add to background tasks
+        background_tasks.add_task(generate_briefs_task)
+
+        logger.info(f"Started brief generation for workflow {workflow_id}")
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "status": "generating",
+            "message": f"Brief generation started for {len(events)} campaigns",
+            "total_campaigns": len(events)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting brief generation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start brief generation: {str(e)}"
+        )
+
+@router.get("/workflow/{workflow_id}/status")
+async def get_workflow_status(
+    workflow_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get current status of workflow including brief generation progress.
+    """
+    try:
+        workflow_ref = db.collection("approval_pages").document(workflow_id)
+        workflow_doc = workflow_ref.get()
+
+        if not workflow_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Workflow {workflow_id} not found"
+            )
+
+        workflow_data = workflow_doc.to_dict()
+
+        return {
+            "success": True,
+            "workflow_id": workflow_id,
+            "calendar_status": workflow_data.get("status", "pending"),
+            "brief_generation_approved": workflow_data.get("brief_generation_approved", False),
+            "brief_generation_status": workflow_data.get("brief_generation_status", "not_started"),
+            "total_briefs": workflow_data.get("total_briefs", 0),
+            "briefs": workflow_data.get("briefs", [])
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting workflow status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get workflow status: {str(e)}"
+        )
+
+# DISABLED: This stub endpoint conflicts with the real implementation in calendar_grader.py
+# The real endpoint is registered via calendar_grader_router with prefix="/api/calendar"
+# @router.post("/grade")
+# async def grade_performance(request: dict):
+#     """
+#     Stub endpoint for Grade Performance feature.
+#
+#     TODO: Implement campaign performance evaluation logic.
+#     """
+#     return {
+#         "status": "success",
+#         "message": "Performance grading not yet implemented",
+#         "grade": None
+#     }
+
+# DISABLED: This stub endpoint conflicts with the real implementation in calendar_chat.py
+# The real endpoint is registered via calendar_chat_router with prefix="/api/calendar"
+# @router.post("/chat")
+# async def chat_with_ai(request: dict):
+#     """
+#     Stub endpoint for AI Assistant chat feature.
+#
+#     TODO: Implement AI chat functionality.
+#     """
+#     return {
+#         "status": "success",
+#         "message": "AI chat not yet implemented",
+#         "response": "The AI Assistant feature is coming soon!"
+#     }
+
+
+# ============================================================================
+# Multi-Day Events CRUD Endpoints (Firestore-backed)
+# ============================================================================
+
+class MultiDayEventCreate(BaseModel):
+    """Request model for creating a multi-day event"""
+    client_id: str = Field(..., description="Client ID")
+    name: str = Field(..., description="Event name")
+    start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date (YYYY-MM-DD)")
+    event_type: Optional[str] = Field("reminder", description="Event type")
+    emoji: Optional[str] = Field("📅", description="Display emoji")
+    description: Optional[str] = Field("", description="Event description")
+    color: Optional[str] = Field("multi-day-campaign", description="Color class")
+
+class MultiDayEventUpdate(BaseModel):
+    """Request model for updating a multi-day event"""
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    event_type: Optional[str] = None
+    emoji: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+@router.get("/multiday-events")
+async def get_multiday_events(
+    client_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Get multi-day events for a client within a date range.
+
+    Multi-day events span multiple dates, so we check if any part of the event
+    overlaps with the requested date range.
+
+    Query params:
+    - client_id: Required client identifier
+    - start_date: Optional filter start date (YYYY-MM-DD)
+    - end_date: Optional filter end date (YYYY-MM-DD)
+    """
+    try:
+        # Query all multi-day events for client
+        query = db.collection("multiday_events").where("client_id", "==", client_id)
+
+        docs = query.stream()
+
+        events = []
+        for doc in docs:
+            event_data = doc.to_dict()
+            event_data['id'] = doc.id
+
+            # If date range specified, filter events that overlap with the range
+            if start_date and end_date:
+                event_start = event_data.get('start_date', '')
+                event_end = event_data.get('end_date', '')
+
+                # Check for overlap: event ends after range starts AND event starts before range ends
+                if event_end >= start_date and event_start <= end_date:
+                    events.append(event_data)
+            else:
+                events.append(event_data)
+
+        logger.info(f"Retrieved {len(events)} multi-day events for client {client_id}")
+
+        return {"events": events}
+
+    except Exception as e:
+        logger.error(f"Error fetching multi-day events: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch multi-day events: {str(e)}"
+        )
+
+@router.post("/multiday-events")
+async def create_multiday_event(
+    event: MultiDayEventCreate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Create a new multi-day event.
+
+    Returns the created event with its ID.
+    """
+    try:
+        # Prepare event data
+        event_data = event.dict()
+        event_data['created_at'] = datetime.utcnow().isoformat()
+        event_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Create document in Firestore
+        doc_ref = db.collection("multiday_events").document()
+        doc_ref.set(event_data)
+
+        # Return created event with ID
+        event_data['id'] = doc_ref.id
+
+        logger.info(f"Created multi-day event {doc_ref.id} for client {event.client_id}")
+
+        return event_data
+
+    except Exception as e:
+        logger.error(f"Error creating multi-day event: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create multi-day event: {str(e)}"
+        )
+
+@router.put("/multiday-events/{event_id}")
+async def update_multiday_event(
+    event_id: str,
+    event_update: MultiDayEventUpdate,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Update an existing multi-day event.
+
+    Returns the updated event.
+    """
+    try:
+        doc_ref = db.collection("multiday_events").document(event_id)
+
+        # Check if document exists
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Multi-day event {event_id} not found"
+            )
+
+        # Prepare update data (only include non-None fields)
+        update_data = {k: v for k, v in event_update.dict().items() if v is not None}
+        update_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Update document
+        doc_ref.update(update_data)
+
+        # Fetch and return updated event
+        updated_doc = doc_ref.get()
+        event_data = updated_doc.to_dict()
+        event_data['id'] = event_id
+
+        logger.info(f"Updated multi-day event {event_id}")
+
+        return event_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating multi-day event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update multi-day event: {str(e)}"
+        )
+
+@router.delete("/multiday-events/{event_id}")
+async def delete_multiday_event(
+    event_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Delete a multi-day event.
+
+    Returns success message.
+    """
+    try:
+        doc_ref = db.collection("multiday_events").document(event_id)
+
+        # Check if document exists
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Multi-day event {event_id} not found"
+            )
+
+        # Delete document
+        doc_ref.delete()
+
+        logger.info(f"Deleted multi-day event {event_id}")
+
+        return {"success": True, "message": f"Multi-day event {event_id} deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting multi-day event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete multi-day event: {str(e)}"
+        )
+
+# ============================================================================
+# WORKFLOW IMPORT ENDPOINT
+# Receives campaign data from EmailPilot Simple after Stage 1-2 completion
+# ============================================================================
+
+class WorkflowImportEvent(BaseModel):
+    """Event object from workflow import"""
+    date: str = Field(..., description="Campaign date in YYYY-MM-DD format")
+    title: str = Field(..., description="Campaign title")
+    type: str = Field(..., description="Event type: promotional, content, engagement, etc.")
+    description: str = Field(..., description="Campaign type for classification")
+    send_time: str = Field(..., description="Send time in HH:MM format")
+    segment: Optional[str] = Field(None, description="Target segment")
+    strategy: Optional[Dict[str, Any]] = Field(None, description="Per-event strategy details")
+
+    # Email creative fields
+    subject_a: Optional[str] = Field(None, description="Primary subject line")
+    subject_b: Optional[str] = Field(None, description="A/B test variant subject line")
+    preview_text: Optional[str] = Field(None, description="Email preview text")
+    main_cta: Optional[str] = Field(None, description="Call-to-action button text")
+    offer: Optional[str] = Field(None, description="Offer summary")
+
+    # Content planning fields
+    content_brief: Optional[str] = Field(None, description="Content description for brief generation")
+    template_type: Optional[str] = Field(None, description="Email template/layout type")
+
+class WorkflowSendStrategy(BaseModel):
+    """Overall send strategy for the calendar period"""
+    period_overview: Optional[str] = None
+    key_objectives: Optional[Any] = None  # Can be List[str] or str
+    cadence_strategy: Optional[str] = None
+    audience_strategy: Optional[str] = None
+    performance_goals: Optional[str] = None
+
+class WorkflowImportRequest(BaseModel):
+    """Request schema for workflow calendar import"""
+    client_id: str = Field(..., description="Client identifier")
+    send_strategy: Optional[WorkflowSendStrategy] = Field(None, description="Overall strategy for the period")
+    events: List[WorkflowImportEvent] = Field(..., description="Array of campaign events")
+
+@router.post("/import")
+async def import_from_workflow(
+    request: WorkflowImportRequest,
+    db: firestore.Client = Depends(get_db)
+):
+    """
+    Import calendar events from EmailPilot Simple workflow.
+
+    This endpoint receives campaign calendar data after Stage 1-2 completion,
+    including per-event strategy and overall send strategy for the period.
+
+    Returns:
+        Success response with count of imported events and strategy status.
+    """
+    try:
+        created_events = []
+        event_ids = []
+        batch = db.batch()
+
+        # Map event type colors for UI display
+        type_colors = {
+            'promotional': 'bg-red-100 text-red-800',
+            'content': 'bg-blue-100 text-blue-800',
+            'engagement': 'bg-green-100 text-green-800',
+            'product_launch': 'bg-purple-100 text-purple-800',
+            'seasonal': 'bg-orange-100 text-orange-800',
+            'educational': 'bg-cyan-100 text-cyan-800',
+            'win_back': 'bg-yellow-100 text-yellow-800',
+            'nurture': 'bg-indigo-100 text-indigo-800',
+            'lifecycle': 'bg-pink-100 text-pink-800'
+        }
+
+        # Process each event
+        for event in request.events:
+            # Build event data with field mapping
+            event_data = {
+                'client_id': request.client_id,
+                'title': event.title,
+                'event_date': event.date,  # Store as string YYYY-MM-DD
+                'event_type': event.type,
+                'campaign_type': event.description,  # Store campaign classification
+                'content': event.content_brief or event.description,  # Use content_brief if available
+                'send_time': event.send_time,
+                'segment': event.segment,
+                'color': type_colors.get(event.type, type_colors.get(event.description, 'bg-gray-200 text-gray-800')),
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat(),
+                'imported_from_workflow': True,
+                'import_source': 'emailpilot-simple',
+
+                # Email creative fields
+                'subject_a': event.subject_a,
+                'subject_b': event.subject_b,
+                'preview_text': event.preview_text,
+                'main_cta': event.main_cta,
+                'offer': event.offer,
+
+                # Content planning fields
+                'content_brief': event.content_brief,
+                'template_type': event.template_type
+            }
+
+            # Store per-event strategy if provided
+            if event.strategy:
+                event_data['strategy'] = event.strategy
+
+                # Also extract key strategy fields for easy querying
+                if 'performance_forecast' in event.strategy:
+                    forecast = event.strategy['performance_forecast']
+                    event_data['estimated_sends'] = forecast.get('estimated_sends')
+                    event_data['predicted_open_rate'] = forecast.get('predicted_open_rate')
+                    event_data['predicted_click_rate'] = forecast.get('predicted_click_rate')
+                    event_data['predicted_conversion_rate'] = forecast.get('predicted_conversion_rate')
+                    event_data['estimated_revenue'] = forecast.get('estimated_revenue')
+                    event_data['confidence_level'] = forecast.get('confidence_level')
+
+                if 'ab_test' in event.strategy:
+                    event_data['ab_test'] = event.strategy['ab_test'].get('element')
+                    event_data['ab_test_hypothesis'] = event.strategy['ab_test'].get('hypothesis')
+
+            # Create document
+            doc_ref = db.collection("calendar_events").document()
+            batch.set(doc_ref, event_data)
+
+            event_ids.append(doc_ref.id)
+            created_events.append({
+                'id': doc_ref.id,
+                'title': event.title,
+                'event_date': event.date,
+                'event_type': event.type
+            })
+
+        # Commit all events
+        batch.commit()
+        logger.info(f"Workflow import: Created {len(created_events)} events for client {request.client_id}")
+
+        # Handle send_strategy -> strategy_summaries
+        has_send_strategy = False
+        if request.send_strategy:
+            try:
+                # Get date range from events
+                event_dates = [event.date for event in request.events]
+                start_date = min(event_dates)
+                end_date = max(event_dates)
+
+                # Map send_strategy to strategy_summary format
+                key_objectives = request.send_strategy.key_objectives
+                if isinstance(key_objectives, str):
+                    key_objectives = [key_objectives]
+                elif not key_objectives:
+                    key_objectives = []
+
+                strategy_data = {
+                    'client_id': request.client_id,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'key_insights': key_objectives,
+                    'targeting_approach': request.send_strategy.audience_strategy or '',
+                    'timing_strategy': request.send_strategy.cadence_strategy or '',
+                    'content_strategy': request.send_strategy.period_overview or '',
+                    'performance_goals': request.send_strategy.performance_goals or '',
+                    'created_at': datetime.utcnow(),
+                    'updated_at': datetime.utcnow(),
+                    'generated_by': 'emailpilot-simple-workflow',
+                    'event_count': len(request.events),
+                    'import_source': 'workflow'
+                }
+
+                # Save to strategy_summaries collection
+                strategy_ref = db.collection("strategy_summaries").document()
+                strategy_ref.set(strategy_data)
+
+                has_send_strategy = True
+                logger.info(f"Saved send strategy for client {request.client_id} ({start_date} to {end_date})")
+
+            except Exception as e:
+                logger.error(f"Error saving send strategy: {e}")
+                # Don't fail the request if strategy save fails
+
+        return {
+            "success": True,
+            "message": "Calendar imported successfully" + (" with strategy" if has_send_strategy else ""),
+            "events_imported": len(created_events),
+            "client_id": request.client_id,
+            "has_send_strategy": has_send_strategy,
+            "event_ids": event_ids
+        }
+
+    except Exception as e:
+        logger.error(f"Error importing from workflow: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": "Failed to import calendar",
+            "details": str(e)
+        }
+
+
+@router.get("/strategy-summary/{client_id}")
+async def get_strategy_summary(
+    client_id: str,
+    db: firestore.Client = Depends(get_db)
+):
+    """Get the most recent strategy summary for a client"""
+    try:
+        # Query strategy_summaries for this client, ordered by created_at descending
+        strategy_ref = db.collection("strategy_summaries")
+        query = strategy_ref.where("client_id", "==", client_id).order_by(
+            "created_at", direction=firestore.Query.DESCENDING
+        ).limit(1)
+
+        docs = query.stream()
+        strategy_doc = None
+        for doc in docs:
+            strategy_doc = doc.to_dict()
+            break
+
+        if strategy_doc:
+            return {
+                "success": True,
+                "client_id": client_id,
+                "strategy": {
+                    "period_overview": strategy_doc.get("content_strategy") or strategy_doc.get("period_overview"),
+                    "key_objectives": strategy_doc.get("key_objectives"),
+                    "cadence_strategy": strategy_doc.get("timing_strategy") or strategy_doc.get("cadence_strategy"),
+                    "audience_strategy": strategy_doc.get("audience_strategy"),
+                    "performance_goals": strategy_doc.get("performance_goals"),
+                    "start_date": strategy_doc.get("start_date"),
+                    "end_date": strategy_doc.get("end_date"),
+                    "event_count": strategy_doc.get("event_count")
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "client_id": client_id,
+                "strategy": None
+            }
+
+    except Exception as e:
+        logger.error(f"Error fetching strategy summary: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

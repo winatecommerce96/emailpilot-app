@@ -48,19 +48,31 @@ class CalendarCommandParser:
             day = None
             custom_name = None
             
-            # Try to extract month and day (e.g., "August 27th")
+            # Try to extract month and day (e.g., "January 28th, 2026")
             month_patterns = [
-                r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d+)(?:st|nd|rd|th)?",
-                r"(\d+)(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december)",
+                r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d+)(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?",
+                r"(\d+)(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december)(?:,?\s+(\d{4}))?",
             ]
-            
+
+            month_name = None
+            year = None
+            month_map = {
+                'january': 1, 'february': 2, 'march': 3, 'april': 4,
+                'may': 5, 'june': 6, 'july': 7, 'august': 8,
+                'september': 9, 'october': 10, 'november': 11, 'december': 12
+            }
+
             for pattern in month_patterns:
                 match = re.search(pattern, message_lower)
                 if match:
                     if pattern.startswith(r"(\d+)"):
                         day = int(match.group(1))
+                        month_name = match.group(2)
+                        year = int(match.group(3)) if match.group(3) else None
                     else:
+                        month_name = match.group(1)
                         day = int(match.group(2))
+                        year = int(match.group(3)) if match.group(3) else None
                     break
             
             # If no month pattern, try simple day extraction
@@ -75,13 +87,19 @@ class CalendarCommandParser:
                 custom_name = custom_match.group(1).strip()
             
             if day:
-                return {
+                result = {
                     "action": "add",
                     "type": "custom",
                     "day": day,
                     "time": "10:00",
                     "custom_name": custom_name or "Custom Event"
                 }
+                # Add month and year if they were extracted
+                if month_name:
+                    result["month"] = month_map.get(month_name)
+                if year:
+                    result["year"] = year
+                return result
         
         # Original patterns for standard campaign types
         add_patterns = [
@@ -170,20 +188,23 @@ class CalendarCommandParser:
     
     @staticmethod
     def parse_delete_command(message: str) -> Optional[Dict[str, Any]]:
-        """Parse delete campaign commands."""
+        """Parse delete campaign/event commands."""
         delete_patterns = [
-            r"delete\s+(?:the\s+)?campaign\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
-            r"remove\s+(?:the\s+)?campaign\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
-            r"cancel\s+(?:the\s+)?(?:email|campaign)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            # With event/campaign/email keyword
+            r"delete\s+(?:the\s+)?(?:event|campaign|email)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            r"remove\s+(?:the\s+)?(?:event|campaign|email)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            r"cancel\s+(?:the\s+)?(?:event|campaign|email)\s+(?:on\s+)?(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
+            # More flexible: delete + "the" + day
+            r"(?:delete|remove|cancel)\s+(?:the\s+)?(\d+)(?:st|nd|rd|th)?",
         ]
-        
+
         message_lower = message.lower()
-        
+
         for pattern in delete_patterns:
             match = re.search(pattern, message_lower)
             if match:
                 day = int(match.group(1))
-                
+
                 return {
                     "action": "delete",
                     "day": day

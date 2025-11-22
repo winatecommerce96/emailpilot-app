@@ -3,7 +3,7 @@ import json
 import logging
 from google.cloud import firestore
 from google.oauth2 import service_account
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

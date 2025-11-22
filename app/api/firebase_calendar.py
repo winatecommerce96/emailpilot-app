@@ -13,7 +13,7 @@ import uuid
 from app.api.auth import verify_token
 from app.services.gemini_service import GeminiService
 from app.services.google_service import GoogleService
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.deps import get_secret_manager_service
 import sys
 import os

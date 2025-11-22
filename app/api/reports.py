@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from google.cloud import firestore
 from app.deps.firestore import get_db
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.deps.secrets import get_secret_manager_service
 from app.services.slack_alerts import SlackAlertService
 from app.services.performance_monitor import performance_monitor

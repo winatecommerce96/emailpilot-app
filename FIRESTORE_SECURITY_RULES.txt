@@ -1,0 +1,68 @@
+================================================================================
+FIRESTORE SECURITY RULES - FOR REAL-TIME CALENDAR SYNC
+================================================================================
+
+To enable real-time sync between multiple browser windows, you need to update
+the Firestore Security Rules in Firebase Console.
+
+STEP 1: Open Firebase Console
+------------------------------
+URL: https://console.firebase.google.com/project/emailpilot-438321/firestore/rules
+
+STEP 2: Replace Current Rules
+------------------------------
+Copy and paste these rules into the Firebase Console:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow read access to calendar_events for everyone
+    // (You can add authentication later if needed)
+    match /calendar_events/{eventId} {
+      allow read: if true;
+      allow write: if true; // Change to "if request.auth != null" for authenticated users only
+    }
+
+    // Allow read/write to clients collection
+    match /clients/{clientId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Allow read/write to goals collection
+    match /goals/{goalId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Default deny for all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+STEP 3: Click "Publish"
+-----------------------
+Click the "Publish" button in Firebase Console to deploy the rules.
+
+STEP 4: Test Real-Time Sync
+----------------------------
+1. Open calendar in two browser windows
+2. Make a change in one window (add/edit event)
+3. The change should appear in the other window within 2 seconds
+
+================================================================================
+SECURITY NOTE
+================================================================================
+
+The rules above allow public read/write access to simplify testing.
+
+For production, you should add authentication:
+  allow read, write: if request.auth != null;
+
+Or add client-based access control:
+  allow read, write: if request.auth.uid == resource.data.user_id;
+
+================================================================================

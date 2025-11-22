@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 def get_settings() -> Settings:
-    from app.services.secrets import SecretManagerService, SecretNotFoundError
+    from app.services.secret_manager import SecretManagerService, SecretNotFoundError
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     if not project_id:

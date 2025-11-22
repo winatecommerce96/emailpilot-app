@@ -21,7 +21,7 @@ def check_secret_manager_keys():
     print("="*60)
     
     try:
-        from app.services.secrets import SecretManagerService
+        from app.services.secret_manager import SecretManagerService
         
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "emailpilot-438321")
         secret_manager = SecretManagerService(project_id=project_id)

@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import logging
 from app.services.client_key_resolver import get_client_key_resolver
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 from app.deps import get_secret_manager_service
 
 logger = logging.getLogger(__name__)

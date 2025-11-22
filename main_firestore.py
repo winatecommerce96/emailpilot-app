@@ -18,11 +18,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import logging
-import sys
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables from .env file
-load_dotenv()
+env_path = Path(__file__).parent / '.env'
+loaded = load_dotenv(dotenv_path=env_path)
+logging.info(f"📝 .env file loaded: {loaded} from {env_path}")
+import sys
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -35,34 +38,35 @@ except Exception:
     pass
 logger = logging.getLogger(__name__)
 
-# Initialize LangSmith Tracing
-try:
-    from app.core.langsmith_config import setup_langsmith_tracing
-    tracing_status = setup_langsmith_tracing("emailpilot-calendar")
-    if tracing_status["enabled"]:
-        logger.info(f"🔍 LangSmith tracing active for project: {tracing_status['project']}")
-except Exception as e:
-    logger.warning(f"LangSmith tracing setup skipped: {e}")
-
-# ENFORCE Universal MCP Registry Usage
-# Temporarily disabled during startup to prevent blocking
-# TODO: Re-enable after fixing async initialization
-try:
-    # Import but don't execute yet - enforcement will be enabled after startup
-    from app.core.mcp_enforcement import enforce_mcp_registry
-    # from app.core.mcp_registry_validator import validate_mcp_registry
-    
-    # Will activate enforcement after server starts
-    logger.info("📋 MCP Registry enforcement ready (will activate after startup)")
-    
-    # NOTE: Uncomment these after fixing async initialization
-    # enforce_mcp_registry()
-    # if validate_mcp_registry():
-    #     logger.info("✅ MCP Registry validation passed")
-        
-except ImportError as e:
-    logger.warning(f"MCP Registry enforcement not available yet: {e}")
-    # Continue startup
+# CLEANUP PHASE 2: LangSmith and MCP enforcement disabled (not needed for calendar)
+# # Initialize LangSmith Tracing
+# try:
+#     from app.core.langsmith_config import setup_langsmith_tracing
+#     tracing_status = setup_langsmith_tracing("emailpilot-calendar")
+#     if tracing_status["enabled"]:
+#         logger.info(f"🔍 LangSmith tracing active for project: {tracing_status['project']}")
+# except Exception as e:
+#     logger.warning(f"LangSmith tracing setup skipped: {e}")
+#
+# # ENFORCE Universal MCP Registry Usage
+# # Temporarily disabled during startup to prevent blocking
+# # TODO: Re-enable after fixing async initialization
+# try:
+#     # Import but don't execute yet - enforcement will be enabled after startup
+#     from app.core.mcp_enforcement import enforce_mcp_registry
+#     # from app.core.mcp_registry_validator import validate_mcp_registry
+#
+#     # Will activate enforcement after server starts
+#     logger.info("📋 MCP Registry enforcement ready (will activate after startup)")
+#
+#     # NOTE: Uncomment these after fixing async initialization
+#     # enforce_mcp_registry()
+#     # if validate_mcp_registry():
+#     #     logger.info("✅ MCP Registry validation passed")
+#
+# except ImportError as e:
+#     logger.warning(f"MCP Registry enforcement not available yet: {e}")
+#     # Continue startup
 
 # IMPORTANT: Ensure we're running the correct implementation
 # This prevents accidentally running old calendar-project code
@@ -82,6 +86,7 @@ if 'calendar-project' in sys.path or 'calendar_project' in str(Path.cwd()):
 # Import API routers
 from app.api.admin import router as admin_router
 from app.api.admin_users import router as admin_users_router
+from app.api.admin_asana import router as admin_asana_router
 
 from app.api.calendar import router as calendar_router
 from app.api.calendar_enhanced import router as calendar_enhanced_router
@@ -104,39 +109,49 @@ except ImportError as e:
     CALENDAR_LANGSMITH_AVAILABLE = False
     logger.warning(f"Calendar LangSmith integration not available: {e}")
     
-from app.api.mcp_local import router as mcp_router
-from app.api.mcp_chat import router as mcp_chat_router
-
-# Import MCP Klaviyo router 
-from app.api.mcp_klaviyo import router as mcp_klaviyo_router
-from app.api.mcp_registry import router as mcp_registry_router
-from app.api.mcp_management import router as mcp_management_router
-
-# Import MCP Gateway router (NEW - Routes to Enhanced or Fallback MCP)
-try:
-    from app.api.mcp_gateway import router as mcp_gateway_router
-    MCP_GATEWAY_AVAILABLE = True
-    logger.info("✅ MCP Gateway router loaded - Enhanced MCP integration ready")
-except ImportError as e:
-    mcp_gateway_router = None
-    MCP_GATEWAY_AVAILABLE = False
-    logger.warning(f"MCP Gateway router not available: {e}")
-
-# Import MCP Natural Language router (NEW - Natural language interface for MCP)
-try:
-    from app.api.mcp_natural_language import router as mcp_natural_language_router
-    MCP_NL_AVAILABLE = True
-    logger.info("✅ MCP Natural Language router loaded - Chat interface ready")
-except ImportError as e:
-    mcp_natural_language_router = None
-    MCP_NL_AVAILABLE = False
-    logger.warning(f"MCP Natural Language router not available: {e}")
-
-# Import Klaviyo Discovery router
-from app.api.klaviyo_discovery import router as klaviyo_discovery_router
+# CLEANUP PHASE 2: MCP and LangChain imports commented out (not used by calendar)
+# from app.api.mcp_local import router as mcp_router
+# from app.api.mcp_chat import router as mcp_chat_router
+#
+# # Import MCP Klaviyo router
+# from app.api.mcp_klaviyo import router as mcp_klaviyo_router
+# from app.api.mcp_registry import router as mcp_registry_router
+# from app.api.mcp_management import router as mcp_management_router
+#
+# # Import MCP Gateway router (NEW - Routes to Enhanced or Fallback MCP)
+# try:
+#     from app.api.mcp_gateway import router as mcp_gateway_router
+#     MCP_GATEWAY_AVAILABLE = True
+#     logger.info("✅ MCP Gateway router loaded - Enhanced MCP integration ready")
+# except ImportError as e:
+#     mcp_gateway_router = None
+#     MCP_GATEWAY_AVAILABLE = False
+#     logger.warning(f"MCP Gateway router not available: {e}")
+#
+# # Import MCP Natural Language router (NEW - Natural language interface for MCP)
+# try:
+#     from app.api.mcp_natural_language import router as mcp_natural_language_router
+#     MCP_NL_AVAILABLE = True
+#     logger.info("✅ MCP Natural Language router loaded - Chat interface ready")
+# except ImportError as e:
+#     mcp_natural_language_router = None
+#     MCP_NL_AVAILABLE = False
+#     logger.warning(f"MCP Natural Language router not available: {e}")
+#
+# # Import Klaviyo Discovery router
+# from app.api.klaviyo_discovery import router as klaviyo_discovery_router
 
 # Import admin client management router
 from app.api.admin_clients import router as admin_clients_router
+
+# Import public clients router (for calendar)
+from app.api.clients_public import router as clients_public_router
+
+# Import multi-platform clients module (NEW)
+import sys
+sys.path.insert(0, '/Users/Damon/klaviyo/klaviyo-audit-automation')
+# TEMPORARILY DISABLED - causing import hang
+# from shared_modules.clients.main import router as multi_platform_clients_router
 
 # Import admin firestore router
 from app.api.admin_firestore import router as admin_firestore_router
@@ -157,17 +172,17 @@ except ImportError:
     PROXY_AVAILABLE = False
     logger.info("Proxy router not available")
 
-# Import LangChain admin router
-try:
-    import sys
-    sys.path.insert(0, "multi-agent")
-    from integrations.langchain_core.admin.api import router as langchain_admin_router
-    LANGCHAIN_ADMIN_AVAILABLE = True
-    logger.info("LangChain admin API available")
-except ImportError as e:
-    langchain_admin_router = None
-    LANGCHAIN_ADMIN_AVAILABLE = False
-    logger.info(f"LangChain admin API not available: {e}")
+# CLEANUP PHASE 2: LangChain admin imports commented out (not used by calendar)
+# try:
+#     import sys
+#     sys.path.insert(0, "multi-agent")
+#     from integrations.langchain_core.admin.api import router as langchain_admin_router
+#     LANGCHAIN_ADMIN_AVAILABLE = True
+#     logger.info("LangChain admin API available")
+# except ImportError as e:
+#     langchain_admin_router = None
+LANGCHAIN_ADMIN_AVAILABLE = False
+# logger.info(f"LangChain admin API not available: {e}")
 
 # Import auth router
 from app.api.auth import router as auth_router
@@ -215,24 +230,26 @@ except ImportError:
 
 # Import goals router - Now using Firestore
 from app.api.goals import router as goals_router
-from app.api.goals2 import router as goals2_router
+# CLEANUP PHASE 2: goals2 removed (empty duplicate file)
+# from app.api.goals2 import router as goals2_router
 
 # Import performance router - Now simplified  
 from app.api.performance import router as performance_router
 
 # Import reports router - Now simplified
 from app.api.reports import router as reports_router
-from app.api.reports_mcp import router as reports_mcp_router
-from app.api.reports_mcp_v2 import router as reports_mcp_v2_router
-from app.api.asana import router as asana_router
-from app.api.admin_asana import router as admin_asana_router
-from app.api.asana_oauth import router as asana_oauth_router
-
-# Import dashboard router - Now uses Firestore
-from app.api.dashboard import router as dashboard_router
-
-# Import agents router (legacy)
-from app.api.agents import router as agents_router
+# CLEANUP PHASE 2: Reports MCP, Asana, Dashboard, and Agents imports commented out (not used by calendar)
+# from app.api.reports_mcp import router as reports_mcp_router
+# from app.api.reports_mcp_v2 import router as reports_mcp_v2_router
+# from app.api.asana import router as asana_router
+from app.api.admin_asana import router as admin_asana_router  # RE-ENABLED for calendar approval integration
+# from app.api.asana_oauth import router as asana_oauth_router
+#
+# # Import dashboard router - Now uses Firestore
+# from app.api.dashboard import router as dashboard_router
+#
+# # Import agents router (legacy)
+# from app.api.agents import router as agents_router
 
 # Import unified agents router (NEW - Single Source of Truth)
 try:
@@ -331,7 +348,7 @@ import signal
 import requests
 
 # Import the new SecretManagerService
-from app.services.secrets import SecretManagerService, SecretError, SecretNotFoundError, SecretPermissionError
+from app.services.secret_manager import SecretManagerService, SecretError, SecretNotFoundError, SecretPermissionError
 
 # Import settings for configuration
 from app.core.settings import get_settings
@@ -451,10 +468,12 @@ cors_origins_env = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") 
 default_origins = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "http://localhost:3000", 
+        "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "http://localhost:8003",
+        "http://127.0.0.1:8003",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://emailpilot.ai",
@@ -524,31 +543,9 @@ async def version():
     """Version information endpoint for deployment tracking."""
     return {"version": "1.0.0"}
 
-# Legacy clients endpoint (for backwards compatibility)
-@app.get("/api/clients/")
-async def get_clients_legacy():
-    """Legacy endpoint for clients list - redirects to admin endpoint"""
-    try:
-        db = get_db()
-        docs = list(db.collection("clients").stream())
-        clients = []
-        
-        for doc in docs:
-            if doc.exists:
-                data = doc.to_dict()
-                clients.append({
-                    "id": doc.id,
-                    "name": data.get("name", "Unknown"),
-                    "metric_id": data.get("metric_id", ""),
-                    "is_active": data.get("is_active", True),
-                    "contact_email": data.get("contact_email", ""),
-                    "website": data.get("website", "")
-                })
-        
-        return clients
-    except Exception as e:
-        logger.error(f"Error fetching clients: {e}")
-        return []
+# REMOVED: /api/clients endpoint - Calendar should call orchestrator directly
+# Source of truth: https://emailpilot-orchestrator-935786836546.us-central1.run.app/api/clients
+# Keeping only /api/admin/clients for backward compatibility with old deployed HTML files
 
 # Stub endpoints for admin dashboard compatibility
 @app.get("/api/admin")
@@ -714,8 +711,8 @@ async def get_calendar_legacy():
 
 @app.get("/calendar.html")
 async def get_calendar_html():
-    """Redirect to isolated static calendar under /static/standalone-calendar"""
-    return RedirectResponse(url="/static/standalone-calendar/index.html")
+    """Serve production calendar master page"""
+    return FileResponse('frontend/public/calendar_master.html')
 
 @app.get("/calendar-debug")
 async def get_calendar_debug():
@@ -752,15 +749,19 @@ except ImportError as e:
     logger.warning(f"❌ Backfill router not loaded: {e}")
 
 # Include calendar routers with appropriate prefixes
+# IMPORTANT: Register specialized calendar routers BEFORE general calendar router
+# This ensures specific endpoints like /chat, /grade, /holidays take priority over stubs
+app.include_router(calendar_chat_router, tags=["Calendar Chat"])
+app.include_router(calendar_grader_router, tags=["Calendar Grading"])
+app.include_router(calendar_holidays_router, tags=["Calendar Holidays"])
+
+# Now register general calendar routers (with potential stub endpoints)
 app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
 app.include_router(calendar_enhanced_router, prefix="/api/calendar", tags=["Calendar Enhanced"])
 app.include_router(calendar_planning_router, tags=["AI Calendar Planning"])
 app.include_router(calendar_planning_ai_router, tags=["Calendar Planning AI with MCP"])
 app.include_router(calendar_planning_templates_router, tags=["Calendar Planning Templates"])
 app.include_router(firebase_calendar_router, prefix="/api/firebase-calendar", tags=["Firebase Calendar"])
-app.include_router(calendar_chat_router, tags=["Calendar Chat"])
-app.include_router(calendar_grader_router, tags=["Calendar Grading"])
-app.include_router(calendar_holidays_router, tags=["Calendar Holidays"])
 
 # Include LangSmith-traced calendar router if available
 if CALENDAR_LANGSMITH_AVAILABLE:
@@ -784,69 +785,69 @@ if CALENDAR_WORKFLOW_AVAILABLE:
     app.include_router(calendar_workflow_router, tags=["Calendar Workflow"])
     logger.info("✅ Calendar Workflow API routes added - Multi-agent calendar planning ready")
 
-# MCP Management routers
-app.include_router(mcp_router, prefix="/api/mcp", tags=["MCP Management"])
-app.include_router(mcp_chat_router, tags=["MCP Chat"])
-
-# Direct Klaviyo API integration for MCP Chat
-try:
-    from app.api.mcp_chat_direct import router as mcp_chat_direct_router
-    app.include_router(mcp_chat_direct_router, tags=["MCP Direct"])
-    logger.info("✅ MCP Direct Klaviyo API integration enabled")
-except Exception as e:
-    logger.warning(f"MCP Direct integration not available: {e}")
-
-# LangChain Natural Language Interface for Klaviyo
-try:
-    from app.api.langchain_klaviyo import router as langchain_klaviyo_router
-    app.include_router(langchain_klaviyo_router, tags=["LangChain Klaviyo"])
-    logger.info("✅ LangChain Natural Language interface for Klaviyo enabled")
-except Exception as e:
-    logger.warning(f"LangChain Klaviyo integration not available: {e}")
-
-# LangChain Debug Interface
-try:
-    from app.api.langchain_debug import router as langchain_debug_router
-    app.include_router(langchain_debug_router, tags=["LangChain Debug"])
-    logger.info("✅ LangChain Debug interface enabled")
-except Exception as e:
-    logger.warning(f"LangChain Debug interface not available: {e}")
-
-# Include LangChain Execute interface for synchronous agent execution
-try:
-    from app.api.langchain_execute import router as langchain_execute_router
-    app.include_router(langchain_execute_router, tags=["LangChain Execute"])
-    logger.info("✅ LangChain Execute interface enabled - Synchronous agent execution")
-except Exception as e:
-    logger.warning(f"LangChain Execute interface not available: {e}")
-
-# Klaviyo Feedback and Validation System
-try:
-    from app.api.klaviyo_feedback import router as klaviyo_feedback_router
-    app.include_router(klaviyo_feedback_router, tags=["Klaviyo Feedback"])
-    logger.info("✅ Klaviyo Feedback and Validation system enabled")
-except Exception as e:
-    logger.warning(f"Klaviyo Feedback system not available: {e}")
-
-# MCP Klaviyo Management
-app.include_router(mcp_klaviyo_router, prefix="/api/mcp/klaviyo", tags=["MCP Klaviyo Management"])
-app.include_router(mcp_registry_router, tags=["MCP Registry"])
-app.include_router(mcp_management_router, tags=["MCP Universal Management"])
-
-# Include MCP Gateway router if available (Enhanced MCP integration)
-if MCP_GATEWAY_AVAILABLE:
-    app.include_router(mcp_gateway_router, tags=["MCP Gateway"])
-    logger.info("✅ MCP Gateway router registered - Enhanced MCP ready")
-
-# Include MCP Natural Language router if available (Natural language interface)
-if MCP_NL_AVAILABLE:
-    app.include_router(mcp_natural_language_router, tags=["MCP Natural Language"])
-
-# Include Natural Language Query router if available (Intelligent query service)
-if NATURAL_QUERY_AVAILABLE:
-    app.include_router(natural_query_router, tags=["Natural Language Query"])
-    logger.info("🌐 Natural Language Query API registered")
-    logger.info("✅ MCP Natural Language router registered - Chat interface ready")
+# CLEANUP PHASE 2: MCP Management routers commented out (not used by calendar)
+# app.include_router(mcp_router, prefix="/api/mcp", tags=["MCP Management"])
+# app.include_router(mcp_chat_router, tags=["MCP Chat"])
+#
+# # Direct Klaviyo API integration for MCP Chat
+# try:
+#     from app.api.mcp_chat_direct import router as mcp_chat_direct_router
+#     app.include_router(mcp_chat_direct_router, tags=["MCP Direct"])
+#     logger.info("✅ MCP Direct Klaviyo API integration enabled")
+# except Exception as e:
+#     logger.warning(f"MCP Direct integration not available: {e}")
+#
+# # LangChain Natural Language Interface for Klaviyo
+# try:
+#     from app.api.langchain_klaviyo import router as langchain_klaviyo_router
+#     app.include_router(langchain_klaviyo_router, tags=["LangChain Klaviyo"])
+#     logger.info("✅ LangChain Natural Language interface for Klaviyo enabled")
+# except Exception as e:
+#     logger.warning(f"LangChain Klaviyo integration not available: {e}")
+#
+# # LangChain Debug Interface
+# try:
+#     from app.api.langchain_debug import router as langchain_debug_router
+#     app.include_router(langchain_debug_router, tags=["LangChain Debug"])
+#     logger.info("✅ LangChain Debug interface enabled")
+# except Exception as e:
+#     logger.warning(f"LangChain Debug interface not available: {e}")
+#
+# # Include LangChain Execute interface for synchronous agent execution
+# try:
+#     from app.api.langchain_execute import router as langchain_execute_router
+#     app.include_router(langchain_execute_router, tags=["LangChain Execute"])
+#     logger.info("✅ LangChain Execute interface enabled - Synchronous agent execution")
+# except Exception as e:
+#     logger.warning(f"LangChain Execute interface not available: {e}")
+#
+# # Klaviyo Feedback and Validation System
+# try:
+#     from app.api.klaviyo_feedback import router as klaviyo_feedback_router
+#     app.include_router(klaviyo_feedback_router, tags=["Klaviyo Feedback"])
+#     logger.info("✅ Klaviyo Feedback and Validation system enabled")
+# except Exception as e:
+#     logger.warning(f"Klaviyo Feedback system not available: {e}")
+#
+# # MCP Klaviyo Management
+# app.include_router(mcp_klaviyo_router, prefix="/api/mcp/klaviyo", tags=["MCP Klaviyo Management"])
+# app.include_router(mcp_registry_router, tags=["MCP Registry"])
+# app.include_router(mcp_management_router, tags=["MCP Universal Management"])
+#
+# # Include MCP Gateway router if available (Enhanced MCP integration)
+# if MCP_GATEWAY_AVAILABLE:
+#     app.include_router(mcp_gateway_router, tags=["MCP Gateway"])
+#     logger.info("✅ MCP Gateway router registered - Enhanced MCP ready")
+#
+# # Include MCP Natural Language router if available (Natural language interface)
+# if MCP_NL_AVAILABLE:
+#     app.include_router(mcp_natural_language_router, tags=["MCP Natural Language"])
+#
+# # Include Natural Language Query router if available (Intelligent query service)
+# if NATURAL_QUERY_AVAILABLE:
+#     app.include_router(natural_query_router, tags=["Natural Language Query"])
+#     logger.info("🌐 Natural Language Query API registered")
+#     logger.info("✅ MCP Natural Language router registered - Chat interface ready")
 
 # Comprehensive Query System for Calendar Workflow
 try:
@@ -856,11 +857,18 @@ try:
 except ImportError as e:
     logger.warning(f"Comprehensive Query System not available: {e}")
 
-# Klaviyo Account Discovery
-app.include_router(klaviyo_discovery_router, prefix="/api/klaviyo", tags=["Klaviyo Account Discovery"])
+# CLEANUP PHASE 2: Klaviyo Discovery router commented out (not used by calendar)
+# app.include_router(klaviyo_discovery_router, prefix="/api/klaviyo", tags=["Klaviyo Account Discovery"])
 
 # Admin client management router - already has /api/admin/clients prefix internally
 app.include_router(admin_clients_router, tags=["Admin Client Management"])
+
+# Public clients router (for calendar) - no auth required
+app.include_router(clients_public_router, prefix="/api/clients", tags=["Public Clients"])
+
+# Multi-platform clients router (NEW - Klaviyo, Braze, Mailchimp, Fishbowl)
+# TEMPORARILY DISABLED - router import causing hang
+# app.include_router(multi_platform_clients_router, prefix="/api", tags=["Multi-Platform Clients"])
 
 # Admin Firestore router
 app.include_router(admin_firestore_router, prefix="/api/admin/firestore", tags=["Admin Firestore Configuration"])
@@ -870,6 +878,9 @@ app.include_router(admin_secret_manager_router, tags=["Admin Secret Manager"])
 
 # Admin Services Catalog router
 app.include_router(admin_services_router, tags=["Admin Services"])
+
+# Admin Asana router - RE-ENABLED for calendar approval integration
+app.include_router(admin_asana_router, prefix="/api/admin/asana", tags=["Admin Asana"])
 
 # Admin Notifications router
 app.include_router(admin_notifications_router, tags=["Admin Notifications"])
@@ -917,21 +928,23 @@ if klaviyo_oauth_router:
 
 # Goals router - Now using Firestore
 app.include_router(goals_router, prefix="/api/goals", tags=["Goals Management"])
-app.include_router(goals2_router, prefix="/api/goals2", tags=["Goals Management 2"])
+# CLEANUP PHASE 2: goals2 router removed (empty duplicate file)
+# app.include_router(goals2_router, prefix="/api/goals2", tags=["Goals Management 2"])
 
 # Performance router - Now simplified
 app.include_router(performance_router, tags=["Performance Metrics"])
 
 # Reports router - Now simplified
 app.include_router(reports_router, tags=["Reports"])
-app.include_router(reports_mcp_router, tags=["MCP Reports"])
-app.include_router(reports_mcp_v2_router, tags=["MCP Reports V2"])
-
-# Dashboard router - Now uses Firestore
-app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
-
-# Agents router (legacy)
-app.include_router(agents_router, prefix="/api/agents", tags=["Agents (Legacy)"])
+# CLEANUP PHASE 2: Reports MCP, Dashboard, and Agents routers commented out (not used by calendar)
+# app.include_router(reports_mcp_router, tags=["MCP Reports"])
+# app.include_router(reports_mcp_v2_router, tags=["MCP Reports V2"])
+#
+# # Dashboard router - Now uses Firestore
+# app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard"])
+#
+# # Agents router (legacy)
+# app.include_router(agents_router, prefix="/api/agents", tags=["Agents (Legacy)"])
 # Unified Agents router - SINGLE SOURCE OF TRUTH (use this!)
 if AGENTS_UNIFIED_AVAILABLE and agents_unified_router:
     app.include_router(agents_unified_router, tags=["Unified Agents - SSOT"])
@@ -940,10 +953,10 @@ if AGENTS_UNIFIED_AVAILABLE and agents_unified_router:
 # AI Orchestrator router - PRIMARY AI INTERFACE (use this!)
 # app.include_router(ai_orchestrator_router, tags=["AI Orchestrator"])  # DISABLED - Using LangChain
 
-# Include LangChain Admin API
-if LANGCHAIN_ADMIN_AVAILABLE:
-    app.include_router(langchain_admin_router, tags=["LangChain Admin"])
-logger.info("✅ LangChain enabled - Primary AI interface")
+# CLEANUP PHASE 2: LangChain Admin router commented out (not used by calendar)
+# if LANGCHAIN_ADMIN_AVAILABLE:
+#     app.include_router(langchain_admin_router, tags=["LangChain Admin"])
+# logger.info("✅ LangChain enabled - Primary AI interface")
 
 # Include LangChain Orchestration API
 try:
@@ -1002,24 +1015,24 @@ if TOOLS_AVAILABLE and tools_router:
     app.include_router(tools_router, prefix="/api/tools", tags=["External Tools"])
     logger.info("✅ External Tools router enabled")
 
-# Asana integration router
-app.include_router(asana_router)
-app.include_router(admin_asana_router)
-app.include_router(asana_oauth_router)
-
-# Workflow API for LangGraph visual editor (using fixed version)
-try:
-    from app.api.workflow_fixed import router as workflow_router
-    app.include_router(workflow_router, tags=["Workflow"])
-    logger.info("✅ Workflow API enabled for LangGraph editor (fixed)")
-except ImportError as e:
-    # Fallback to original if fixed not available
-    try:
-        from app.api.workflow import router as workflow_router
-        app.include_router(workflow_router, tags=["Workflow"])
-        logger.info("✅ Workflow API enabled for LangGraph editor")
-    except ImportError:
-        logger.info(f"ℹ️ Workflow API not available: {e}")
+# CLEANUP PHASE 2: Asana and Workflow routers commented out (not used by calendar)
+# app.include_router(asana_router)
+# app.include_router(admin_asana_router)
+# app.include_router(asana_oauth_router)
+#
+# # Workflow API for LangGraph visual editor (using fixed version)
+# try:
+#     from app.api.workflow_fixed import router as workflow_router
+#     app.include_router(workflow_router, tags=["Workflow"])
+#     logger.info("✅ Workflow API enabled for LangGraph editor (fixed)")
+# except ImportError as e:
+#     # Fallback to original if fixed not available
+#     try:
+#         from app.api.workflow import router as workflow_router
+#         app.include_router(workflow_router, tags=["Workflow"])
+#         logger.info("✅ Workflow API enabled for LangGraph editor")
+#     except ImportError:
+#         logger.info(f"ℹ️ Workflow API not available: {e}")
 
 # Variables API for agent development (independent of workflow) - Updated
 try:
@@ -1029,13 +1042,13 @@ try:
 except ImportError as e:
     logger.warning(f"Variables API not available: {e}")
 
-# Hub Dashboard API for LangGraph integration
-try:
-    from app.api.hub import router as hub_router
-    app.include_router(hub_router, tags=["Hub Dashboard"])
-    logger.info("✅ Hub Dashboard API enabled for LangGraph integration")
-except ImportError as e:
-    logger.warning(f"Hub Dashboard API not available: {e}")
+# CLEANUP PHASE 2: Hub Dashboard router commented out (not used by calendar)
+# try:
+#     from app.api.hub import router as hub_router
+#     app.include_router(hub_router, tags=["Hub Dashboard"])
+#     logger.info("✅ Hub Dashboard API enabled for LangGraph integration")
+# except ImportError as e:
+#     logger.warning(f"Hub Dashboard API not available: {e}")
 
 # Email/SMS MCP agent routers removed - replaced by LangChain system
 
@@ -1057,9 +1070,10 @@ _BASE_DIR = _Path(__file__).resolve().parent
 # This serves files like /static/dist/app.js, /static/components/, etc.
 app.mount("/static", StaticFiles(directory="frontend/public"), name="static")
 
-# Serve the Vite-built frontend as the primary static directory
-# This mount serves the compiled SPA files directly at root
-app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
+# CLEANUP PHASE 2: Commented out to allow calendar as default landing page
+# The root route handler at line ~1102 serves calendar_master.html instead
+# To restore React SPA at root, uncomment this mount and remove the @app.get("/") handler
+# app.mount("/", StaticFiles(directory="dist", html=True), name="spa")
 # Explicit route for test HTML files
 @app.get("/test-endpoints.html")
 async def serve_test_endpoints():
@@ -1084,9 +1098,9 @@ async def serve_test_hidden_endpoints():
 
 # ============ MPA Routes (Server-rendered) ============
 @app.get("/")
-async def root_spa(request: Request):
-    """Serves the main index.html file for the React SPA."""
-    return FileResponse('dist/index.html')
+async def root_calendar(request: Request):
+    """Serves the calendar as the default landing page."""
+    return FileResponse('frontend/public/calendar_master.html')
 
 
 @app.get("/clients")
@@ -1142,7 +1156,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main_firestore:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main_firestore:app", host="0.0.0.0", port=8008, reload=True)
 # Log asset 404s for /static/dist to aid debugging and CI visibility
 @app.middleware("http")
 async def asset_404_telemetry(request: Request, call_next):

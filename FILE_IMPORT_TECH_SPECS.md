@@ -321,7 +321,7 @@ function normalizeEventData(event) {
 ```javascript
 const colorMap = {
   'email': 'bg-blue-200 text-blue-800',
-  'sms': 'bg-orange-200 text-orange-800', 
+  'sms': 'bg-orange-200 text-orange-800',
   'flash sale': 'bg-red-300 text-red-800',
   'promotional': 'bg-red-300 text-red-800',
   'nurturing': 'bg-green-100 text-green-800',
@@ -330,6 +330,237 @@ const colorMap = {
   'seasonal': 'bg-purple-200 text-purple-800'
 };
 ```
+
+## Channel Filtering Specifications
+
+### Overview
+The calendar interface provides Email and SMS channel filter pills that allow users to view campaigns by communication channel. These filters work alongside affinity segment filters to provide flexible campaign visibility.
+
+### Channel Field in Imported Events
+
+#### Field Specification
+- **Field Name**: `channel` (optional)
+- **Valid Values**: `"email"`, `"sms"`
+- **Default Behavior**: If no channel is specified, the system uses the `type` or `event_type` field to infer the channel
+
+#### Channel Detection Logic
+```javascript
+// Priority order for determining channel:
+1. Explicit channel field: event.channel
+2. Type field inference: event.type or event.event_type
+   - "email" → email channel
+   - "sms" → sms channel
+   - Other types → defaults to email channel
+```
+
+#### Import Examples
+
+**JSON with Explicit Channel**
+```json
+[
+  {
+    "title": "Summer Sale Email",
+    "date": "2024-06-15",
+    "channel": "email",
+    "content": "Email campaign for summer sale"
+  },
+  {
+    "title": "Flash Sale Alert",
+    "date": "2024-06-16",
+    "channel": "sms",
+    "content": "SMS notification for 24hr flash sale"
+  }
+]
+```
+
+**CSV with Channel Column**
+```csv
+Campaign Name,Launch Date,Channel,Description
+Summer Sale Email,2024-06-15,email,Email campaign for summer sale
+Flash Sale Alert,2024-06-16,sms,SMS notification for 24hr flash sale
+```
+
+**Inferred from Type Field**
+```json
+[
+  {
+    "title": "Newsletter #45",
+    "date": "2024-06-20",
+    "type": "email",
+    "content": "Monthly updates"
+  },
+  {
+    "title": "Urgent Alert",
+    "date": "2024-06-21",
+    "type": "sms",
+    "content": "Limited time offer"
+  }
+]
+```
+
+### Filter Pills UI
+
+#### Email Filter Pill
+```html
+<div class="glass-card p-3 flex-1 min-w-[140px] cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all"
+     onclick="calendarManager.toggleChannelFilter('email')"
+     title="Filter by Email campaigns">
+    <div class="flex items-center justify-center gap-2">
+        <span class="text-xs font-semibold">📧 Email</span>
+    </div>
+</div>
+```
+
+**Active State**: `ring-2 ring-purple-500 bg-purple-500/20`
+
+#### SMS Filter Pill
+```html
+<div class="glass-card p-3 flex-1 min-w-[140px] cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all"
+     onclick="calendarManager.toggleChannelFilter('sms')"
+     title="Filter by SMS campaigns">
+    <div class="flex items-center justify-center gap-2">
+        <span class="text-xs font-semibold">📱 SMS</span>
+    </div>
+</div>
+```
+
+**Active State**: `ring-2 ring-purple-500 bg-purple-500/20`
+
+#### Visual Location
+- Displayed in the segments display area
+- Positioned before affinity segment pills
+- Always visible when a client is selected
+
+### Filter Toggle Behavior
+
+#### JavaScript API
+```javascript
+toggleChannelFilter(channel) {
+    const idx = this.activeFilters.channels.indexOf(channel);
+    if (idx === -1) {
+        // Clear segment filters when filtering by channel
+        this.activeFilters.segments = [];
+        this.activeFilters.channels = [channel]; // Only one channel at a time
+    } else {
+        this.activeFilters.channels.splice(idx, 1);
+    }
+    this.renderCalendar();
+    this.updateSegmentDisplay();
+    const channelName = channel === 'email' ? 'Email' : 'SMS';
+    showToast(`${idx === -1 ? 'Showing only' : 'Showing all'} ${channelName} campaigns`, 'info');
+}
+```
+
+#### Filter Rules
+1. **Mutual Exclusivity**: Only one channel can be filtered at a time
+   - Clicking "Email" when "SMS" is active switches to Email filter
+   - Clicking "SMS" when "Email" is active switches to SMS filter
+
+2. **Segment Filter Clearing**: Activating a channel filter clears all active segment filters
+   - Channel filters and segment filters cannot be active simultaneously
+   - This prevents confusion and provides clear filtering state
+
+3. **Toggle Behavior**: Clicking an active channel filter removes it
+   - Shows all campaigns regardless of channel
+   - Re-enables segment filtering capability
+
+4. **Visual Feedback**: Toast notifications confirm filter state changes
+   - "Showing only Email campaigns" when Email filter activated
+   - "Showing only SMS campaigns" when SMS filter activated
+   - "Showing all Email campaigns" / "Showing all SMS campaigns" when filter removed
+
+### Filter State Management
+
+#### Active Filter Structure
+```javascript
+this.activeFilters = {
+    channels: [],   // Array with 0 or 1 channel: ['email'] or ['sms'] or []
+    segments: []    // Array with segment names, empty when channel filter active
+};
+```
+
+#### State Combinations
+```javascript
+// No filters active
+{ channels: [], segments: [] }
+// Shows: All campaigns
+
+// Email filter active
+{ channels: ['email'], segments: [] }
+// Shows: Only email campaigns
+
+// SMS filter active
+{ channels: ['sms'], segments: [] }
+// Shows: Only SMS campaigns
+
+// Segment filter active (channel must be empty)
+{ channels: [], segments: ['VIP Customers'] }
+// Shows: Only campaigns targeting VIP Customers segment
+
+// Invalid state (prevented by toggle logic)
+{ channels: ['email'], segments: ['VIP Customers'] }
+// System prevents this - activating channel clears segments
+```
+
+### Integration with Import Process
+
+#### Automatic Channel Assignment
+During import, if no explicit `channel` field is provided:
+
+1. **Check event type**: Look for `type` or `event_type` field
+2. **Match patterns**:
+   - Contains "email" → assign `channel: "email"`
+   - Contains "sms" → assign `channel: "sms"`
+   - Matches color map keys → assign channel based on type
+3. **Default fallback**: If no match found, default to `channel: "email"`
+
+#### Post-Import Filtering
+After events are imported:
+- Channel filter pills remain available
+- Users can immediately filter imported campaigns by channel
+- Filter state persists during navigation within same client
+- Filter state resets when switching clients
+
+### User Workflow Examples
+
+#### Example 1: Email-Only Review
+1. User imports mixed Email and SMS campaigns
+2. User clicks "📧 Email" pill
+3. Calendar shows only email campaigns
+4. User reviews email campaign schedule
+5. User clicks "📧 Email" pill again to see all campaigns
+
+#### Example 2: SMS Campaign Planning
+1. User clicks "📱 SMS" pill
+2. Calendar shows only SMS campaigns
+3. User identifies gaps in SMS schedule
+4. User creates new SMS campaign on empty date
+5. User clicks "📱 SMS" pill to deactivate and view full calendar
+
+#### Example 3: Switching Between Filters
+1. User has "VIP Customers" segment filter active
+2. User clicks "📧 Email" pill
+3. Segment filter automatically clears
+4. Calendar shows all email campaigns (not just VIP)
+5. User clicks "📧 Email" pill to deactivate
+6. User can now reactivate segment filter if desired
+
+### Testing Specifications
+
+#### Channel Filter Tests
+1. **Single Channel Activation**: Verify only matching campaigns display
+2. **Channel Toggle**: Verify clicking active filter removes it
+3. **Mutual Exclusivity**: Verify only one channel active at a time
+4. **Segment Clearing**: Verify channel activation clears segment filters
+5. **Visual State**: Verify active state styling applies correctly
+6. **Toast Notifications**: Verify appropriate messages display
+
+#### Import Integration Tests
+1. **Explicit Channel Field**: Import with `channel` field, verify filtering works
+2. **Inferred Channel**: Import with `type` field, verify channel inference
+3. **Mixed Channels**: Import both email/sms, verify both filters work
+4. **Default Channel**: Import without channel info, verify defaults to email
+5. **Post-Import Filtering**: Verify filters work immediately after import
 
 ## CSS Specifications
 

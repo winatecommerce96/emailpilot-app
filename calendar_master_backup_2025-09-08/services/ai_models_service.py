@@ -19,7 +19,7 @@ from app.deps import get_db
 from app.deps.secrets import get_secret_manager_service
 
 if TYPE_CHECKING:
-    from app.services.secrets import SecretManagerService
+    from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

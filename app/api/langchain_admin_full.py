@@ -516,7 +516,8 @@ async def stream_run_events(run_id: str, request: Request):
             
             # If run is complete, send final event and close
             if run["status"] in ["completed", "failed", "aborted"]:
-                yield f"data: {json.dumps({'type': 'system', 'message': f'Run {run['status']}'})}\n\n"
+                run_status = run["status"]
+                yield f"data: {json.dumps({'type': 'system', 'message': f'Run {run_status}'})}\n\n"
                 break
             
             # Wait before checking for new events

@@ -10,7 +10,7 @@ from app.services.client_key_resolver import ClientKeyResolver
 from app.deps.firestore import get_db
 from app.services.klaviyo_client import KlaviyoClient
 from app.services.mcp_client import MCPClient
-from app.services.secrets import SecretManagerService
+from app.services.secret_manager import SecretManagerService
 
 logger = logging.getLogger(__name__)
 

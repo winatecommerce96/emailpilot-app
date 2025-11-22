@@ -314,7 +314,7 @@ class SecretManagerDiagnostic:
         test_secret_value = "diagnostic-test-value"
         
         try:
-            from app.services.secrets import SecretManagerService
+            from app.services.secret_manager import SecretManagerService
             
             service = SecretManagerService(self.project_id)
             
@@ -387,7 +387,7 @@ class SecretManagerDiagnostic:
             return
         
         try:
-            from app.services.secrets import SecretManagerService
+            from app.services.secret_manager import SecretManagerService
             
             service = SecretManagerService(self.project_id)
             

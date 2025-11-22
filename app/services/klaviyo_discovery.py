@@ -11,7 +11,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from app.services.secrets import SecretManagerService, SecretNotFoundError
+from app.services.secret_manager import SecretManagerService, SecretNotFoundError
 from app.services.firestore import build_firestore_client
 from google.cloud import firestore
 

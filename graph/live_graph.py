@@ -106,7 +106,7 @@ def pull_klaviyo_node(state: CalendarState) -> CalendarState:
         # Import and use the centralized resolver
         try:
             from app.services.client_key_resolver import ClientKeyResolver
-            from app.services.secrets import SecretManagerService
+            from app.services.secret_manager import SecretManagerService
             from google.cloud import firestore
             
             # Initialize resolver with dependencies
