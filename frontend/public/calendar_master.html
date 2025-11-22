@@ -2938,92 +2938,96 @@
         }
         
         /* ============================================ */
-        /* Multi-Day Campaign Styles */
+        /* Multi-Day Campaign Styles - Spanning Bars */
         /* ============================================ */
-        .multi-day-campaigns {
-            background: rgba(138, 108, 247, 0.05);
-            border-bottom: 1px solid rgba(138, 108, 247, 0.2);
-            padding: 4px;
-            min-height: 28px;
+        .calendar-week-row {
+            display: contents;
             position: relative;
         }
-        
-        .multi-day-campaign {
-            background: linear-gradient(90deg, 
-                rgba(138, 108, 247, 0.3) 0%, 
-                rgba(197, 255, 117, 0.3) 100%);
-            border: 1px solid rgba(138, 108, 247, 0.5);
+
+        .multi-day-bar-container {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 28px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .multi-day-bar {
+            position: absolute;
+            height: 22px;
+            background: linear-gradient(90deg,
+                rgba(138, 108, 247, 0.4) 0%,
+                rgba(197, 255, 117, 0.4) 100%);
+            border: 1px solid rgba(138, 108, 247, 0.6);
             border-radius: 4px;
-            padding: 2px 6px;
             font-size: 11px;
             font-weight: 600;
             color: white;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            position: relative;
-            margin-bottom: 2px;
             cursor: pointer;
             transition: all 0.2s ease;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            padding: 0 6px;
         }
-        
-        .multi-day-campaign:hover {
-            background: linear-gradient(90deg, 
-                rgba(138, 108, 247, 0.5) 0%, 
-                rgba(197, 255, 117, 0.5) 100%);
+
+        .multi-day-bar:hover {
+            background: linear-gradient(90deg,
+                rgba(138, 108, 247, 0.6) 0%,
+                rgba(197, 255, 117, 0.6) 100%);
             transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(138, 108, 247, 0.3);
+            box-shadow: 0 2px 8px rgba(138, 108, 247, 0.4);
+            z-index: 20;
         }
-        
-        .multi-day-campaign.start {
-            border-radius: 4px 0 0 4px;
-            border-right: none;
-        }
-        
-        .multi-day-campaign.middle {
-            border-radius: 0;
+
+        .multi-day-bar.continues-left {
             border-left: none;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            padding-left: 4px;
+        }
+
+        .multi-day-bar.continues-right {
             border-right: none;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
         }
-        
-        .multi-day-campaign.end {
-            border-radius: 0 4px 4px 0;
-            border-left: none;
-        }
-        
-        .multi-day-campaign.single {
-            border-radius: 4px;
-        }
-        
-        .multi-day-campaign-icon {
-            display: inline-block;
+
+        .multi-day-bar-icon {
             margin-right: 4px;
             flex-shrink: 0;
         }
-        
-        .multi-day-campaign-text {
+
+        .multi-day-bar-text {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             flex: 1;
         }
-        
-        .multi-day-campaign {
-            display: flex;
-            align-items: center;
+
+        /* Reserve space in day cells for multi-day bars */
+        .calendar-day .multi-day-spacer {
+            height: 26px;
+            margin-bottom: 2px;
         }
-        
+
         /* Light mode adjustments */
-        body.light-mode .multi-day-campaigns {
-            background: rgba(138, 108, 247, 0.08);
-            border-bottom-color: rgba(138, 108, 247, 0.3);
-        }
-        
-        body.light-mode .multi-day-campaign {
+        body.light-mode .multi-day-bar {
             color: #4a4a4a;
-            background: linear-gradient(90deg, 
-                rgba(138, 108, 247, 0.2) 0%, 
-                rgba(197, 255, 117, 0.4) 100%);
+            background: linear-gradient(90deg,
+                rgba(138, 108, 247, 0.3) 0%,
+                rgba(197, 255, 117, 0.5) 100%);
+        }
+
+        body.light-mode .multi-day-bar:hover {
+            background: linear-gradient(90deg,
+                rgba(138, 108, 247, 0.4) 0%,
+                rgba(197, 255, 117, 0.6) 100%);
         }
         
         /* ============================================ */
@@ -6003,9 +6007,6 @@
                         }
                     }
                     
-                    // Get multi-day campaigns for this day
-                    const multiDayHtml = this.getMultiDayCampaignsForDay(day);
-                    
                     dayDiv.innerHTML = `
                         ${seasonClass}
                         <div class="day-number">${day}</div>
@@ -6026,7 +6027,6 @@
                                 `).join('')}
                             </div>
                         ` : '<div class="calendar-day-header"></div>'}
-                        ${multiDayHtml ? `<div class="multi-day-campaigns">${multiDayHtml}</div>` : ''}
                         <div class="space-y-1">
                             ${dayCampaigns}
                         </div>
@@ -6084,51 +6084,174 @@
 
                     container.appendChild(dayDiv);
                 }
+
+                // Render multi-day spanning bars after grid is built
+                this.renderMultiDayBars(container, year, month, firstDay, daysInMonth);
+            }
+
+            renderMultiDayBars(container, year, month, firstDay, daysInMonth) {
+                // Remove any existing bar container
+                const existingBars = container.parentElement.querySelector('.multi-day-bars-overlay');
+                if (existingBars) existingBars.remove();
+
+                if (!this.multiDayCampaigns || this.multiDayCampaigns.length === 0) return;
+
+                // Create overlay container for bars
+                const barsOverlay = document.createElement('div');
+                barsOverlay.className = 'multi-day-bars-overlay';
+                barsOverlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 10;';
+
+                // Get all day cells for position calculation
+                const dayCells = container.querySelectorAll('.calendar-day');
+                if (dayCells.length === 0) return;
+
+                // Calculate cell dimensions after render
+                setTimeout(() => {
+                    const firstCell = dayCells[0];
+                    const cellWidth = firstCell.offsetWidth;
+                    const cellHeight = firstCell.offsetHeight;
+
+                    // Track vertical slots used per row to stack multiple events
+                    const rowSlots = {};
+
+                    this.multiDayCampaigns.forEach(campaign => {
+                        const startDate = new Date(campaign.startDate);
+                        const endDate = new Date(campaign.endDate);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate.setHours(0, 0, 0, 0);
+
+                        // Process each week the event spans
+                        let currentDate = new Date(startDate);
+
+                        while (currentDate <= endDate) {
+                            // Find the cell index for this date
+                            const cellIndex = this.getCellIndexForDate(currentDate, year, month, firstDay, daysInMonth);
+                            if (cellIndex === -1) {
+                                currentDate.setDate(currentDate.getDate() + 1);
+                                continue;
+                            }
+
+                            // Calculate which row this cell is in
+                            const row = Math.floor(cellIndex / 7);
+
+                            // Find start and end of this segment (within this week row)
+                            const rowStartCell = row * 7;
+                            const rowEndCell = rowStartCell + 6;
+
+                            // Segment start: either event start or beginning of row
+                            let segmentStartIndex = cellIndex;
+                            let segmentStartDate = new Date(currentDate);
+
+                            // Segment end: either event end or end of row
+                            let segmentEndDate = new Date(Math.min(endDate.getTime(), this.getDateForCellIndex(rowEndCell, year, month, firstDay, daysInMonth).getTime()));
+                            let segmentEndIndex = this.getCellIndexForDate(segmentEndDate, year, month, firstDay, daysInMonth);
+
+                            if (segmentEndIndex === -1) segmentEndIndex = rowEndCell;
+
+                            // Get or create slot tracker for this row
+                            if (!rowSlots[row]) rowSlots[row] = [];
+
+                            // Find available slot
+                            let slot = 0;
+                            while (rowSlots[row][slot] && rowSlots[row][slot] > segmentStartIndex) {
+                                slot++;
+                            }
+                            rowSlots[row][slot] = segmentEndIndex + 1;
+
+                            // Calculate bar position
+                            const startCol = segmentStartIndex % 7;
+                            const endCol = segmentEndIndex % 7;
+                            const spanCells = endCol - startCol + 1;
+
+                            const left = startCol * cellWidth + 2;
+                            const width = spanCells * cellWidth - 4;
+                            const top = row * cellHeight + 28 + (slot * 24);
+
+                            // Determine if bar continues from/to adjacent weeks
+                            const continuesLeft = segmentStartDate > startDate;
+                            const continuesRight = segmentEndDate < endDate;
+
+                            const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+
+                            // Create bar element
+                            const bar = document.createElement('div');
+                            bar.className = `multi-day-bar ${continuesLeft ? 'continues-left' : ''} ${continuesRight ? 'continues-right' : ''}`;
+                            bar.style.cssText = `left: ${left}px; width: ${width}px; top: ${top}px;`;
+                            bar.onclick = () => showMultiDayCampaignDetails(campaign.id);
+                            bar.title = `${campaign.name} (${duration} days)`;
+                            bar.innerHTML = `
+                                <span class="multi-day-bar-icon">${campaign.emoji || '📅'}</span>
+                                <span class="multi-day-bar-text">${continuesLeft ? '' : campaign.name}</span>
+                            `;
+
+                            barsOverlay.appendChild(bar);
+
+                            // Move to next week
+                            currentDate = new Date(segmentEndDate);
+                            currentDate.setDate(currentDate.getDate() + 1);
+                        }
+                    });
+
+                    container.parentElement.style.position = 'relative';
+                    container.parentElement.appendChild(barsOverlay);
+                }, 0);
+            }
+
+            getCellIndexForDate(date, year, month, firstDay, daysInMonth) {
+                const d = new Date(date);
+                d.setHours(0, 0, 0, 0);
+
+                // Check if in previous month
+                if (d.getMonth() < month || (d.getMonth() === 11 && month === 0 && d.getFullYear() < year)) {
+                    const prevMonth = month === 0 ? 11 : month - 1;
+                    const prevYear = month === 0 ? year - 1 : year;
+                    if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+                        const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+                        const dayOfPrevMonth = d.getDate();
+                        const cellIndex = firstDay - (daysInPrevMonth - dayOfPrevMonth) - 1;
+                        return cellIndex >= 0 ? cellIndex : -1;
+                    }
+                    return -1;
+                }
+
+                // Check if in current month
+                if (d.getMonth() === month && d.getFullYear() === year) {
+                    return firstDay + d.getDate() - 1;
+                }
+
+                // Check if in next month
+                const nextMonth = month === 11 ? 0 : month + 1;
+                const nextYear = month === 11 ? year + 1 : year;
+                if (d.getMonth() === nextMonth && d.getFullYear() === nextYear) {
+                    return firstDay + daysInMonth + d.getDate() - 1;
+                }
+
+                return -1;
+            }
+
+            getDateForCellIndex(cellIndex, year, month, firstDay, daysInMonth) {
+                if (cellIndex < firstDay) {
+                    // Previous month
+                    const prevMonth = month === 0 ? 11 : month - 1;
+                    const prevYear = month === 0 ? year - 1 : year;
+                    const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+                    const day = daysInPrevMonth - (firstDay - cellIndex - 1);
+                    return new Date(prevYear, prevMonth, day);
+                } else if (cellIndex < firstDay + daysInMonth) {
+                    // Current month
+                    return new Date(year, month, cellIndex - firstDay + 1);
+                } else {
+                    // Next month
+                    const nextMonth = month === 11 ? 0 : month + 1;
+                    const nextYear = month === 11 ? year + 1 : year;
+                    const day = cellIndex - firstDay - daysInMonth + 1;
+                    return new Date(nextYear, nextMonth, day);
+                }
             }
 
             getMultiDayCampaignsForDay(day) {
-                const year = this.selectedDate.getFullYear();
-                const month = this.selectedDate.getMonth();
-                const currentDate = new Date(year, month, day);
-                currentDate.setHours(0, 0, 0, 0);
-                
-                const campaigns = this.multiDayCampaigns.filter(c => {
-                    const startDate = new Date(c.startDate);
-                    const endDate = new Date(c.endDate);
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(0, 0, 0, 0);
-                    
-                    return currentDate >= startDate && currentDate <= endDate;
-                });
-                
-                return campaigns.map(c => {
-                    const startDate = new Date(c.startDate);
-                    const endDate = new Date(c.endDate);
-                    startDate.setHours(0, 0, 0, 0);
-                    endDate.setHours(0, 0, 0, 0);
-                    
-                    let positionClass = 'single';
-                    if (startDate.getTime() === currentDate.getTime() && endDate.getTime() === currentDate.getTime()) {
-                        positionClass = 'single';
-                    } else if (startDate.getTime() === currentDate.getTime()) {
-                        positionClass = 'start';
-                    } else if (endDate.getTime() === currentDate.getTime()) {
-                        positionClass = 'end';
-                    } else {
-                        positionClass = 'middle';
-                    }
-                    
-                    const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-                    
-                    return `
-                        <div class="multi-day-campaign ${positionClass}" 
-                             onclick="showMultiDayCampaignDetails('${c.id}')"
-                             title="${c.name} (${duration} days)">
-                            <span class="multi-day-campaign-icon">${c.emoji || '📅'}</span>
-                            <span class="multi-day-campaign-text">${c.name}</span>
-                        </div>
-                    `;
-                }).join('');
+                // This method is no longer used for rendering but kept for compatibility
+                return '';
             }
             
             getCampaignsForDay(day) {
@@ -9982,7 +10105,10 @@
                         endDate: endDate,
                         type: event.type || 'promotional',
                         description: event.description || '',
-                        color: calendarManager.getMultiDayColor(event.type || 'promotional')
+                        isMultiDay: true,
+                        color: 'multi-day-campaign',
+                        emoji: '📅',
+                        created_at: new Date().toISOString()
                     };
 
                     // Add to multiDayCampaigns array (reminders like holidays)
