@@ -11057,7 +11057,7 @@
         async function terminateWorkflow() {
             try {
                 console.log('🛑 Terminating workflow...');
-                const response = await fetch('https://emailpilot-orchestrator-935786836546.us-central1.run.app/api/system/terminate', {
+                const response = await fetch('https://emailpilot-simple-p3cxgvcsla-uc.a.run.app/api/system/terminate', {
                     method: 'POST'
                 });
 
@@ -11122,7 +11122,7 @@
                     }
 
                     try {
-                        const response = await fetch(`https://emailpilot-orchestrator-935786836546.us-central1.run.app/api/workflows/status/${jobId}`);
+                        const response = await fetch(`https://emailpilot-simple-p3cxgvcsla-uc.a.run.app/api/workflows/status/${jobId}`);
                         if (!response.ok) {
                             throw new Error(`Status check failed: ${response.status}`);
                         }
@@ -11230,7 +11230,7 @@
                 console.log('📤 Multi-day campaigns:', multiDayCampaigns);
                 console.log('📤 Affinity segments:', affinitySegments);
 
-                const response = await fetch(`https://emailpilot-orchestrator-935786836546.us-central1.run.app/api/workflow/start/${clientSlug}`, {
+                const response = await fetch('https://emailpilot-simple-p3cxgvcsla-uc.a.run.app/api/workflows/checkpoint', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
