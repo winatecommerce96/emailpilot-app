@@ -8636,9 +8636,26 @@
                     return (campaignYear === currentYear && campaignMonth === currentMonth);
                 });
 
-                const deletedCount = campaignsToDelete.length;
+                // Find multi-day events that overlap with this month
+                const monthStart = new Date(currentYear, currentMonth, 1);
+                const monthEnd = new Date(currentYear, currentMonth + 1, 0); // Last day of month
 
-                if (deletedCount === 0) {
+                const multiDayToDelete = this.multiDayCampaigns.filter(event => {
+                    const parseLocalDate = (dateStr) => {
+                        if (dateStr instanceof Date) return new Date(dateStr);
+                        const parts = dateStr.split('-');
+                        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    };
+                    const eventStart = parseLocalDate(event.startDate);
+                    const eventEnd = parseLocalDate(event.endDate);
+                    // Event overlaps with month if it starts before month ends and ends after month starts
+                    return eventStart <= monthEnd && eventEnd >= monthStart;
+                });
+
+                const deletedCount = campaignsToDelete.length;
+                const deletedMultiDayCount = multiDayToDelete.length;
+
+                if (deletedCount === 0 && deletedMultiDayCount === 0) {
                     showSaveStatus('error', 'No campaigns to clear in this month');
                     return;
                 }
@@ -8659,6 +8676,12 @@
                     return !(campaignYear === currentYear && campaignMonth === currentMonth);
                 });
 
+                // Remove multi-day events from local array
+                const multiDayIdsToDelete = multiDayToDelete.map(e => e.id);
+                this.multiDayCampaigns = this.multiDayCampaigns.filter(event =>
+                    !multiDayIdsToDelete.includes(event.id)
+                );
+
                 // Update UI immediately
                 this.renderCalendar();
                 this.updateStats();
@@ -8675,13 +8698,27 @@
                     return Promise.resolve();
                 });
 
+                // Delete multi-day events from Firestore
+                const deleteMultiDayPromises = multiDayToDelete.map(event => {
+                    if (event.id) {
+                        return authenticatedFetch(`/api/calendar/multiday-events/${event.id}`, {
+                            method: 'DELETE'
+                        }).catch(err => {
+                            console.warn('Failed to delete multi-day event from Firestore:', event.id, err);
+                        });
+                    }
+                    return Promise.resolve();
+                });
+
                 try {
                     // Wait for all deletes to complete
-                    await Promise.all(deletePromises);
+                    await Promise.all([...deletePromises, ...deleteMultiDayPromises]);
 
                     // Show success feedback
                     const monthName = this.selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-                    showSaveStatus('saved', `✅ Permanently deleted ${deletedCount} campaigns from ${monthName}`);
+                    const totalDeleted = deletedCount + deletedMultiDayCount;
+                    const multiDayText = deletedMultiDayCount > 0 ? ` + ${deletedMultiDayCount} multi-day events` : '';
+                    showSaveStatus('saved', `✅ Permanently deleted ${deletedCount} campaigns${multiDayText} from ${monthName}`);
 
                     // Restart Firestore listener after a delay to allow Firestore to propagate changes
                     if (wasListening) {
