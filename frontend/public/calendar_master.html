@@ -11129,7 +11129,7 @@
                     }
 
                     try {
-                        const response = await fetch(`${getWorkflowBaseUrl()}/api/workflows/status/${jobId}`);
+                        const response = await fetch(`${getWorkflowBaseUrl()}/api/jobs/${jobId}`);
                         if (!response.ok) {
                             throw new Error(`Status check failed: ${response.status}`);
                         }
@@ -11237,7 +11237,7 @@
                 console.log('📤 Multi-day campaigns:', multiDayCampaigns);
                 console.log('📤 Affinity segments:', affinitySegments);
 
-                const response = await fetch(`${getWorkflowBaseUrl()}/api/workflows/checkpoint`, {
+                const response = await fetch(`${getWorkflowBaseUrl()}/api/workflow/run`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
